@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <queries>
+        <!-- TvBaseService's volume receiver (HisenseVolume checks it is there before broadcasting). -->
+        <package android:name="com.hisense.tv.baseservice" />
+    </queries>
+</manifest>

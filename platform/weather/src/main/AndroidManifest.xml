@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Weather (Open-Meteo) and finding the city by IP. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+</manifest>

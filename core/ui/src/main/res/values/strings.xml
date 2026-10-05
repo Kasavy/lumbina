@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="weather_clear">Clear</string>
+    <string name="weather_partly_cloudy">Partly cloudy</string>
+    <string name="weather_cloudy">Cloudy</string>
+    <string name="weather_fog">Fog</string>
+    <string name="weather_drizzle">Drizzle</string>
+    <string name="weather_rain">Rain</string>
+    <string name="weather_snow">Snow</string>
+    <string name="weather_showers">Showers</string>
+    <string name="weather_thunderstorm">Thunderstorm</string>
+    <string name="weather_unknown">—</string>
+    <string name="service_consent_title">Turn on the remote’s service?</string>
+    <string name="service_consent_why">The service lets the remote’s Home button open Lumbina, the mic button start voice input, and the quick menu work over other apps.</string>
+    <string name="service_consent_sees">It sees which remote buttons are pressed and which app is on screen. Voice input types into the focused field.</string>
+    <string name="service_consent_speech">Speech is recognized on the device. If you choose a cloud service under “Voice input”, each phrase is sent to it. Recognized phrases stay only in Lumbina’s log on the device.</string>
+    <string name="service_consent_for_apps">On this device Lumbina also becomes the system speech recognizer for other apps.</string>
+    <string name="service_consent_mic_apps">Lumbina passes the remote’s audio to apps that record the microphone themselves only if you allow it: it asks when such an app starts to record.</string>
+    <string name="service_consent_debugging">Connected by debugging, Lumbina gives itself access to notifications, to show the bell and “Now playing” on the home screen. Where apps have nowhere to publish their channels and “Continue watching”, it installs its own companion app, Lumbina TV Provider.</string>
+    <string name="service_consent_agree">Turn on</string>
+    <string name="service_consent_not_now">Not now</string>
+    <string name="commands_close">Close</string>
+</resources>

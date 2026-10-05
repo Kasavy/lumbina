@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="weather_clear">Ясно</string>
+    <string name="weather_partly_cloudy">Переменная облачность</string>
+    <string name="weather_cloudy">Облачно</string>
+    <string name="weather_fog">Туман</string>
+    <string name="weather_drizzle">Морось</string>
+    <string name="weather_rain">Дождь</string>
+    <string name="weather_snow">Снег</string>
+    <string name="weather_showers">Ливень</string>
+    <string name="weather_thunderstorm">Гроза</string>
+    <string name="weather_unknown">—</string>
+    <string name="service_consent_title">Включить службу пульта?</string>
+    <string name="service_consent_why">Служба нужна, чтобы «Домой» на пульте открывала Lumbina, кнопка микрофона включала голосовой ввод, а быстрое меню работало поверх других приложений.</string>
+    <string name="service_consent_sees">Она видит нажатые кнопки пульта и приложение на экране. Голосовой ввод вписывает текст в выбранное поле.</string>
+    <string name="service_consent_speech">Речь распознаётся на устройстве. Если в разделе «Голосовой ввод» выбран облачный сервис, каждая фраза отправляется в него. Распознанные фразы остаются только в журнале Lumbina на устройстве.</string>
+    <string name="service_consent_for_apps">На этом устройстве Lumbina становится и системным распознавателем речи для других приложений.</string>
+    <string name="service_consent_mic_apps">Приложениям, которые сами записывают микрофон, Lumbina передаёт звук пульта, только если вы разрешите: она спросит, когда приложение начнёт запись.</string>
+    <string name="service_consent_debugging">При подключении через отладку Lumbina выдаёт себе доступ к уведомлениям, чтобы показывать колокольчик и «Сейчас играет» на главном экране. Если приложениям некуда публиковать каналы и «Продолжить просмотр», она ставит своё приложение-компаньон Lumbina TV Provider.</string>
+    <string name="service_consent_agree">Включить</string>
+    <string name="service_consent_not_now">Не сейчас</string>
+    <string name="commands_close">Закрыть</string>
+</resources>

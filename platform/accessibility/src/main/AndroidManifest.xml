@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Never used to record: a speech recognizer must hold it, the system checks it along with
+         the asking app's (LumbinaRecognitionService). The audio comes from the remote. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <application>
+        <!-- Apart from the UI, so keys never wait for its main thread. -->
+        <service
+            android:name="dev.lumbina.tv.platform.accessibility.LumbinaAccessibilityService"
+            android:exported="true"
+            android:label="@string/lumbina_accessibility_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:process="${remoteProcess}">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/lumbina_accessibility_service" />
+        </service>
+
+        <!-- Lumbina as the speech recognizer apps ask with RECOGNIZE_SPEECH: in the service's
+             process, which reads the remote's mic. Opens over the asking app: in its task, or,
+             asked for a new task (SmartTube), in one of its own; never in Lumbina's, which would
+             bring the home screen up behind it. -->
+        <activity
+            android:name="dev.lumbina.tv.platform.accessibility.RecognizeSpeechActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:label="@string/lumbina_accessibility_label"
+            android:process="${remoteProcess}"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- The same for apps that ask with SpeechRecognizer. -->
+        <service
+            android:name="dev.lumbina.tv.platform.accessibility.LumbinaRecognitionService"
+            android:exported="true"
+            android:label="@string/lumbina_accessibility_label"
+            android:process="${remoteProcess}">
+            <intent-filter>
+                <action android:name="android.speech.RecognitionService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.speech"
+                android:resource="@xml/lumbina_recognition_service" />
+        </service>
+    </application>
+</manifest>

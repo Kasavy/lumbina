@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setup_voice">Download speech recognition: %1$s, %2$s.</string>
+    <string name="setup_voice_download">Download</string>
+    <string name="setup_voice_retry">Try again</string>
+    <string name="model_missing">%1$s: not downloaded</string>
+    <string name="model_downloading">%1$s: downloading, %2$d%%</string>
+    <string name="model_unpacking">%1$s: unpacking…</string>
+    <string name="model_installed">%1$s: ready</string>
+    <string name="model_failed_network">%1$s: no connection to the download server</string>
+    <string name="model_failed_corrupt">%1$s: the download was damaged</string>
+    <string name="model_failed_space">%1$s: not enough free space</string>
+    <string name="model_failed_storage">%1$s: could not save the model</string>
+    <string name="setup_starting">Starting the remote’s service… This takes a few seconds after the device is switched on.</string>
+    <string name="setup_one_step">One more step</string>
+    <string name="setup_two_steps">Two more steps</string>
+    <string name="setup_hide">Hide</string>
+    <string name="setup_home_title">The remote’s Home button</string>
+    <string name="setup_home_adb">In the developer settings, turn on “USB debugging” (under “Debugging”). Come back and press “Connect”: Lumbina turns its service on by itself.</string>
+    <string name="setup_home_adb_on">Debugging is on. Press “Connect”: Lumbina turns its service on by itself.</string>
+    <string name="setup_home_connecting">A request appears on the screen: tick “Always allow” and press “Allow”. Then Lumbina turns its service on, which takes a few seconds.</string>
+    <string name="setup_home_turning_on">Connected. Turning the service on…</string>
+    <string name="setup_home_not_allowed">The device didn’t allow the connection. Press “Connect” again and choose “Allow”.</string>
+    <string name="setup_home_not_kept">Connected, but the device didn’t let Lumbina keep its service on. Turn the service on in the accessibility settings or from a computer.</string>
+    <string name="setup_home_failed">Debugging is on, but Lumbina could not connect. Press “Connect” again; if it keeps failing, the diagnostics report says why.</string>
+    <string name="setup_home_debugging_off">Debugging is off: turn it on in the developer settings and press “Connect”.</string>
+    <string name="setup_dev_settings">Developer settings</string>
+    <string name="setup_connect">Connect</string>
+    <string name="setup_trouble">Not working?</string>
+    <string name="setup_from_computer">Turn on from a computer</string>
+    <string name="setup_home_settings">For Home to open Lumbina, turn on Lumbina in the system settings, under “Accessibility”. It stays on after a restart; should the system turn it off anyway (after a crash, say), Home opens the device’s own launcher again: then turn it on there once more.</string>
+    <string name="setup_open_settings">Open settings</string>
+    <string name="setup_home_computer">Home opens the device’s own launcher now. For it to open Lumbina, turn the remote’s service on once, from a computer.</string>
+    <string name="setup_how">How to turn on</string>
+    <string name="setup_voice_title">Voice from the remote</string>
+    <string name="computer_title">Turn on from a computer</string>
+    <string name="computer_text">On a computer on the same network, with adb installed, run these. The QR code holds the same text, to pass it on from a phone.</string>
+    <string name="computer_no_address">Replace &lt;IP&gt; with this device’s address: it is in the device settings, under “Network”, in your network’s details.</string>
+</resources>

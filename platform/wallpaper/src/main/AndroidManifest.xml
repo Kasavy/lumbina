@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Online photos for the screensaver when the user has none of their own. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <queries>
+        <!-- Projectivy wallpaper plugins. -->
+        <intent>
+            <action android:name="tv.projectivy.plugin.WALLPAPER_PROVIDER" />
+        </intent>
+    </queries>
+</manifest>

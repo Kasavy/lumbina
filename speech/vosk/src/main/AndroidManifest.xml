@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Speech models are downloaded on first use (see VoskModelCatalog). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application>
+        <!-- The recognizer and its models: started by the first utterance, let go when idle. -->
+        <service
+            android:name="dev.lumbina.tv.speech.vosk.VoiceService"
+            android:exported="false"
+            android:process="${voiceProcess}" />
+    </application>
+</manifest>

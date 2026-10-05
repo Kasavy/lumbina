@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Plain http is allowed: wallpaper plugins hand over http media (Apple's aerial videos, home
+    Jellyfin/Plex servers on the local network). Lumbina's own requests (weather, photos) use https.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

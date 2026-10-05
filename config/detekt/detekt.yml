@@ -1,0 +1,43 @@
+# Builds on detekt's default config (buildUponDefaultConfig = true); only deviations live here.
+
+style:
+  ForbiddenImport:
+    active: true
+    # Lumbina runs on devices without Google services.
+    forbiddenImports:
+      - value: 'com.google.android.gms.*'
+        reason: 'Lumbina must work without Google Play services.'
+      - value: 'com.google.firebase.*'
+        reason: 'Lumbina must work without Google Play services.'
+  MagicNumber:
+    ignorePropertyDeclaration: true
+    ignoreCompanionObjectPropertyDeclaration: true
+    excludes: ['**/test/**', '**/*Test.kt', '**/designsystem/**']
+  MaxLineLength:
+    maxLineLength: 120
+  ReturnCount:
+    # Early-return guard clauses are the preferred style.
+    max: 3
+    excludeGuardClauses: true
+  UnusedPrivateProperty:
+    allowedNames: '_|ignored|expected|serialVersionUID'
+
+naming:
+  FunctionNaming:
+    # Composables are PascalCase; test names use backticks.
+    ignoreAnnotated: ['Composable']
+    excludes: ['**/test/**']
+  MatchingDeclarationName:
+    active: false
+
+complexity:
+  LongParameterList:
+    ignoreAnnotated: ['Composable']
+  TooManyFunctions:
+    excludes: ['**/test/**']
+
+Compose:
+  ModifierMissing:
+    active: true
+  CompositionLocalAllowlist:
+    active: true

@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_settings">Настройки</string>
+    <string name="home_favorites">Избранное</string>
+    <string name="home_favorites_empty">Удерживайте OK на приложении и выберите «Где показывать…», чтобы закрепить его здесь.</string>
+    <string name="home_category_empty">Пусто. Удерживайте OK на приложении и выберите «Где показывать…», чтобы положить его сюда.</string>
+    <string name="home_action_unavailable">На этом устройстве это недоступно</string>
+
+    <string name="menu_move">Переместить</string>
+    <string name="menu_rename">Переименовать…</string>
+    <string name="menu_voice_name">Голосовое имя…</string>
+    <string name="voice_name_app">Как называть «%1$s» голосом</string>
+    <string name="menu_hide">Скрыть</string>
+    <string name="menu_details">О приложении</string>
+    <string name="menu_uninstall">Удалить</string>
+
+    <string name="pick_new_category">+ Новая категория…</string>
+    <string name="pick_new_folder">+ Новая папка…</string>
+
+    <string name="folder_rename">Переименовать…</string>
+    <string name="folder_dissolve">Расформировать</string>
+
+    <string name="name_app">Переименовать «%1$s»</string>
+    <string name="name_app_hint">Оставьте пустым, чтобы вернуть исходное название</string>
+    <string name="name_category">Новая категория</string>
+    <string name="name_folder">Новая папка</string>
+    <string name="name_save">Сохранить</string>
+    <string name="name_cancel">Отмена</string>
+    <string name="default_category_name">Категория</string>
+    <string name="default_folder_name">Папка</string>
+    <string name="home_sleep_timer">Таймер сна</string>
+    <string name="home_sleep_in">Выключить через %1$d мин</string>
+    <string name="home_sleep_cancel">Отменить таймер</string>
+    <string name="home_sleep_left">Выключение через %1$d мин</string>
+    <string name="home_watch_next">Продолжить просмотр</string>
+    <string name="status_notifications">Уведомления</string>
+    <string name="status_no_notifications">Уведомлений нет</string>
+    <string name="status_clear_notifications">Очистить все</string>
+    <string name="status_no_internet">Нет интернета</string>
+    <string name="home_recently_installed">Недавно установленные</string>
+    <string name="menu_banner">Свой баннер…</string>
+    <string name="banner_title">Баннер для %1$s</string>
+    <string name="banner_none">Пока нет картинок для %1$s</string>
+    <string name="banner_how">Отправьте картинку с телефона через «Пульт на телефоне» и выберите её здесь</string>
+    <string name="banner_restore">Вернуть исходный баннер</string>
+    <string name="media_play">Играть</string>
+    <string name="media_pause">Пауза</string>
+    <string name="media_next">Следующий</string>
+    <string name="media_previous">Предыдущий</string>
+    <string name="home_all_apps">Все приложения</string>
+    <plurals name="home_apps_count">
+        <item quantity="one">%d приложение</item>
+        <item quantity="few">%d приложения</item>
+        <item quantity="many">%d приложений</item>
+        <item quantity="other">%d приложения</item>
+    </plurals>
+    <string name="home_recommendations">Рекомендации</string>
+    <string name="apps_filter_all">Все</string>
+    <string name="apps_filter_tv">ТВ</string>
+    <string name="apps_filter_phone">Мобильные</string>
+    <string name="apps_filter_hidden">Скрытые · %1$d</string>
+    <string name="apps_find">Найти</string>
+    <string name="apps_find_title">Название приложения</string>
+    <string name="apps_hint_hidden">Удерживайте OK на приложении, чтобы показывать его снова</string>
+    <string name="apps_nothing">Здесь пусто</string>
+    <string name="menu_unhide">Показывать снова</string>
+    <string name="home_search">Поиск</string>
+    <string name="home_recommendations_mix">Для вас</string>
+    <string name="status_no_wifi">Нет Wi-Fi</string>
+    <string name="status_weak_signal">Слабый сигнал</string>
+    <string name="home_search_youtube">Поиск в YouTube</string>
+    <string name="home_search_find">Найти</string>
+    <string name="home_frequent">Часто используемые</string>
+    <string name="home_hold_ok_hint">Удерживайте OK на приложении, чтобы переместить, переименовать или скрыть его</string>
+    <string name="apps_order">Порядок</string>
+    <string name="apps_order_by_use">Часто используемые</string>
+    <string name="apps_order_by_name">По алфавиту</string>
+    <string name="apps_order_chip_by_use">Порядок: часто используемые ▾</string>
+    <string name="apps_order_chip_by_name">Порядок: по алфавиту ▾</string>
+    <string name="apps_show">Показать</string>
+    <string name="apps_show_chip">Показать: %1$s ▾</string>
+    <string name="apps_most_used">Часто используемые</string>
+    <string name="apps_the_rest">Остальные по алфавиту</string>
+    <string name="menu_where">Где показывать…</string>
+    <string name="menu_name_banner">Название и баннер…</string>
+    <string name="menu_more">Ещё…</string>
+    <string name="menu_more_hint">О приложении, удалить</string>
+    <string name="where_title">Где показывать %1$s</string>
+    <string name="where_folder">Папка «%1$s»</string>
+    <string name="folder_title">Папка «%1$s»</string>
+    <string name="folder_dissolve_hint">приложения останутся в ряду</string>
+    <string name="move_hint">Перемещение %1$s · ◀ ▶ сдвинуть · OK поставить · Назад отменить</string>
+    <string name="folder_rename_title">Переименовать папку</string>
+    <string name="home_opened">Недавно открытые</string>
+</resources>

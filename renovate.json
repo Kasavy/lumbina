@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "packageRules": [
+    {
+      "description": "AGP, Kotlin, KSP and the Compose compiler move together",
+      "groupName": "build toolchain",
+      "matchPackageNames": [
+        "com.android.tools.build:**",
+        "com.android.application",
+        "com.android.library",
+        "org.jetbrains.kotlin:**",
+        "org.jetbrains.kotlin.**",
+        "com.google.devtools.ksp:**",
+        "com.google.devtools.ksp"
+      ]
+    },
+    {
+      "groupName": "compose",
+      "matchPackageNames": ["androidx.compose:**", "androidx.tv:**"]
+    },
+    {
+      "groupName": "hilt",
+      "matchPackageNames": ["com.google.dagger:**", "com.google.dagger.hilt.android", "androidx.hilt:**"]
+    },
+    {
+      "groupName": "quality tools",
+      "matchPackageNames": ["dev.detekt:**", "dev.detekt", "io.nlopez.compose.rules:**", "com.diffplug.spotless:**", "com.diffplug.spotless"]
+    }
+  ]
+}

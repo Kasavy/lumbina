@@ -1,0 +1,272 @@
+package dev.lumbina.tv.core.domain.home
+
+import dev.lumbina.tv.core.domain.app.App
+import dev.lumbina.tv.core.domain.app.AppId
+import java.text.Collator
+import java.util.Locale
+import kotlinx.coroutines.flow.Flow
+
+/** Something placed in a section: an app, or a folder of apps. */
+sealed interface HomeItem {
+    /** Identifies the item within its section, e.g. for moving it. */
+    val key: String
+
+    data class AppItem(val app: AppId) : HomeItem {
+        override val key: String get() = "app:${app.packageName}/${app.activityName}"
+    }
+
+    data class Folder(val id: String, val name: String, val apps: List<AppId>) : HomeItem {
+        override val key: String get() = "folder:$id"
+    }
+}
+
+enum class SectionStyle { Row, Grid }
+
+/** A row (or grid) on the home screen: the favorites, or a category the user made. */
+data class HomeSection(
+    val id: String,
+    val name: String,
+    val style: SectionStyle = SectionStyle.Row,
+    val items: List<HomeItem> = emptyList(),
+) {
+    val isFavorites: Boolean get() = id == FAVORITES
+
+    /** Every app in the section, including those inside folders. */
+    val apps: List<AppId> get() = items.flatMap { item -> item.apps() }
+
+    companion object {
+        /** The built-in first section. Its name is shown localized, so it is stored empty. */
+        const val FAVORITES = "favorites"
+    }
+}
+
+private fun HomeItem.apps(): List<AppId> = when (this) {
+    is HomeItem.AppItem -> listOf(app)
+    is HomeItem.Folder -> apps
+}
+
+/**
+ * How the user arranged the home screen: sections (favorites first, then categories), apps
+ * they hid and names they gave apps. Invariants: favorites come first; section and folder ids
+ * are unique; an app appears at most once per section; folders are never empty; a hidden app
+ * is in no section. Entries may refer to apps that are not installed (anymore); [arrange]
+ * skips them, so reinstalling brings them back.
+ */
+@Suppress("TooManyFunctions")
+data class HomeLayout(
+    val sections: List<HomeSection> = listOf(HomeSection(HomeSection.FAVORITES, "")),
+    val hidden: Set<AppId> = emptySet(),
+    val labels: Map<AppId, String> = emptyMap(),
+    /** Names to call apps by in voice commands, besides the ones on screen. */
+    val voiceNames: Map<AppId, String> = emptyMap(),
+) {
+    init {
+        require(sections.firstOrNull()?.isFavorites == true) { "favorites must come first" }
+        require(sections.map { it.id }.distinct().size == sections.size) { "duplicate section ids" }
+        val folders = sections.flatMap { it.items }.filterIsInstance<HomeItem.Folder>()
+        require(folders.map { it.id }.distinct().size == folders.size) { "duplicate folder ids" }
+        require(folders.none { it.apps.isEmpty() }) { "empty folder" }
+        sections.forEach { section ->
+            require(section.apps.distinct().size == section.apps.size) { "duplicate app in ${section.id}" }
+            require(section.apps.none { it in hidden }) { "hidden app in ${section.id}" }
+        }
+    }
+
+    val favorites: HomeSection get() = sections.first()
+
+    val categories: List<HomeSection> get() = sections.drop(1)
+
+    fun section(id: String): HomeSection? = sections.firstOrNull { it.id == id }
+
+    // --- Sections ---
+
+    fun addCategory(id: String, name: String): HomeLayout {
+        require(section(id) == null) { "section $id exists" }
+        return copy(sections = sections + HomeSection(id, name))
+    }
+
+    fun renameSection(id: String, name: String): HomeLayout = updateSection(id) { it.copy(name = name) }
+
+    fun setStyle(id: String, style: SectionStyle): HomeLayout = updateSection(id) { it.copy(style = style) }
+
+    /** Deletes a category (its apps stay installed and visible in "all apps"). */
+    fun removeCategory(id: String): HomeLayout =
+        if (id == HomeSection.FAVORITES) this else copy(sections = sections.filterNot { it.id == id })
+
+    /** Moves a category [by] places among the categories; favorites stay first. */
+    fun moveCategory(id: String, by: Int): HomeLayout {
+        val moved = categories.moved(categories.indexOfFirst { it.id == id }, by) ?: return this
+        return copy(sections = listOf(favorites) + moved)
+    }
+
+    // --- Apps in sections ---
+
+    /** Appends [app] to a section unless it is already there, unhiding it. */
+    fun add(sectionId: String, app: AppId): HomeLayout {
+        val section = section(sectionId) ?: return this
+        if (app in section.apps) return this
+        return copy(hidden = hidden - app).updateSection(sectionId) {
+            it.copy(items = it.items + HomeItem.AppItem(app))
+        }
+    }
+
+    /** Takes [app] out of a section, wherever it is in it (a folder left empty goes too). */
+    fun remove(sectionId: String, app: AppId): HomeLayout = updateSection(sectionId) { it.without(app) }
+
+    /** Moves an item [by] places within its section, stopping at either end. */
+    fun moveItem(sectionId: String, key: String, by: Int): HomeLayout = updateSection(sectionId) { section ->
+        section.items.moved(section.items.indexOfFirst { it.key == key }, by)?.let { section.copy(items = it) }
+            ?: section
+    }
+
+    // --- Folders ---
+
+    /** Puts [app] (already in the section) into a new folder at its place. */
+    fun createFolder(sectionId: String, folderId: String, name: String, app: AppId): HomeLayout {
+        require(folder(folderId) == null) { "folder $folderId exists" }
+        return updateSection(sectionId) { section ->
+            val at = section.items.indexOf(HomeItem.AppItem(app))
+            if (at < 0) return@updateSection section
+            section.copy(
+                items = section.items.toMutableList().apply {
+                    set(at, HomeItem.Folder(folderId, name, listOf(app)))
+                },
+            )
+        }
+    }
+
+    /** Moves [app] into a folder, taking it out of wherever else it was in that section. */
+    fun addToFolder(folderId: String, app: AppId): HomeLayout {
+        val sectionId = sectionOf(folderId) ?: return this
+        if (folder(folderId)?.apps?.contains(app) == true) return this
+        return copy(hidden = hidden - app).updateSection(sectionId) { section ->
+            section.without(app).mapFolder(folderId) { listOf(it.copy(apps = it.apps + app)) }
+        }
+    }
+
+    /** Takes [app] out of a folder and places it right after the folder (the folder goes if emptied). */
+    fun removeFromFolder(folderId: String, app: AppId): HomeLayout {
+        val sectionId = sectionOf(folderId) ?: return this
+        return updateSection(sectionId) { section ->
+            section.mapFolder(folderId) { folder ->
+                if (app !in folder.apps) return@mapFolder listOf(folder)
+                val rest = folder.apps - app
+                listOfNotNull(folder.copy(apps = rest).takeIf { rest.isNotEmpty() }, HomeItem.AppItem(app))
+            }
+        }
+    }
+
+    fun renameFolder(folderId: String, name: String): HomeLayout = updateFolder(folderId) { it.copy(name = name) }
+
+    /** Replaces a folder with its apps, in place. */
+    fun dissolveFolder(folderId: String): HomeLayout {
+        val sectionId = sectionOf(folderId) ?: return this
+        return updateSection(sectionId) { section -> section.mapFolder(folderId) { it.apps.map(HomeItem::AppItem) } }
+    }
+
+    fun folder(id: String): HomeItem.Folder? =
+        sections.flatMap { it.items }.filterIsInstance<HomeItem.Folder>().firstOrNull { it.id == id }
+
+    // --- Apps ---
+
+    /** Hides [app] from the home screen, taking it out of every section. */
+    fun hide(app: AppId): HomeLayout = copy(sections = sections.map { it.without(app) }, hidden = hidden + app)
+
+    fun unhide(app: AppId): HomeLayout = copy(hidden = hidden - app)
+
+    /** Gives [app] a custom name; a blank [label] restores the app's own. */
+    fun rename(app: AppId, label: String): HomeLayout =
+        copy(labels = if (label.isBlank()) labels - app else labels + (app to label.trim()))
+
+    /** Gives [app] a name to say in voice commands; a blank [name] takes it away. */
+    fun voiceName(app: AppId, name: String): HomeLayout =
+        copy(voiceNames = if (name.isBlank()) voiceNames - app else voiceNames + (app to name.trim()))
+
+    /**
+     * [installed] under the names people may say: the custom one, a renamed app's own as well, and
+     * the voice name where there is one.
+     */
+    fun spokenNames(installed: List<App>): List<App> =
+        installed.map { app -> labels[app.id]?.let { app.copy(label = it) } ?: app } +
+            installed.filter { it.id in labels } +
+            installed.mapNotNull { app -> voiceNames[app.id]?.let { app.copy(label = it) } }
+
+    /**
+     * What the home screen shows for [installed] apps (custom names applied): each section
+     * with its installed items, every visible app (TV apps first, then by name in [locale]'s
+     * alphabet, ё with е) and the hidden ones for the settings screen.
+     */
+    fun arrange(installed: List<App>, locale: Locale): HomeContent {
+        val byId = installed.associate { it.id to it.copy(label = labels[it.id] ?: it.label) }
+        val names = Collator.getInstance(locale).apply { strength = Collator.SECONDARY }
+        val byName = compareBy<App, String>(names) { it.label }
+        return HomeContent(
+            sections = sections.map { section ->
+                SectionContent(section.id, section.name, section.style, section.items.mapNotNull { it.resolve(byId) })
+            },
+            apps = byId.values.filterNot { it.id in hidden }
+                .sortedWith(compareByDescending<App> { it.isTvApp }.then(byName)),
+            hidden = byId.values.filter { it.id in hidden }.sortedWith(byName),
+        )
+    }
+
+    private fun HomeItem.resolve(byId: Map<AppId, App>): TileContent? = when (this) {
+        is HomeItem.AppItem -> byId[app]?.let { TileContent.AppTile(it, key) }
+
+        is HomeItem.Folder ->
+            apps.mapNotNull(byId::get).takeIf { it.isNotEmpty() }?.let { TileContent.FolderTile(id, name, it, key) }
+    }
+
+    private fun sectionOf(folderId: String): String? =
+        sections.firstOrNull { section -> section.items.any { it is HomeItem.Folder && it.id == folderId } }?.id
+
+    private fun updateSection(id: String, transform: (HomeSection) -> HomeSection): HomeLayout =
+        copy(sections = sections.map { if (it.id == id) transform(it) else it })
+
+    private fun updateFolder(id: String, transform: (HomeItem.Folder) -> HomeItem.Folder): HomeLayout =
+        copy(sections = sections.map { section -> section.mapFolder(id) { listOf(transform(it)) } })
+}
+
+/** [this] section without [app], dropping a folder it leaves empty. */
+private fun HomeSection.without(app: AppId): HomeSection = copy(
+    items = items.mapNotNull { item ->
+        when (item) {
+            is HomeItem.AppItem -> item.takeIf { it.app != app }
+            is HomeItem.Folder -> item.copy(apps = item.apps - app).takeIf { it.apps.isNotEmpty() }
+        }
+    },
+)
+
+/** [this] section with folder [id] replaced by what [transform] makes of it. */
+private fun HomeSection.mapFolder(id: String, transform: (HomeItem.Folder) -> List<HomeItem>): HomeSection =
+    copy(items = items.flatMap { if (it is HomeItem.Folder && it.id == id) transform(it) else listOf(it) })
+
+/** The list with the element at [from] moved [by] places, clamped; null if nothing moves. */
+internal fun <T> List<T>.moved(from: Int, by: Int): List<T>? {
+    if (from < 0) return null
+    val to = (from + by).coerceIn(0, lastIndex)
+    if (to == from) return null
+    return toMutableList().apply { add(to, removeAt(from)) }
+}
+
+data class HomeContent(val sections: List<SectionContent>, val apps: List<App>, val hidden: List<App>)
+
+data class SectionContent(val id: String, val name: String, val style: SectionStyle, val tiles: List<TileContent>) {
+    val isFavorites: Boolean get() = id == HomeSection.FAVORITES
+}
+
+sealed interface TileContent {
+    val key: String
+
+    data class AppTile(val app: App, override val key: String) : TileContent
+
+    data class FolderTile(val id: String, val name: String, val apps: List<App>, override val key: String) : TileContent
+}
+
+/** Persisted [HomeLayout]. */
+interface HomeLayoutRepository {
+    val layout: Flow<HomeLayout>
+
+    /** Applies [transform] atomically to the stored layout. */
+    suspend fun update(transform: (HomeLayout) -> HomeLayout)
+}

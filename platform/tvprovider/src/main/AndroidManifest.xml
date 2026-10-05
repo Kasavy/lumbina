@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        Channels and "continue watching" that apps publish to the TV Provider (the device's own, or
+        Lumbina TV Provider where there is none). On a system provider, reading other apps' rows needs
+        a privileged permission, so there Lumbina may see less.
+    -->
+    <!-- A runtime permission: with it, the system provider (Android 9 on the Mi Box 4) gives other
+         apps' channels and "continue watching" too, without the privileged one below. -->
+    <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
+    <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
+    <uses-permission android:name="com.android.providers.tv.permission.ACCESS_ALL_EPG_DATA" />
+
+    <queries>
+        <provider android:authorities="android.media.tv" />
+    </queries>
+</manifest>

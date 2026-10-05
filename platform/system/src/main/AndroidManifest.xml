@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- The network icon on the home screen. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- "Uninstall" in an app's menu hands the app to the system uninstaller. -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <!-- Granted by the user over adb; lets HealJob re-enable our accessibility service after boot. -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+
+    <queries>
+        <!-- The apps that open YouTube links (AndroidYouTubeApps tells them from browsers). -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+        <!-- The system's own search (Google TV, Android TV) for the search button. -->
+        <intent>
+            <action android:name="android.intent.action.ASSIST" />
+        </intent>
+        <!-- To offer "App info" only where the firmware has that screen. -->
+        <intent>
+            <action android:name="android.settings.APPLICATION_DETAILS_SETTINGS" />
+            <data android:scheme="package" />
+        </intent>
+        <!-- The setup card offers the accessibility settings only where the firmware has them; the
+             others are the fallbacks for screens the firmware lacks (AndroidSetupScreens). -->
+        <intent>
+            <action android:name="android.settings.ACCESSIBILITY_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.USAGE_ACCESS_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.MANAGE_APPLICATIONS_SETTINGS" />
+        </intent>
+    </queries>
+
+    <application>
+        <service
+            android:name="dev.lumbina.tv.platform.system.LumbinaNotificationListener"
+            android:exported="true"
+            android:label="Lumbina"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Beside the service it heals, so a check doesn't start the UI's process. -->
+        <service
+            android:name="dev.lumbina.tv.platform.system.HealJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:process="${remoteProcess}" />
+
+        <receiver
+            android:name="dev.lumbina.tv.platform.system.HealJob$Trigger"
+            android:exported="true"
+            android:process="${remoteProcess}">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

@@ -1,0 +1,100 @@
+Lumbina
+Copyright 2026 The Lumbina Authors
+
+This program is free software: you can redistribute it and/or modify it under the terms of the
+GNU General Public License, version 3, as published by the Free Software Foundation (see
+LICENSE). It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+The name "Lumbina" and its icons are not covered by that license: see TRADEMARKS.md.
+
+Third-party components:
+
+- AndroidX, Jetpack Compose, Compose for TV, Room, DataStore, Navigation, Media3
+  Apache License 2.0 — The Android Open Source Project
+- Material Icons and Material Symbols (the icons in res/drawable that name them)
+  Apache License 2.0 — Google LLC
+- Dagger / Hilt
+  Apache License 2.0 — The Dagger Authors
+- javax.inject (JSR-330)
+  Apache License 2.0 — The JSR-330 Expert Group
+- Jakarta Dependency Injection (used by Dagger)
+  Apache License 2.0 — Eclipse Foundation and the project's contributors
+- Guava ListenableFuture, JSR-305 annotations, JSpecify annotations (used by AndroidX and Dagger)
+  Apache License 2.0 — The Guava Authors, the JSR-305 Expert Group, The JSpecify Authors
+- Kotlin, kotlinx.coroutines, kotlinx.serialization
+  Apache License 2.0 — JetBrains s.r.o. and Kotlin Programming Language contributors
+- Coil
+  Apache License 2.0 — Coil Contributors
+- Okio, Compose Multiplatform, Accompanist Drawable Painter (used by Coil)
+  Apache License 2.0 — Square, Inc.; JetBrains s.r.o.; Google LLC
+- ZXing core (QR codes)
+  Apache License 2.0 — ZXing authors
+- Vosk speech recognition (vosk-android)
+  Apache License 2.0 — Alpha Cephei Inc.
+- Kaldi and OpenFst (inside Vosk's native library, libvosk.so)
+  Apache License 2.0 — the Kaldi authors; Google LLC and the OpenFst authors
+- OpenBLAS (inside libvosk.so)
+  BSD 3-Clause License — Copyright (c) 2011-2014, The OpenBLAS Project; the text is below
+- JNA (Java Native Access, used by Vosk)
+  Apache License 2.0 / LGPL 2.1 (used under Apache 2.0) — the JNA authors
+- Projectivy wallpaper-provider plugin API
+  Apache License 2.0 — spocky (https://github.com/spocky/projectivy-plugin-wallpaper-provider)
+- Golos Text (the name on the TV banner, as outlines in app/src/main/res/drawable/banner.xml)
+  SIL Open Font License 1.1 — The Golos Text Project Authors (https://github.com/googlefonts/golos-text)
+
+Screensaver fallback photos (platform/wallpaper/src/main/res/raw/fallback_*.jpg), CC0 1.0,
+from Wikimedia Commons (originally Unsplash):
+- fallback_lake.jpg: "Clouds mirrored in a mountain lake", Ales Krivec
+  https://commons.wikimedia.org/wiki/File:Clouds_mirrored_in_a_mountain_lake_(Unsplash).jpg
+- fallback_forest.jpg: "Evergreen forest wreathed in fog", Milo McDowell
+  https://commons.wikimedia.org/wiki/File:Evergreen_forest_wreathed_in_fog_(Unsplash).jpg
+- fallback_sunset.jpg: "Leigh-on-Sea beach sunset", Joshua Fuller
+  https://commons.wikimedia.org/wiki/File:Leigh-on-Sea_beach_sunset_(Unsplash).jpg
+
+Speech models (Vosk small models, e.g. vosk-model-small-ru, vosk-model-small-en-us) are not
+bundled; they are downloaded at runtime from alphacephei.com (or a mirror) under their own
+licenses.
+
+Screenshots (docs/screenshots). The stills in "continue watching" are from the Blender
+Foundation's open movies, taken from Wikimedia Commons:
+- Tears of Steel: (CC) Blender Foundation, mango.blender.org, CC BY 3.0
+- Spring: (CC) Blender Foundation, cloud.blender.org/spring, CC BY 4.0
+- Caminandes: Llamigos: (CC) Blender Foundation, caminandes.com, CC BY 4.0
+- Elephants Dream: (CC) Blender Foundation, orange.blender.org, CC BY 2.5
+- Charge: (CC) Blender Foundation, studio.blender.org, CC BY 4.0
+The wallpaper and the screensaver show the fallback photos listed above. The app tiles show
+the names and banners of those apps, which belong to their owners and are shown as a launcher
+shows them; Lumbina is not affiliated with any of them.
+
+Data shown by Lumbina:
+
+- Weather: data from MET Norway (https://api.met.no), under the Norwegian Licence for Open
+  Government Data 2.0 and CC BY 4.0, and from Open-Meteo (https://open-meteo.com), CC BY 4.0.
+  Open-Meteo's free API is for non-commercial use.
+
+OpenBLAS license (BSD 3-Clause):
+
+Copyright (c) 2011-2014, The OpenBLAS Project
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted
+provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this list of
+   conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice, this list of
+   conditions and the following disclaimer in the documentation and/or other materials provided
+   with the distribution.
+3. Neither the name of the OpenBLAS project nor the names of its contributors may be used to
+   endorse or promote products derived from this software without specific prior written
+   permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY
+WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

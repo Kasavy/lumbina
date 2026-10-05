@@ -1,0 +1,264 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0e1014">
+<title>Lumbina</title>
+<style>
+  :root { --bg: #0e1014; --card: #1b1f27; --key: #2a303b; --accent: #ffb74d; --text: #eceff4; --dim: #9aa3b2; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px system-ui, sans-serif;
+         padding: env(safe-area-inset-top) 12px 24px; user-select: none; -webkit-user-select: none; }
+  h1 { font-size: 18px; font-weight: 600; margin: 14px 4px; display: flex; justify-content: space-between; }
+  #status { color: var(--dim); font-weight: 400; font-size: 14px; }
+  section { background: var(--card); border-radius: 18px; padding: 14px; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .row { display: flex; gap: 10px; margin-top: 10px; }
+  .row > * { flex: 1; }
+  button { background: var(--key); color: var(--text); border: 0; border-radius: 14px; font-size: 20px;
+           padding: 16px 0; touch-action: manipulation;
+           -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  button:active { background: var(--accent); color: #000; }
+  button.ok { background: var(--accent); color: #000; font-weight: 700; }
+  .blank { visibility: hidden; }
+  #pad { height: 42vh; border-radius: 14px; background: #232833; display: flex; align-items: center;
+         justify-content: center; color: var(--dim); text-align: center; touch-action: none; font-size: 14px; }
+  input[type=text], input[type=url], input[type=password] { width: 100%; background: #0e1014; color: var(--text); border: 1px solid #333a46;
+         border-radius: 12px; padding: 14px; font-size: 16px; user-select: text; -webkit-user-select: text; }
+  .field { display: flex; gap: 10px; }
+  .field button { flex: 0 0 auto; padding: 0 18px; font-size: 16px; }
+  label { color: var(--dim); font-size: 14px; display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .hint { color: var(--dim); font-size: 13px; margin-top: 8px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+  .tabs button { font-size: 15px; padding: 10px 0; flex: 1; }
+  .tabs button.on { background: var(--accent); color: #000; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<h1><span>Lumbina</span><span id="status"></span></h1>
+
+<div class="tabs">
+  <button data-tab="remote" class="on" data-t="remote"></button>
+  <button data-tab="pad" data-t="touchpad"></button>
+  <button data-tab="more" data-t="more"></button>
+</div>
+
+<div id="tab-remote">
+  <section>
+    <div class="grid">
+      <span class="blank"></span><button data-key="up">▲</button><span class="blank"></span>
+      <button data-key="left">◀</button><button data-key="ok" class="ok">OK</button><button data-key="right">▶</button>
+      <span class="blank"></span><button data-key="down">▼</button><span class="blank"></span>
+    </div>
+    <div class="row">
+      <button data-key="back">↩</button><button data-key="home">⌂</button>
+    </div>
+  </section>
+  <section>
+    <div class="row" style="margin-top:0">
+      <button data-key="previous">⏮</button><button data-key="pause">⏸</button>
+      <button data-key="play">▶</button><button data-key="next">⏭</button>
+    </div>
+    <div class="row">
+      <button data-key="voldown">🔉</button><button data-key="mute">🔇</button><button data-key="volup">🔊</button>
+    </div>
+  </section>
+</div>
+
+<div id="tab-pad" class="hidden">
+  <section>
+    <div id="pad" data-t="padHint"></div>
+    <div class="row">
+      <button data-key="back">↩</button><button id="longclick" data-t="hold"></button><button data-key="home">⌂</button>
+    </div>
+  </section>
+</div>
+
+<div id="tab-more" class="hidden">
+  <section>
+    <div class="field"><input id="text" type="text" autocomplete="off"><button id="sendText" data-t="send"></button></div>
+    <div class="hint" data-t="textHint"></div>
+  </section>
+  <section>
+    <div class="field"><input id="link" type="url" autocomplete="off" placeholder="https://"><button id="sendLink" data-t="open"></button></div>
+    <div class="hint" data-t="linkHint"></div>
+  </section>
+  <section>
+    <input id="file" type="file" accept="image/*,video/*" class="hidden">
+    <button id="pick" style="width:100%" data-t="upload"></button>
+    <label><input id="asWallpaper" type="checkbox" checked><span data-t="asWallpaper"></span></label>
+    <div class="hint" id="uploadStatus"></div>
+  </section>
+  <section>
+    <div class="hint" data-t="keysTitle"></div>
+    <div class="field"><input id="openaiKey" type="password" autocomplete="off" placeholder="OpenAI"><button id="saveOpenai" data-t="save"></button></div>
+    <div class="field" style="margin-top:10px"><input id="yandexKey" type="password" autocomplete="off" placeholder="Yandex SpeechKit"><button id="saveYandex" data-t="save"></button></div>
+    <div class="hint" data-t="keysHint"></div>
+    <div class="hint" id="keysStatus"></div>
+  </section>
+</div>
+
+<script>
+(function () {
+  var ru = (navigator.language || '').toLowerCase().indexOf('ru') === 0;
+  var T = ru ? {
+    remote: 'Пульт', touchpad: 'Тачпад', more: 'Ещё', hold: 'Удержать',
+    padHint: 'Водите пальцем — курсор на экране.\nКасание — нажать, два пальца — прокрутка.',
+    send: 'Ввести', textHint: 'Текст попадёт в поле ввода на экране (поиск и т. п.).',
+    open: 'Открыть', linkHint: 'Ссылки YouTube откроются в приложении, выбранном для YouTube.',
+    upload: 'Отправить фото или видео', asWallpaper: 'Сразу поставить на обои',
+    ok: 'подключено', noKey: 'откройте ссылку из QR-кода заново', offline: 'нет связи',
+    sending: 'Отправка… ', saved: 'Сохранено', failed: 'Не получилось',
+    noArrows: 'стрелки на этом ТВ не работают — используйте тачпад',
+    keysTitle: 'Облачное распознавание речи: ключи API', save: 'Сохранить',
+    keysHint: 'Ключ хранится на ТВ зашифрованным и сюда не возвращается. Сервис выбирается в настройках Lumbina, в разделе «Голосовой ввод». Чтобы удалить ключ, сохраните пустое поле.',
+    keySaved: 'Ключ сохранён', keyRemoved: 'Ключ удалён'
+  } : {
+    remote: 'Remote', touchpad: 'Touchpad', more: 'More', hold: 'Hold',
+    padHint: 'Move your finger to move the pointer.\nTap to click, two fingers to scroll.',
+    send: 'Type', textHint: 'The text goes into the text field on the screen (search etc.).',
+    open: 'Open', linkHint: 'YouTube links open in the app chosen for YouTube.',
+    upload: 'Send a photo or video', asWallpaper: 'Use as wallpaper right away',
+    ok: 'connected', noKey: 'open the link from the QR code again', offline: 'no connection',
+    sending: 'Sending… ', saved: 'Saved', failed: 'Did not work',
+    noArrows: 'arrows don\'t work on this TV — use the touchpad',
+    keysTitle: 'Cloud speech recognition: API keys', save: 'Save',
+    keysHint: 'The key is kept on the TV encrypted and never shown back here. Choose the service in Lumbina’s settings, under “Voice input”. To remove a key, save an empty field.',
+    keySaved: 'Key saved', keyRemoved: 'Key removed'
+  };
+  document.querySelectorAll('[data-t]').forEach(function (el) { el.textContent = T[el.dataset.t]; });
+  var status = document.getElementById('status');
+
+  var params = new URLSearchParams(location.search);
+  var key = params.get('k') || localStorage.getItem('lumbinaKey') || '';
+  if (params.get('k')) localStorage.setItem('lumbinaKey', key);
+
+  function call(command, query, body) {
+    var url = '/api/' + command + (query ? '?' + query : '');
+    return fetch(url, { method: 'POST', body: body, headers: { 'X-Key': key } })
+      .then(function (r) {
+        status.textContent = r.status === 403 ? T.noKey : T.ok;
+        return r.ok ? r.json() : { ok: false };
+      })
+      .catch(function () { status.textContent = T.offline; return { ok: false }; });
+  }
+
+  document.querySelectorAll('.tabs button').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('.tabs button').forEach(function (b) { b.classList.toggle('on', b === tab); });
+      ['remote', 'pad', 'more'].forEach(function (name) {
+        document.getElementById('tab-' + name).classList.toggle('hidden', name !== tab.dataset.tab);
+      });
+    });
+  });
+
+  // Home as on the remote: a tap opens Lumbina, two taps the recent apps, holding it the quick menu.
+  var HOLD_MS = 500, DOUBLE_MS = 300;
+  document.querySelectorAll('[data-key="home"]').forEach(function (b) {
+    var holdTimer = null, tapTimer = null, held = false;
+    function press(key) {
+      if (navigator.vibrate) navigator.vibrate(key === 'home' ? 10 : 30);
+      call('key', 'b=' + key);
+    }
+    b.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    b.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      held = false;
+      holdTimer = setTimeout(function () { held = true; holdTimer = null; press('homelong'); }, HOLD_MS);
+    });
+    function release(e) {
+      e.preventDefault();
+      if (!holdTimer) return; // held already (or never pressed): nothing more on release
+      clearTimeout(holdTimer); holdTimer = null;
+      if (held) return;
+      if (tapTimer) { clearTimeout(tapTimer); tapTimer = null; press('homedouble'); return; }
+      tapTimer = setTimeout(function () { tapTimer = null; press('home'); }, DOUBLE_MS);
+    }
+    b.addEventListener('pointerup', release);
+    b.addEventListener('pointercancel', function () { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } });
+  });
+
+  document.querySelectorAll('[data-key]:not([data-key="home"])').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (navigator.vibrate) navigator.vibrate(10);
+      call('key', 'b=' + b.dataset.key).then(function (r) {
+        // The TV says when its Android can't take arrows; the touchpad works everywhere.
+        if (r.error === 'sdk') status.textContent = T.noArrows;
+      });
+    });
+  });
+
+  // Touchpad: moves are summed and sent at most every 40 ms; a short touch without movement clicks.
+  var pad = document.getElementById('pad'), dx = 0, dy = 0, last = null, moved = 0, fingers = 0, started = 0, timer = null;
+  function flush() {
+    timer = null;
+    if (fingers >= 2) { if (dy) call('scroll', 'dy=' + Math.round(dy)); }
+    else if (dx || dy) call('move', 'dx=' + Math.round(dx) + '&dy=' + Math.round(dy));
+    dx = 0; dy = 0;
+  }
+  pad.addEventListener('touchstart', function (e) {
+    e.preventDefault();
+    fingers = e.touches.length; last = e.touches[0]; moved = 0; started = Date.now();
+  }, { passive: false });
+  pad.addEventListener('touchmove', function (e) {
+    e.preventDefault();
+    var t = e.touches[0];
+    if (last) { dx += t.clientX - last.clientX; dy += t.clientY - last.clientY; moved += Math.abs(t.clientX - last.clientX) + Math.abs(t.clientY - last.clientY); }
+    last = t;
+    if (!timer) timer = setTimeout(flush, 40);
+  }, { passive: false });
+  pad.addEventListener('touchend', function (e) {
+    e.preventDefault();
+    if (e.touches.length === 0) {
+      if (moved < 8 && fingers === 1 && Date.now() - started < 400) call('click');
+      last = null;
+    }
+  }, { passive: false });
+  document.getElementById('longclick').addEventListener('click', function () { call('longclick'); });
+
+  function sendField(id, command) {
+    var input = document.getElementById(id);
+    if (!input.value.trim()) return;
+    call(command, '', input.value).then(function (r) { if (r.ok) input.value = ''; });
+  }
+  document.getElementById('sendText').addEventListener('click', function () { sendField('text', 'text'); });
+  document.getElementById('text').addEventListener('keydown', function (e) { if (e.key === 'Enter') sendField('text', 'text'); });
+  document.getElementById('sendLink').addEventListener('click', function () { sendField('link', 'link'); });
+
+  function saveKey(id, provider) {
+    var input = document.getElementById(id), keysStatus = document.getElementById('keysStatus');
+    var removing = !input.value.trim();
+    call('speechkey', 'p=' + provider, input.value).then(function (r) {
+      keysStatus.textContent = r.ok ? (removing ? T.keyRemoved : T.keySaved) : T.failed;
+      if (r.ok) input.value = '';
+    });
+  }
+  document.getElementById('saveOpenai').addEventListener('click', function () { saveKey('openaiKey', 'openai'); });
+  document.getElementById('saveYandex').addEventListener('click', function () { saveKey('yandexKey', 'yandex'); });
+  document.getElementById('link').addEventListener('keydown', function (e) { if (e.key === 'Enter') sendField('link', 'link'); });
+
+  var file = document.getElementById('file'), uploadStatus = document.getElementById('uploadStatus');
+  document.getElementById('pick').addEventListener('click', function () { file.click(); });
+  file.addEventListener('change', function () {
+    var f = file.files[0];
+    if (!f) return;
+    var wallpaper = document.getElementById('asWallpaper').checked ? '1' : '0';
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload?wallpaper=' + wallpaper + '&name=' + encodeURIComponent(f.name));
+    xhr.setRequestHeader('X-Key', key);
+    xhr.upload.onprogress = function (e) { if (e.lengthComputable) uploadStatus.textContent = T.sending + Math.round(e.loaded * 100 / e.total) + '%'; };
+    xhr.onload = function () {
+      var ok = false; try { ok = JSON.parse(xhr.responseText).ok; } catch (ignored) {}
+      uploadStatus.textContent = ok ? T.saved : T.failed; file.value = '';
+    };
+    xhr.onerror = function () { uploadStatus.textContent = T.failed; };
+    xhr.send(f);
+  });
+
+  call('ping');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lumbina_accessibility_label" translatable="false">Lumbina</string>
+    <string name="lumbina_accessibility_description">Lets the remote\'s Home button open Lumbina (a long press opens the quick menu) and turns the mic button into voice input.</string>
+    <string name="voice_listening">Listening…</string>
+    <string name="voice_heard">“%1$s”</string>
+    <string name="voice_not_heard">Didn\'t catch that</string>
+    <string name="voice_no_speech">Heard nothing</string>
+    <string name="voice_no_field">Nowhere to type “%1$s”. Select a text field first</string>
+    <string name="voice_failed">Couldn’t recognize that. Try again</string>
+    <string name="voice_no_key">The speech service has no key: enter it in “Voice input” in Lumbina\'s settings</string>
+    <string name="voice_key_refused">The speech service refused the key: check it in “Voice input” in Lumbina\'s settings</string>
+    <string name="voice_no_network">Can\'t reach the speech service: check the network</string>
+    <string name="voice_for_apps_unavailable">Lumbina\'s voice input isn\'t ready: open Lumbina and check “Voice input” in its settings</string>
+    <string name="voice_language_auto">Voice: automatic</string>
+    <string name="voice_language_only">Voice: %1$s only</string>
+    <string name="switcher_title">Recent apps</string>
+    <string name="switcher_hint">◀ ▶ choose · OK switch · Back leave</string>
+    <string name="switcher_empty">Apps you open will show up here.</string>
+    <string name="sleep_warning">Turning off in %1$d s</string>
+    <string name="voice_opened">Opening %1$s</string>
+    <string name="voice_closed">Closing %1$s</string>
+    <string name="voice_app_not_found">No app called “%1$s”</string>
+    <string name="voice_not_opened">%1$s did not open</string>
+    <string name="voice_ambiguous">Which one: %1$s? Say the name again, more exactly</string>
+    <string name="voice_searched">Searching for “%1$s”</string>
+    <string name="voice_sleep_cancelled">Sleep timer cancelled</string>
+    <string name="voice_sleep_now">Turning off</string>
+    <plurals name="voice_sleep_in">
+        <item quantity="one">Turning off in %d minute</item>
+        <item quantity="other">Turning off in %d minutes</item>
+    </plurals>
+    <string name="voice_not_done">This device does not allow that</string>
+    <string name="quick_title">Lumbina</string>
+    <string name="quick_hint">Volume, picture and power stay on the remote’s buttons</string>
+    <string name="quick_sleep">Sleep timer</string>
+    <string name="quick_sleep_left">%1$d min</string>
+    <string name="quick_off">Off</string>
+    <string name="quick_phone">Phone remote</string>
+    <string name="quick_lumbina_settings">Lumbina settings</string>
+    <string name="quick_stock_launcher">%1$s launcher</string>
+    <string name="quick_recent_apps">Recent apps</string>
+    <string name="sleep_extend">+%1$d minutes</string>
+    <string name="sleep_timer_off">Cancel the timer</string>
+    <string name="sleep_stay">Stay on</string>
+    <string name="mic_app_question">The app “%1$s” started recording. Let it hear the remote?</string>
+    <string name="mic_app_later">Not now</string>
+    <string name="mic_app_allow">Allow</string>
+    <string name="mic_app_never">Never</string>
+    <string name="mic_app_allowed">Done. Start recording in the app once more.</string>
+    <string name="switcher_hint_close">◀ ▶ choose · OK switch · holding OK closes the app · Back leave</string>
+</resources>

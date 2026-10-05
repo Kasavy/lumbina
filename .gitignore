@@ -1,0 +1,24 @@
+*.iml
+.gradle/
+.kotlin/
+/local.properties
+.idea/
+.DS_Store
+build/
+captures/
+
+# Editor state of a notes app pointed at docs/.
+docs/.obsidian/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+!**/src/**/*.apk
+
+# Release signing lives in CI secrets / a local, uncommitted file.
+/release.keystore
+/keystore.properties
+
+# Icon generator: the downloaded font and the SVG previews.
+scripts/design/Golos.ttf
+scripts/design/preview/

@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_settings">Settings</string>
+    <string name="home_favorites">Favorites</string>
+    <string name="home_favorites_empty">Hold OK on an app and choose “Where to show…” to pin it here.</string>
+    <string name="home_category_empty">Empty. Hold OK on an app and choose “Where to show…” to put it here.</string>
+    <string name="home_action_unavailable">This device does not offer that</string>
+
+    <string name="menu_move">Move</string>
+    <string name="menu_rename">Rename…</string>
+    <string name="menu_voice_name">Voice name…</string>
+    <string name="voice_name_app">What to call “%1$s” by voice</string>
+    <string name="menu_hide">Hide</string>
+    <string name="menu_details">App info</string>
+    <string name="menu_uninstall">Uninstall</string>
+
+    <string name="pick_new_category">+ New category…</string>
+    <string name="pick_new_folder">+ New folder…</string>
+
+    <string name="folder_rename">Rename…</string>
+    <string name="folder_dissolve">Ungroup</string>
+
+    <string name="name_app">Rename “%1$s”</string>
+    <string name="name_app_hint">Leave it empty to bring back the app’s own name</string>
+    <string name="name_category">New category</string>
+    <string name="name_folder">New folder</string>
+    <string name="name_save">Save</string>
+    <string name="name_cancel">Cancel</string>
+    <string name="default_category_name">Category</string>
+    <string name="default_folder_name">Folder</string>
+    <string name="home_sleep_timer">Sleep timer</string>
+    <string name="home_sleep_in">Turn off in %1$d min</string>
+    <string name="home_sleep_cancel">Cancel the timer</string>
+    <string name="home_sleep_left">Off in %1$d min</string>
+    <string name="home_watch_next">Continue watching</string>
+    <string name="status_notifications">Notifications</string>
+    <string name="status_no_notifications">No notifications</string>
+    <string name="status_clear_notifications">Clear all</string>
+    <string name="status_no_internet">No internet</string>
+    <string name="home_recently_installed">Recently installed</string>
+    <string name="menu_banner">Own banner…</string>
+    <string name="banner_title">Banner for %1$s</string>
+    <string name="banner_none">No pictures for %1$s yet</string>
+    <string name="banner_how">Send a picture from a phone with “Phone remote”, then choose it here</string>
+    <string name="banner_restore">Bring back the app\'s own banner</string>
+    <string name="media_play">Play</string>
+    <string name="media_pause">Pause</string>
+    <string name="media_next">Next</string>
+    <string name="media_previous">Previous</string>
+    <string name="home_all_apps">All apps</string>
+    <plurals name="home_apps_count">
+        <item quantity="one">%d app</item>
+        <item quantity="other">%d apps</item>
+    </plurals>
+    <string name="home_recommendations">Recommendations</string>
+    <string name="apps_filter_all">All</string>
+    <string name="apps_filter_tv">TV</string>
+    <string name="apps_filter_phone">Phone</string>
+    <string name="apps_filter_hidden">Hidden · %1$d</string>
+    <string name="apps_find">Find</string>
+    <string name="apps_find_title">App name</string>
+    <string name="apps_hint_hidden">Hold OK on an app to show it again</string>
+    <string name="apps_nothing">Nothing here</string>
+    <string name="menu_unhide">Show again</string>
+    <string name="home_search">Search</string>
+    <string name="home_recommendations_mix">For you</string>
+    <string name="status_no_wifi">No Wi-Fi</string>
+    <string name="status_weak_signal">Weak signal</string>
+    <string name="home_search_youtube">Search YouTube</string>
+    <string name="home_search_find">Find</string>
+    <string name="home_frequent">Frequently used</string>
+    <string name="home_hold_ok_hint">Hold OK on an app to move, rename or hide it</string>
+    <string name="apps_order">Order</string>
+    <string name="apps_order_by_use">Frequently used</string>
+    <string name="apps_order_by_name">Alphabetical</string>
+    <string name="apps_order_chip_by_use">Order: frequently used ▾</string>
+    <string name="apps_order_chip_by_name">Order: alphabetical ▾</string>
+    <string name="apps_show">Show</string>
+    <string name="apps_show_chip">Show: %1$s ▾</string>
+    <string name="apps_most_used">Frequently used</string>
+    <string name="apps_the_rest">The rest, alphabetical</string>
+    <string name="menu_where">Where to show…</string>
+    <string name="menu_name_banner">Name and banner…</string>
+    <string name="menu_more">More…</string>
+    <string name="menu_more_hint">App info, uninstall</string>
+    <string name="where_title">Where to show %1$s</string>
+    <string name="where_folder">Folder “%1$s”</string>
+    <string name="folder_title">Folder “%1$s”</string>
+    <string name="folder_dissolve_hint">apps stay in the row</string>
+    <string name="move_hint">Moving %1$s · ◀ ▶ shift · OK put down · Back cancel</string>
+    <string name="folder_rename_title">Rename folder</string>
+    <string name="home_opened">Recently opened</string>
+</resources>
