@@ -36,19 +36,25 @@ internal class TvProviderCompanion @Inject constructor(
     /** `pm` reads the APK from the shell's input: it can't open files in an app's folder itself. */
     override suspend fun install(adb: LocalAdb): Boolean {
         val apk = stage() ?: return false
-        val installed = try {
-            adb.shell("pm install -r -S ${apk.length()} < '${apk.absolutePath}'")?.contains("Success") == true
+        val answer = try {
+            adb.shell("pm install -r -S ${apk.length()} < '${apk.absolutePath}'")
         } finally {
             apk.delete()
         }
-        log.log(TAG, if (installed) "Lumbina TV Provider installed" else "Lumbina TV Provider not installed")
+        val installed = answer?.contains("Success") == true
+        // pm's answer is the only place the reason shows: a signature clash, no space, a firmware's refusal.
+        val why = if (installed) "" else ": ${answer?.trim()?.take(ANSWER_CHARS) ?: "no connection"}"
+        log.log(TAG, "Lumbina TV Provider ${if (installed) "installed" else "not installed"}$why")
         if (installed) channels.onGranted()
         return installed
     }
 
     /** Megabytes to copy: off the caller's thread. Null when it can't be put there. */
     private suspend fun stage(): File? = withContext(Dispatchers.IO) {
-        val file = staged ?: return@withContext null
+        val file = staged ?: run {
+            log.log(TAG, "TV provider not staged: no external files folder")
+            return@withContext null
+        }
         try {
             context.assets.open(ASSET).use { apk -> file.outputStream().use(apk::copyTo) }
             file
@@ -62,5 +68,6 @@ internal class TvProviderCompanion @Inject constructor(
         const val TAG = "channels"
         const val ASSET = "companion/tvprovider.apk"
         const val STAGED = "tvprovider.apk"
+        const val ANSWER_CHARS = 200
     }
 }

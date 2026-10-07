@@ -2,6 +2,7 @@ package dev.lumbina.tv.vendor.hisense
 
 import android.view.KeyEvent
 import dev.lumbina.tv.core.domain.app.AppId
+import dev.lumbina.tv.core.domain.device.DeviceDiagnostics
 import dev.lumbina.tv.core.domain.device.DeviceFingerprint
 import dev.lumbina.tv.core.domain.device.DeviceProfile
 import dev.lumbina.tv.core.domain.device.DeviceVolume
@@ -34,7 +35,7 @@ class HisenseDeviceProfile @Inject constructor(hisenseVolume: HisenseVolume) : D
     override val stockLauncher = AppId(STOCK_LAUNCHER_PACKAGE, "com.ju.main.launcher.LauncherActivity")
 
     /** The remote's mic is not an Android audio input; HsPcmShare serves it decoded. */
-    override val remoteMicAudio: AudioSource = PcmShareAudioSource { LocalSocketTransport.connect() }
+    override val remoteMicAudio: AudioSource = PcmShareAudioSource(MicInUse::hold) { LocalSocketTransport.connect() }
 
     /** The firmware's own recognizer serves only its own apps. */
     override val speechForApps = true
@@ -47,6 +48,8 @@ class HisenseDeviceProfile @Inject constructor(hisenseVolume: HisenseVolume) : D
 
     /** "USB debugging" also opens adb on port 5555 of the network. */
     override val localAdb = true
+
+    override val diagnostics: DeviceDiagnostics = HisenseDiagnostics(STOCK_LAUNCHER_PACKAGE)
 
     override fun matches(device: DeviceFingerprint): Boolean = device.isInstalled(STOCK_LAUNCHER_PACKAGE)
 

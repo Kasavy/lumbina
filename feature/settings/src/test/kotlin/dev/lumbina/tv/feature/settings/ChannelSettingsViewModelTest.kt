@@ -44,7 +44,7 @@ class ChannelSettingsViewModelTest {
         feed("org.gone", "Left behind", programs = 1),
     )
     private val channels = object : TvChannels {
-        override fun isAvailable() = true
+        override fun provider() = "org.provider"
 
         override fun channels(): Flow<List<ChannelFeed>> = flowOf(feeds)
 

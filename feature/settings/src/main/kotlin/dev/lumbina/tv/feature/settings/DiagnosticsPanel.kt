@@ -42,10 +42,12 @@ fun DiagnosticsPanel(
         }
         item { Grant(R.string.diag_usage, R.string.diag_usage_hint, state.usage, onUsageAccess) }
         item {
+            // Stays enabled while a report is saved (presses are ignored then): a disabled button drops the focus.
             Button(onClick = onSaveReport, modifier = Modifier.padding(top = 16.dp)) {
                 Text(stringResource(R.string.diag_save_report))
             }
         }
+        item { Note(stringResource(if (saved.saving) R.string.diag_saving else R.string.diag_report_holds)) }
         saved.path?.let { path -> item { Note(stringResource(R.string.diag_saved, path)) } }
         if (saved.failed) item { Note(stringResource(R.string.diag_save_failed)) }
         item { Header(stringResource(R.string.diag_log)) }

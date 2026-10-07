@@ -52,6 +52,8 @@
     <string name="diag_free_of">свободно %1$s из %2$s</string>
     <string name="diag_free">свободно %1$s</string>
     <string name="diag_save_report">Сохранить отчёт</string>
+    <string name="diag_report_holds">В отчёте: сведения об устройстве, списки его системных приложений и недавний журнал, в нём есть сказанные вами фразы</string>
+    <string name="diag_saving">Опрашиваю устройство и сохраняю…</string>
     <string name="diag_saved">Сохранено в %1$s</string>
     <string name="diag_save_failed">Не удалось сохранить отчёт</string>
     <string name="diag_log">Журнал (сначала новое)</string>

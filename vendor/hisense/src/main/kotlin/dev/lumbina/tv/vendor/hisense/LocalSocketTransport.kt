@@ -25,11 +25,14 @@ internal class LocalSocketTransport private constructor(private val socket: Loca
         // Longer than HsPcmShare holds an idle request before answering "no data".
         private const val READ_TIMEOUT_MILLIS = 10_000
 
-        fun connect(name: String = PcmShareProtocol.SOCKET): LocalSocketTransport {
+        fun connect(
+            name: String = PcmShareProtocol.SOCKET,
+            readTimeoutMillis: Int = READ_TIMEOUT_MILLIS,
+        ): LocalSocketTransport {
             val socket = LocalSocket()
             try {
                 socket.connect(LocalSocketAddress(name, LocalSocketAddress.Namespace.ABSTRACT))
-                socket.soTimeout = READ_TIMEOUT_MILLIS
+                socket.soTimeout = readTimeoutMillis
             } catch (e: IOException) {
                 runCatching { socket.close() }
                 throw e

@@ -96,8 +96,10 @@ Lumbina talks to these services directly, so each of them sees your IP:
 | Whatever hosts the apps name | An app publishes channels or "continue watching" | The request for the artwork the app points to | Hide the row or the channel |
 | Wallpaper plugins | You chose a plugin as wallpaper | Whatever the plugin asks for | Pick another wallpaper |
 
-Recognized phrases go to Lumbina's log on the device. The log leaves the device only if you save
-a diagnostics report yourself. The phone remote is plain HTTP on the local network, protected by
+Recognized phrases go to Lumbina's log on the device, with the names of the apps and windows you
+open. The log leaves the device only if you save a diagnostics report yourself and send it to
+someone: the report is a file with the log's tail, facts about the device and its firmware, and
+lists of its system apps. The phone remote is plain HTTP on the local network, protected by
 the key in its QR code.
 
 What every permission is used for: [SECURITY.md](SECURITY.md).

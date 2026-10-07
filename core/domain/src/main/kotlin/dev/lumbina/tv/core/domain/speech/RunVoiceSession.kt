@@ -15,7 +15,13 @@ sealed interface VoiceEvent {
     data class Final(val result: Hypothesis?, val stats: VoiceStats) : VoiceEvent
 }
 
-data class VoiceStats(val audioMillis: Long, val finishedAfterReleaseMillis: Long, val hypotheses: List<Hypothesis>)
+data class VoiceStats(
+    val audioMillis: Long,
+    val finishedAfterReleaseMillis: Long,
+    val hypotheses: List<Hypothesis>,
+    /** The level of the loudest chunk, in dBFS; null when no sound came at all (no audio, or all zeros). */
+    val loudestDb: Double? = null,
+)
 
 /**
  * One push-to-talk utterance: capture → recognize → pick the language.
@@ -66,12 +72,14 @@ class RunVoiceSession(
         withContext(captureDispatcher) { engine.newSession(languages()) }.use { session ->
             val aligner = SampleAligner()
             var audioBytes = 0L
+            var loudest: Double? = null
             var lastPartial = ""
             var lastPartialAt = Long.MIN_VALUE / 2
             for (chunk in chunks) {
                 audioBytes += chunk.size
                 val samples = aligner.align(chunk)
                 if (samples.isEmpty()) continue
+                Pcm.levelDb(samples, samples.size)?.let { level -> loudest = maxOf(loudest ?: level, level) }
                 session.accept(samples, samples.size)
                 val t = now()
                 if (t - lastPartialAt >= partialEveryMillis) {
@@ -89,6 +97,7 @@ class RunVoiceSession(
                 audioMillis = Pcm.durationMillis(audioBytes),
                 finishedAfterReleaseMillis = if (released == 0L) 0 else now() - released,
                 hypotheses = hypotheses,
+                loudestDb = loudest,
             )
             send(VoiceEvent.Final(LanguagePicker.pick(hypotheses), stats))
         }

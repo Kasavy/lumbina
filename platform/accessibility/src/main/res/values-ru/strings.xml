@@ -5,6 +5,7 @@
     <string name="voice_heard">«%1$s»</string>
     <string name="voice_not_heard">Не расслышала</string>
     <string name="voice_no_speech">Ничего не слышно</string>
+    <string name="voice_no_sound">Нет звука с микрофона пульта</string>
     <string name="voice_no_field">Некуда вписать «%1$s». Сначала выберите поле ввода</string>
     <string name="voice_failed">Не получилось распознать. Попробуйте ещё раз</string>
     <string name="voice_no_key">У сервиса распознавания нет ключа: укажите его в разделе «Голосовой ввод» в настройках Lumbina</string>

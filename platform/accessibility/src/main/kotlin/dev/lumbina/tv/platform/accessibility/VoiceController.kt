@@ -12,6 +12,7 @@ import dev.lumbina.tv.core.domain.speech.logText
 import dev.lumbina.tv.core.domain.voice.HandleUtterance
 import dev.lumbina.tv.core.domain.voice.UtteranceOutcome
 import java.io.IOException
+import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +45,8 @@ internal class VoiceController(
         /** The user's own words, set apart from what Lumbina says. */
         val heard: (String) -> String,
         val notHeard: String,
+        /** No sound came from the mic at all. */
+        val noSound: String,
         val noField: (String) -> String,
         val failed: String,
         val unavailable: (SpeechUnavailable.Reason) -> String,
@@ -158,14 +161,16 @@ internal class VoiceController(
     private suspend fun onResult(event: VoiceEvent.Final) {
         val stats = event.stats
         val readings = stats.hypotheses.logText()
+        val loudest = stats.loudestDb?.let { String.format(Locale.US, "loudest %.0f dB", it) } ?: "no sound"
         log.log(
             TAG,
-            "\"${event.result?.text.orEmpty()}\" (${stats.audioMillis} ms audio, " +
+            "\"${event.result?.text.orEmpty()}\" (${stats.audioMillis} ms audio, $loudest, " +
                 "${stats.finishedAfterReleaseMillis} ms after release, $readings)",
         )
         val text = event.result?.text
         if (text == null) {
-            overlay.flash(strings.notHeard, FLASH_MILLIS)
+            // No sound at all points at the mic rather than at how it was said.
+            overlay.flash(if (stats.loudestDb == null) strings.noSound else strings.notHeard, FLASH_MILLIS)
             return
         }
         overlay.flash(strings.heard(text), RESULT_MILLIS)

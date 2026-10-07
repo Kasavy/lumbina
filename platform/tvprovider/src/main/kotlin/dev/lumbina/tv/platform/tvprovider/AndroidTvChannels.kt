@@ -25,6 +25,7 @@ import dev.lumbina.tv.core.domain.channels.ProgramLauncher
 import dev.lumbina.tv.core.domain.channels.TvChannels
 import dev.lumbina.tv.core.domain.channels.TvListingsPermission
 import java.net.URISyntaxException
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
@@ -61,7 +62,17 @@ internal class AndroidTvChannels @Inject constructor(
 
     private val refreshes = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
-    override fun isAvailable(): Boolean = context.packageManager.resolveContentProvider(AUTHORITY, 0) != null
+    private val noted = ConcurrentHashMap<String, String>()
+
+    /**
+     * Logs what a reading (named by the first argument) gave unless its last reading gave the same:
+     * several screens read the same rows, and an app may rewrite its "continue watching" while it plays.
+     */
+    private val note = { what: String, found: String ->
+        if (noted.put(what, found) != found) log.log(TAG, found)
+    }
+
+    override fun provider(): String? = context.packageManager.resolveContentProvider(AUTHORITY, 0)?.packageName
 
     override fun channels(): Flow<List<ChannelFeed>> = observe {
         val channels = query(CHANNELS, Columns.CHANNEL) { channelOf(it, ::logoUri) }
@@ -70,7 +81,12 @@ internal class AndroidTvChannels @Inject constructor(
                 programOf(row)?.let { ChannelProgram(channel, it, row.weight()) }
             }
         }
-        feedsOf(channels, programs)
+        feedsOf(channels, programs).also { feeds ->
+            note(
+                "rows",
+                "${provider()}: ${channels.size} channels, ${programs.size} programs, ${feeds.size} rows to show",
+            )
+        }
     }
 
     /**
@@ -79,8 +95,7 @@ internal class AndroidTvChannels @Inject constructor(
      * it only Lumbina's own rows. Lumbina's companion provider needs nothing.
      */
     override fun missing(): String? {
-        val provider = context.packageManager.resolveContentProvider(AUTHORITY, 0) ?: return null
-        if (provider.packageName == COMPANION) return null
+        if ((provider() ?: return null) == COMPANION) return null
         // Only where the user can grant it: a firmware may declare it signature-only.
         val askable = try {
             val info = context.packageManager.getPermissionInfo(READ_TV_LISTINGS, 0)
@@ -101,6 +116,7 @@ internal class AndroidTvChannels @Inject constructor(
         query(WATCH_NEXT, Columns.WATCH_NEXT) { row -> programOf(row)?.let { it to row.long(Columns.ENGAGED_AT) } }
             .sortedByDescending { it.second ?: 0L }
             .map { it.first }
+            .also { note("next", "${provider()}: ${it.size} to continue watching") }
     }
 
     /**
@@ -112,6 +128,7 @@ internal class AndroidTvChannels @Inject constructor(
         .onStart { emit(Unit) }
         .map { isAvailable() }
         .distinctUntilChanged()
+        .onEach { available -> if (!available) note("provider", "no TV provider on this device") }
         .flatMapLatest { available -> if (available) observeProvider(read) else flowOf(emptyList()) }
 
     private fun <T> observeProvider(read: () -> List<T>): Flow<List<T>> = callbackFlow {

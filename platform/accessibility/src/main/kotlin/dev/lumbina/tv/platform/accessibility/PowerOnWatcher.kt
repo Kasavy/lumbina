@@ -39,6 +39,10 @@ internal class PowerOnWatcher(
     private var coversLeft = 0
     private var lastCover = 0L
 
+    /** Until then the windows coming to the front are logged, each once ([noted]). */
+    private var noteUntil = 0L
+    private val noted = HashSet<String>()
+
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
@@ -63,13 +67,23 @@ internal class PowerOnWatcher(
         // Started with the screen off (brought back while the device goes to standby): the next
         // time it comes on is a wake, though this process never saw it go off.
         screenWentOff = !interactive
-        if (interactive && stockLauncher != null && frontPackage() == stockLauncher) {
+        // Asking who is in front waits for that app's answer: only where the answer decides something.
+        val front = if (interactive && stockLauncher != null) frontPackage() else null
+        val sinceBoot = SystemClock.elapsedRealtime() / MILLIS_PER_SECOND
+        val state = if (interactive) "screen on, ${front ?: "front not asked"}" else "screen off"
+        log.log(TAG, "connected ${sinceBoot}s after boot: $state")
+        noteUntil = SystemClock.elapsedRealtime() + NOTE_MILLIS
+        if (front != null && front == stockLauncher) {
             powerOn("connected over the stock launcher")
         }
     }
 
-    /** A window came to the front: the stock launcher's, soon after a power-on, gets Lumbina over it again. */
-    fun onWindow(packageName: CharSequence?) {
+    /**
+     * A window ([className] of [packageName]) came to the front: the stock launcher's, soon after a
+     * power-on, gets Lumbina over it again.
+     */
+    fun onWindow(packageName: CharSequence?, className: CharSequence?) {
+        note(packageName, className)
         if (coversLeft == 0 || stockLauncher == null || packageName?.toString() != stockLauncher) return
         val now = SystemClock.elapsedRealtime()
         if (now >= coverUntil) {
@@ -87,8 +101,21 @@ internal class PowerOnWatcher(
         context.unregisterReceiver(receiver)
     }
 
+    /**
+     * For a minute after the service connects or a power-on, logs each window that comes to the
+     * front: a home screen of the firmware that is not [stockLauncher] shows up here. The class is
+     * the activity's for an app's main window, and a view's for some others.
+     */
+    private fun note(packageName: CharSequence?, className: CharSequence?) {
+        if (SystemClock.elapsedRealtime() >= noteUntil) return
+        val window = "$packageName/$className"
+        if (noted.add(window)) log.log(TAG, "in front: $window")
+    }
+
     private fun powerOn(why: String) {
         val now = SystemClock.elapsedRealtime()
+        noteUntil = now + NOTE_MILLIS
+        noted.clear()
         coverUntil = now + COVER_MILLIS
         coversLeft = COVERS
         // The stock launcher's window may still be reporting in; that isn't it coming up again.
@@ -98,7 +125,10 @@ internal class PowerOnWatcher(
 
     private fun openIfWanted(why: String) {
         scope?.launch {
-            if (!settings.settings.first().openOnPowerOn) return@launch
+            if (!settings.settings.first().openOnPowerOn) {
+                log.log(TAG, "$why: set to open nothing")
+                return@launch
+            }
             log.log(TAG, "$why: opening Lumbina")
             open()
         }
@@ -109,5 +139,7 @@ internal class PowerOnWatcher(
         const val COVER_MILLIS = 10_000L
         const val COVERS = 2
         const val COVER_GAP_MILLIS = 1_000L
+        const val NOTE_MILLIS = 60_000L
+        const val MILLIS_PER_SECOND = 1_000
     }
 }

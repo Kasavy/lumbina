@@ -46,8 +46,10 @@ data class ChannelFeed(val channel: TvChannel, val programs: List<ProgramCard>)
 
 /** The TV Provider as the home screen sees it (the device's own, or Lumbina's companion APK). */
 interface TvChannels {
-    /** False when the device has no TV Provider, so apps have nowhere to publish channels. */
-    fun isAvailable(): Boolean
+    /** The package of the device's TV Provider; null when it has none, so apps have nowhere to publish channels. */
+    fun provider(): String?
+
+    fun isAvailable(): Boolean = provider() != null
 
     /**
      * Channels with their programs, updated whenever an app publishes; empty without a provider.

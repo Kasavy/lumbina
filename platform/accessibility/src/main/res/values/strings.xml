@@ -6,6 +6,7 @@
     <string name="voice_heard">“%1$s”</string>
     <string name="voice_not_heard">Didn\'t catch that</string>
     <string name="voice_no_speech">Heard nothing</string>
+    <string name="voice_no_sound">No sound from the remote\'s microphone</string>
     <string name="voice_no_field">Nowhere to type “%1$s”. Select a text field first</string>
     <string name="voice_failed">Couldn’t recognize that. Try again</string>
     <string name="voice_no_key">The speech service has no key: enter it in “Voice input” in Lumbina\'s settings</string>

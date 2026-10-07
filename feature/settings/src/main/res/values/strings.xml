@@ -52,6 +52,8 @@
     <string name="diag_free_of">%1$s free of %2$s</string>
     <string name="diag_free">%1$s free</string>
     <string name="diag_save_report">Save report</string>
+    <string name="diag_report_holds">The report holds facts about the device, lists of its system apps, and the recent log, with the phrases you said</string>
+    <string name="diag_saving">Asking the device and saving…</string>
     <string name="diag_saved">Saved to %1$s</string>
     <string name="diag_save_failed">Could not save the report</string>
     <string name="diag_log">Recent log (newest first)</string>

@@ -53,4 +53,5 @@ jobs:
         with:
           files: dist/*
           generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, '-') || startsWith(github.ref_name, 'v0.') }}
+          # Until v1.0 every tag is published as a pre-release; one is made the release by hand on GitHub.
+          prerelease: true

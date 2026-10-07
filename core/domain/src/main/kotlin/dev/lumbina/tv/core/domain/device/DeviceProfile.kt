@@ -54,7 +54,29 @@ interface DeviceProfile {
      */
     val localAdb: Boolean get() = false
 
+    /** What a diagnostics report asks about this firmware; null: nothing beyond the common facts. */
+    val diagnostics: DeviceDiagnostics? get() = null
+
     fun matches(device: DeviceFingerprint): Boolean
+}
+
+/** A question put to the device for a diagnostics report, with what it answered. */
+data class DeviceAnswer(val question: String, val answer: String)
+
+/** What a diagnostics report finds out about one firmware, so a tester need not be asked to. */
+interface DeviceDiagnostics {
+    /**
+     * Packages of the firmware the profile leans on: the report says which are there, and their
+     * versions. Each must be visible to Lumbina (a `queries` entry in the manifest), or it reads
+     * as missing.
+     */
+    val packages: List<String> get() = emptyList()
+
+    /** Shell commands whose output the report carries, run over Lumbina's own adb (`DeviceProfile.localAdb`). */
+    val shellCommands: List<String> get() = emptyList()
+
+    /** What the firmware's own services answer when asked directly. Blocks while it asks. */
+    fun probe(): List<DeviceAnswer> = emptyList()
 }
 
 /** Picks the active [DeviceProfile]. */

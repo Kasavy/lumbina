@@ -15,6 +15,7 @@ import dev.lumbina.tv.core.domain.remote.RemoteAction
 import dev.lumbina.tv.core.domain.remote.RemoteKeyInterpreter
 import dev.lumbina.tv.core.domain.speech.AudioSource
 import dev.lumbina.tv.core.domain.voice.DeviceControls
+import java.util.Locale
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -66,6 +67,9 @@ internal class RemoteFeatures(
     )
     private var started = false
 
+    /** When each key was last written to the log: what this remote sends is logged again only after a while. */
+    private val loggedKeys = HashMap<Long, Long>()
+
     /** Once only: the system may connect the same service instance again. */
     fun start() {
         log.log(TAG, "connected, device profile: ${profile.id}")
@@ -105,8 +109,13 @@ internal class RemoteFeatures(
         forApps.micInjection?.start(scope, mic)
     }
 
-    /** Overlays that are showing take keys first (the sleep warning above all), then the remote's bindings. */
     fun onKey(event: KeyEvent): Boolean {
+        note(event)
+        return offer(event)
+    }
+
+    /** Overlays that are showing take keys first (the sleep warning above all), then the remote's bindings. */
+    private fun offer(event: KeyEvent): Boolean {
         if (parts.sleep.onKey(event) || parts.forApps.micPrompt?.onKey(event) == true) return true
         if (parts.quickMenu.onKey(event) || parts.switching.onKey(event)) return true
         val action = when (event.action) {
@@ -117,10 +126,23 @@ internal class RemoteFeatures(
         return interpreter.onKey(RawKey(event.scanCode, event.keyCode, action))
     }
 
+    /** Printing keys are skipped: what is typed stays out of the log. */
+    private fun note(event: KeyEvent) {
+        if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0) return
+        val key = event.scanCode.toLong() shl Int.SIZE_BITS or event.keyCode.toLong()
+        val now = SystemClock.uptimeMillis()
+        val logged = loggedKeys[key]
+        if ((logged != null && now - logged < KEY_LOG_MILLIS) || event.isPrintingKey) return
+        loggedKeys[key] = now
+        val from = event.device?.let { String.format(Locale.US, "%s (%04x:%04x)", it.name, it.vendorId, it.productId) }
+        val ours = profile.keyMap.map(event.scanCode, event.keyCode)
+        log.log(TAG, "key: scan ${event.scanCode}, code ${event.keyCode}, ${ours ?: "not ours"}, from $from")
+    }
+
     fun onAccessibilityEvent(event: AccessibilityEvent) {
         parts.switching.onAccessibilityEvent(event)
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            parts.powerOn.onWindow(event.packageName)
+            parts.powerOn.onWindow(event.packageName, event.className)
             parts.forApps.micPrompt?.onWindowChanged()
         }
         parts.sleep.onWindowChanged()
@@ -271,5 +293,8 @@ internal class RemoteFeatures(
 
     private companion object {
         const val TAG = "a11y"
+
+        /** A key is logged again after this long: a report carries only the log's tail. */
+        const val KEY_LOG_MILLIS = 10 * 60_000L
     }
 }

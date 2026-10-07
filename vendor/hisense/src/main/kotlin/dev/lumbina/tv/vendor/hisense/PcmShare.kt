@@ -12,11 +12,19 @@ import java.io.IOException
  * ```
  * start_pcmrecorder_v_0#<user>#0#4        -> "OK#<clientId>#"   (4 = Nanosic remote)
  * get_pcmdata_v_0#<maxBytes>#<clientId>   -> PCM bytes, or a single 0 byte when none yet
- * stop_pcmrecorder_v_0#<clientId>#4
+ * stop_pcmrecorder_v_0#<clientId>#4       -> "OK"
+ * get_pcminfo_v_0#0#4#                    -> "#SAMPLERATE:16000#BUFFERSIZE:1280#", no recorder needed
  * ```
+ *
+ * The service on a Vidda projector with Android 14 takes "start" and "stop" with a closing '#'
+ * as well, and 16000 where the start has 0 ([startRated]); it serves the same on a loopback port
+ * ([TcpTransport]).
  */
 internal object PcmShareProtocol {
     const val SOCKET = "GETSYSTEMPCMDATALOCAL"
+
+    /** Who is recording, as the service is told. */
+    const val USER = "lumbina"
 
     /**
      * The most to ask for in one read: one frame of the service (40 ms). It keeps only six frames
@@ -26,7 +34,12 @@ internal object PcmShareProtocol {
     const val FRAME_BYTES = 1_280
     private const val SOURCE_NANO_REMOTE = 4
 
-    fun start(user: String) = "start_pcmrecorder_v_0#$user#0#$SOURCE_NANO_REMOTE"
+    fun start(user: String = USER) = "start_pcmrecorder_v_0#$user#0#$SOURCE_NANO_REMOTE"
+
+    /** The other spelling of "start"; [PcmShareProbe] asks with both, for firmware that takes only one. */
+    fun startRated(user: String = USER) = "start_pcmrecorder_v_0#$user#16000#$SOURCE_NANO_REMOTE#"
+
+    fun info() = "get_pcminfo_v_0#0#$SOURCE_NANO_REMOTE#"
 
     /** The client id from a start reply; throws if the service refused. */
     fun clientId(reply: String): String {
@@ -41,6 +54,9 @@ internal object PcmShareProtocol {
 
     fun stop(clientId: String) = "stop_pcmrecorder_v_0#$clientId#$SOURCE_NANO_REMOTE"
 
+    /** "Stop" for a recorder started with [startRated]. */
+    fun stopRated(clientId: String) = stop(clientId) + "#"
+
     /** The service answers a single zero byte when no audio is buffered yet. */
     fun isNoData(bytes: ByteArray, count: Int) = count == 1 && bytes[0] == 0.toByte()
 }
@@ -53,17 +69,23 @@ internal interface PcmShareTransport : AutoCloseable {
     fun receive(dst: ByteArray): Int
 }
 
-/** Remote-mic audio via HsPcmShare. */
-internal class PcmShareAudioSource(private val connect: () -> PcmShareTransport) : AudioSource {
+/**
+ * Remote-mic audio via HsPcmShare. While a stream is open, what [inUse] gave is held: it tells
+ * Lumbina's other processes that the remote is being read (see [MicInUse]).
+ */
+internal class PcmShareAudioSource(
+    private val inUse: () -> AutoCloseable = { AutoCloseable {} },
+    private val connect: () -> PcmShareTransport,
+) : AudioSource {
 
     override fun open(): AudioStream {
         val transport = connect()
         try {
-            transport.send(PcmShareProtocol.start("lumbina"))
+            transport.send(PcmShareProtocol.start())
             val reply = ByteArray(REPLY_BYTES)
             val n = transport.receive(reply)
             if (n <= 0) throw IOException("HsPcmShare closed the connection")
-            return PcmShareStream(transport, PcmShareProtocol.clientId(String(reply, 0, n)))
+            return PcmShareStream(transport, PcmShareProtocol.clientId(String(reply, 0, n)), inUse())
         } catch (e: IOException) {
             transport.close()
             throw e
@@ -75,7 +97,11 @@ internal class PcmShareAudioSource(private val connect: () -> PcmShareTransport)
     }
 }
 
-internal class PcmShareStream(private val transport: PcmShareTransport, private val clientId: String) : AudioStream {
+internal class PcmShareStream(
+    private val transport: PcmShareTransport,
+    private val clientId: String,
+    private val held: AutoCloseable,
+) : AudioStream {
 
     override fun read(dst: ByteArray): Int {
         transport.send(PcmShareProtocol.read(clientId, minOf(dst.size, PcmShareProtocol.FRAME_BYTES)))
@@ -86,5 +112,6 @@ internal class PcmShareStream(private val transport: PcmShareTransport, private 
     override fun close() {
         runCatching { transport.send(PcmShareProtocol.stop(clientId)) }
         transport.close()
+        runCatching { held.close() }
     }
 }

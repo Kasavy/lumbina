@@ -57,6 +57,29 @@ class RunVoiceSessionTest {
     }
 
     @Test
+    fun `tells how loud the audio was, and that none came`() = runTest {
+        suspend fun loudest(vararg chunks: ByteArray): Double? {
+            val session = RunVoiceSession(
+                capture = PcmCapture(FakeAudioSource(chunks.toList()), now = { currentTime }),
+                engine = FakeSpeechEngine(listOf(Hypothesis("ru", "раз", 1.0))),
+                now = { currentTime },
+                captureDispatcher = StandardTestDispatcher(testScheduler),
+            )
+            return (session { false }.toList().last() as VoiceEvent.Final).stats.loudestDb
+        }
+        // Full scale: every sample 0x7FFF.
+        val loud = ByteArray(1_280) { if (it % 2 == 0) 0xFF.toByte() else 0x7F }
+
+        assertEquals(null, loudest())
+        assertEquals(null, loudest(ByteArray(1_280)))
+        assertEquals(0.0, loudest(ByteArray(1_280), loud)!!, 0.01)
+        // A tenth of full scale is 20 dB below it; the loudest chunk counts wherever it comes.
+        val quiet = ByteArray(1_280) { if (it % 2 == 0) 0xCC.toByte() else 0x0C }
+        assertEquals(-20.0, loudest(quiet)!!, 0.1)
+        assertEquals(0.0, loudest(quiet, loud, quiet)!!, 0.01)
+    }
+
+    @Test
     fun `hands every chunk read to onAudio`() = runTest {
         val heard = mutableListOf<Int>()
         val session = RunVoiceSession(

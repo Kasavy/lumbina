@@ -3,10 +3,17 @@ package dev.lumbina.tv.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.lumbina.tv.core.domain.access.AccessSettingsRepository
+import dev.lumbina.tv.core.domain.access.LocalAccess
 import dev.lumbina.tv.core.domain.access.NotificationAccess
 import dev.lumbina.tv.core.domain.access.UsageAccess
 import dev.lumbina.tv.core.domain.app.InstalledApps
+import dev.lumbina.tv.core.domain.channels.TvChannels
+import dev.lumbina.tv.core.domain.channels.TvListingsPermission
 import dev.lumbina.tv.core.domain.device.DeviceProfile
+import dev.lumbina.tv.core.domain.diagnostics.AccessFacts
+import dev.lumbina.tv.core.domain.diagnostics.AskDevice
+import dev.lumbina.tv.core.domain.diagnostics.ChannelsFacts
 import dev.lumbina.tv.core.domain.diagnostics.DiagnosticsSnapshot
 import dev.lumbina.tv.core.domain.diagnostics.LogArchive
 import dev.lumbina.tv.core.domain.diagnostics.ReportExporter
@@ -43,8 +50,11 @@ data class DiagnosticsState(
     val usage: Boolean = false,
 )
 
-/** Where the last report went: a path, or null while none was saved; [failed] if saving failed. */
-data class SavedReport(val path: String?, val failed: Boolean = false)
+/**
+ * Where the last report went: a path, or null while none was saved; [failed] if saving failed.
+ * [saving]: one is being put together now, which takes a while where the device is asked questions.
+ */
+data class SavedReport(val path: String?, val failed: Boolean = false, val saving: Boolean = false)
 
 @HiltViewModel
 class DiagnosticsViewModel @Inject constructor(
@@ -56,6 +66,11 @@ class DiagnosticsViewModel @Inject constructor(
     private val exporter: ReportExporter,
     private val notificationAccess: NotificationAccess,
     private val usageAccess: UsageAccess,
+    private val localAccess: LocalAccess,
+    private val askDevice: AskDevice,
+    private val channels: TvChannels,
+    private val listings: TvListingsPermission,
+    accessSettings: AccessSettingsRepository,
     voiceLanguages: VoiceLanguages,
     inputSettings: InputSettingsRepository,
     installedApps: InstalledApps,
@@ -78,13 +93,38 @@ class DiagnosticsViewModel @Inject constructor(
         }
     }.flowOn(Dispatchers.IO)
 
+    /** Granted in the system's settings, with no callback: re-read with the rest. */
+    private val grants = ticks.map { notificationAccess.granted() to usageAccess.granted() }.flowOn(Dispatchers.IO)
+
+    /** Reading the adb state opens a connection to it, so it is polled only as often as the log. */
+    private val debugging = flow {
+        while (true) {
+            emit(if (profile.localAdb) localAccess.state().name else null)
+            delay(LOG_REFRESH_MILLIS)
+        }
+    }.flowOn(Dispatchers.IO)
+
+    private val access = combine(accessSettings.settings, debugging, grants) { settings, debugging, (notes, usage) ->
+        AccessFacts(debugging, settings.openOnPowerOn, notifications = notes, usage = usage)
+    }
+
+    private val channelFacts = combine(channels.channels(), channels.watchNext(), ticks) { feeds, next, _ ->
+        ChannelsFacts(
+            provider = channels.provider(),
+            permissionMissing = listings.missing() != null,
+            channels = feeds.size,
+            programs = feeds.sumOf { it.programs.size },
+            watchNext = next.size,
+        )
+    }.flowOn(Dispatchers.IO)
+
     private val snapshot = combine(
         voiceLanguages.state,
         inputSettings.settings,
         installedApps.observe(),
         layouts.layout,
-        ticks,
-    ) { voice, input, apps, layout, _ ->
+        combine(access, channelFacts, ::Pair),
+    ) { voice, input, apps, layout, (allowed, tv) ->
         DiagnosticsSnapshot(
             system = system.snapshot(),
             deviceProfile = profile.id,
@@ -103,14 +143,14 @@ class DiagnosticsViewModel @Inject constructor(
             favorites = layout.favorites.items.size,
             categories = layout.categories.size,
             hiddenApps = layout.hidden.size,
+            access = allowed,
+            channels = tv,
+            firmwarePackages = profile.diagnostics?.packages.orEmpty().map { it to system.packageVersion(it) },
         )
     }.flowOn(Dispatchers.IO)
 
-    /** Granted in the system's settings, with no callback: re-read with the rest. */
-    private val grants = ticks.map { notificationAccess.granted() to usageAccess.granted() }.flowOn(Dispatchers.IO)
-
-    val state: StateFlow<DiagnosticsState?> = combine(snapshot, logTail, grants) { snapshot, log, (notes, usage) ->
-        DiagnosticsState(snapshot, log, notifications = notes, usage = usage)
+    val state: StateFlow<DiagnosticsState?> = combine(snapshot, logTail) { snapshot, log ->
+        DiagnosticsState(snapshot, log, notifications = snapshot.access.notifications, usage = snapshot.access.usage)
     }.stateIn(viewModelScope, WhileUiSubscribed, null)
 
     fun openNotificationAccess() {
@@ -129,13 +169,19 @@ class DiagnosticsViewModel @Inject constructor(
         mutableSaved.value = SavedReport(null)
     }
 
+    /** One report at a time: a second press while one is being put together would ask the device twice at once. */
     fun saveReport() {
         val snapshot = state.value?.snapshot ?: return
+        if (mutableSaved.value.saving) return
+        mutableSaved.value = SavedReport(null, saving = true)
         viewModelScope.launch(Dispatchers.IO) {
             val now = Date()
+            // Asked before the log is read: what the questions stirred up belongs in this report.
+            val answered = askDevice()
             val text = snapshot.toReport(
                 SimpleDateFormat(TIME, Locale.US).format(now),
                 logArchive.tail(REPORT_LOG_LINES),
+                answered,
             )
             val path = exporter.save("lumbina-report-${SimpleDateFormat(FILE_TIME, Locale.US).format(now)}.txt", text)
             mutableSaved.value = SavedReport(path, failed = path == null)

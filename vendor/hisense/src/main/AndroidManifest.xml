@@ -4,5 +4,7 @@
     <queries>
         <!-- TvBaseService's volume receiver (HisenseVolume checks it is there before broadcasting). -->
         <package android:name="com.hisense.tv.baseservice" />
+        <!-- HsPcmShare, the remote's mic: a diagnostics report says whether it is there. -->
+        <package android:name="com.hisense.pcm.share" />
     </queries>
 </manifest>

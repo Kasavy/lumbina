@@ -123,6 +123,7 @@ internal class VoiceAssembly(
         listening = service.getString(R.string.voice_listening),
         heard = { service.getString(R.string.voice_heard, it) },
         notHeard = service.getString(R.string.voice_not_heard),
+        noSound = service.getString(R.string.voice_no_sound),
         noField = { service.getString(R.string.voice_no_field, it) },
         failed = service.getString(R.string.voice_failed),
         unavailable = { service.getString(it.message) },
@@ -155,17 +156,26 @@ internal class VoiceAssembly(
     /** The language's own name for itself: "русский", "English". */
     private fun languageName(code: String): String = Locale.forLanguageTag(code).let { it.getDisplayLanguage(it) }
 
-    /** Logs an error only when it differs from the previous one (reconnect loops repeat them). */
+    /**
+     * Logs an error when it differs from the last one, and the same one again after a while: the
+     * source is retried every couple of seconds, and a report must still show that it keeps failing.
+     */
     private fun logChanges(what: String): (Exception) -> Unit {
         var last: String? = null
+        var loggedAt = 0L
         return { e ->
             val text = e.toString()
-            if (text != last) log.log(TAG, "$what: $text")
+            val now = SystemClock.elapsedRealtime()
+            if (text != last || now - loggedAt >= SAME_ERROR_MILLIS) {
+                log.log(TAG, "$what: $text")
+                loggedAt = now
+            }
             last = text
         }
     }
 
     private companion object {
         const val TAG = "voice"
+        const val SAME_ERROR_MILLIS = 60_000L
     }
 }
