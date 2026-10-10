@@ -17,6 +17,13 @@ internal class MicKey(private val voice: RemoteVoice, private val micInjection: 
         voice.listen()
     }
 
+    /** Debug builds: the key over adb, as injected keys do not reach the service. */
+    fun debug(command: String) = when (command) {
+        "down" -> pressed()
+        "up" -> released()
+        else -> tapped()
+    }
+
     fun released() {
         voice.forApps?.keyHeld = false
         voice.release()

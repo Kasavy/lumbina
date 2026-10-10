@@ -11,7 +11,7 @@ import javax.inject.Inject
 /**
  * Any Android TV device. Home is the standard KEYCODE_HOME. Google TV ignores the HOME
  * role and always opens its own launcher, so the accessibility service takes over the
- * key here too; a long press opens the device's own launcher, found at runtime.
+ * key here too. The device's own launcher is found at runtime.
  */
 class GenericDeviceProfile @Inject internal constructor(finder: StockLauncherFinder) : DeviceProfile {
     override val id = "generic"

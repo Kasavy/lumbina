@@ -2,9 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <queries>
-        <!-- TvBaseService's volume receiver (HisenseVolume checks it is there before broadcasting). -->
+        <!-- TvBaseService's volume receiver: HisenseVolume checks it is there, and the profile whether it is turned off. -->
         <package android:name="com.hisense.tv.baseservice" />
-        <!-- HsPcmShare, the remote's mic: a diagnostics report says whether it is there. -->
+        <!-- HsPcmShare, the remote's mic: the profile checks whether it is there and turned on. -->
         <package android:name="com.hisense.pcm.share" />
+        <package android:name="com.vt.mic.service" />
     </queries>
 </manifest>

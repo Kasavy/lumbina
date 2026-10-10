@@ -3,8 +3,11 @@ package dev.lumbina.tv.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.lumbina.tv.core.domain.app.InstalledApps
 import dev.lumbina.tv.core.domain.device.DeviceProfile
 import dev.lumbina.tv.core.domain.speech.ModelState
+import dev.lumbina.tv.core.domain.speech.SpeechApp
+import dev.lumbina.tv.core.domain.speech.SpeechApps
 import dev.lumbina.tv.core.domain.speech.SpeechKeys
 import dev.lumbina.tv.core.domain.speech.SpeechProvider
 import dev.lumbina.tv.core.domain.speech.VoiceLanguage
@@ -25,6 +28,8 @@ class VoiceSettingsViewModel @Inject constructor(
     private val voiceLanguages: VoiceLanguages,
     private val voiceSettings: VoiceSettingsRepository,
     speechKeys: SpeechKeys,
+    private val speechApps: SpeechApps,
+    installedApps: InstalledApps,
     profile: DeviceProfile,
 ) : ViewModel() {
 
@@ -40,8 +45,9 @@ class VoiceSettingsViewModel @Inject constructor(
 
     /** Who recognizes, and which cloud services have a key. */
     val recognizer: StateFlow<Recognizer> =
-        combine(voiceSettings.settings, speechKeys.providers) { settings, withKey ->
-            Recognizer(settings.provider, withKey)
+        // Asked again when apps change: the one that recognizes may be installed or removed meanwhile.
+        combine(voiceSettings.settings, speechKeys.providers, installedApps.observe()) { settings, withKey, _ ->
+            Recognizer(settings.provider, withKey, speechApps.installed().firstOrNull())
         }
             .stateIn(viewModelScope, WhileUiSubscribed, Recognizer())
 
@@ -72,7 +78,12 @@ class VoiceSettingsViewModel @Inject constructor(
 data class Recognizer(
     val provider: SpeechProvider = SpeechProvider.Device,
     val withKey: Set<SpeechProvider> = emptySet(),
+    /** Another app that can recognize here; null where there is none to offer. */
+    val app: SpeechApp? = null,
 ) {
     /** A cloud service is chosen, but its key isn't set. */
-    val missingKey: Boolean get() = provider != SpeechProvider.Device && provider !in withKey
+    val missingKey: Boolean get() = provider.isCloud && provider !in withKey
+
+    /** Another app recognizes: Lumbina's own languages and their mode have no say. */
+    val byApp: Boolean get() = provider == SpeechProvider.App && app != null
 }

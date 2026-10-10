@@ -1,11 +1,7 @@
 package dev.lumbina.tv.feature.settings
 
 import android.text.format.Formatter
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,7 +21,7 @@ import kotlinx.coroutines.withContext
 
 /** What Lumbina is (version, device profile), what it runs on, and whose work and data it carries. */
 @Composable
-fun AboutPanel(system: SystemFacts, deviceProfile: String, modifier: Modifier = Modifier) {
+fun AboutPanel(system: SystemFacts, deviceProfile: String, modifier: Modifier = Modifier, setup: SetupOffer? = null) {
     val context = LocalContext.current
     val size = { bytes: Long -> Formatter.formatShortFileSize(context, bytes) }
     var showing by remember { mutableStateOf(false) }
@@ -42,6 +38,7 @@ fun AboutPanel(system: SystemFacts, deviceProfile: String, modifier: Modifier = 
             Fact(stringResource(R.string.about_version), system.appVersion + if (system.debugBuild) " (debug)" else "")
         }
         item { Fact(stringResource(R.string.diag_profile), deviceProfile) }
+        if (setup != null) item { ShowSetupRow(setup) }
         item { Header(stringResource(R.string.about_device)) }
         item { Fact(stringResource(R.string.about_model), "${system.manufacturer} ${system.model}") }
         item { Fact(stringResource(R.string.diag_android), "${system.androidRelease} (API ${system.sdkInt})") }
@@ -83,3 +80,21 @@ fun AboutPanel(system: SystemFacts, deviceProfile: String, modifier: Modifier = 
         }
     }
 }
+
+/** Brings back the first-setup card the user hid from the home screen. */
+@Composable
+private fun ShowSetupRow(setup: SetupOffer) {
+    SettingRow(
+        onClick = setup.show,
+        headlineContent = { Text(stringResource(R.string.about_show_setup)) },
+        supportingContent = {
+            Text(stringResource(if (setup.hidden) R.string.about_show_setup_hint else R.string.about_show_setup_done))
+        },
+    )
+}
+
+/**
+ * The first-setup card of the home screen was hidden: a way to show it again. The row stays once
+ * pressed ([hidden] no more), or the focus on it would have nowhere to be.
+ */
+class SetupOffer(val hidden: Boolean, val show: () -> Unit)

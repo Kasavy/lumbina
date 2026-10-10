@@ -45,11 +45,16 @@ internal object Columns {
     )
 }
 
+/** Hidden by its app, or shown to nobody yet: the home screen leaves such a row out. */
+private fun TvRow.notBrowsable(): Boolean = long(Columns.BROWSABLE) == 0L
+
+private fun TvRow.channelName(): String? = string(Columns.DISPLAY_NAME)?.takeIf { it.isNotBlank() }
+
 /** A browsable channel, or null for one hidden by its app or missing required fields. */
 internal fun channelOf(row: TvRow, logoUri: (Long) -> String): TvChannel? {
-    if (row.long(Columns.BROWSABLE) == 0L) return null
+    if (row.notBrowsable()) return null
     val id = row.long(Columns.ID) ?: return null
-    val name = row.string(Columns.DISPLAY_NAME)?.takeIf { it.isNotBlank() } ?: return null
+    val name = row.channelName() ?: return null
     return TvChannel(
         id = id,
         packageName = row.string(Columns.PACKAGE) ?: return null,
@@ -80,7 +85,7 @@ internal fun feedsOf(channels: List<TvChannel>, programs: List<ChannelProgram>):
 
 /** A preview or watch-next program, or null when it has no title or was hidden by its app. */
 internal fun programOf(row: TvRow): ProgramCard? {
-    if (row.long(Columns.BROWSABLE) == 0L) return null
+    if (row.notBrowsable()) return null
     val title = row.string(Columns.TITLE)?.takeIf { it.isNotBlank() }
         ?: row.string(Columns.EPISODE_TITLE)?.takeIf { it.isNotBlank() }
         ?: return null
@@ -124,4 +129,32 @@ private fun subtitleOf(row: TvRow, title: String): String? {
 private fun progressOf(position: Long?, duration: Long?): Float? {
     if (position == null || duration == null) return null
     return if (position > 0 && duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else null
+}
+
+/**
+ * The provider's rows counted app by app for a diagnostics report, with the channels [channelOf]
+ * leaves out, by its own rules.
+ */
+internal class ProviderCensus {
+    private class App(var channels: Int = 0, var notBrowsable: Int = 0, var unnamed: Int = 0, var programs: Int = 0)
+
+    private val apps = sortedMapOf<String, App>()
+
+    private fun appOf(row: TvRow): App = apps.getOrPut(row.string(Columns.PACKAGE) ?: "(no package)", ::App)
+
+    fun channel(row: TvRow) {
+        val app = appOf(row)
+        app.channels++
+        if (row.notBrowsable()) app.notBrowsable++
+        if (row.channelName() == null) app.unnamed++
+    }
+
+    fun program(row: TvRow) {
+        appOf(row).programs++
+    }
+
+    fun lines(): List<String> = apps.map { (name, app) ->
+        val left = "${app.notBrowsable} not browsable, ${app.unnamed} unnamed"
+        "$name: ${app.channels} channels ($left), ${app.programs} programs"
+    }
 }

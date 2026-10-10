@@ -47,6 +47,19 @@ class HomeLayoutTest {
         assertEquals(listOf(FAVORITES, "kids", "films"), layout.moveCategory("kids", -3).sections.map { it.id })
         assertEquals(listOf(FAVORITES, "kids"), layout.removeCategory("films").sections.map { it.id })
         assertEquals(layout, layout.removeCategory(FAVORITES))
+        val films = layout.section("films")!!
+        val at = layout.sections.indexOf(films)
+        assertEquals(layout, layout.removeCategory("films").restoreCategory(films, at))
+        assertEquals(layout, layout.restoreCategory(films, at))
+    }
+
+    @Test
+    fun `a category is put back behind favorites and within the sections there are`() {
+        val layout = HomeLayout().addCategory("films", "Films")
+        val kids = HomeSection("kids", "Kids")
+        assertEquals(listOf(FAVORITES, "kids", "films"), layout.restoreCategory(kids, 0).sections.map { it.id })
+        assertEquals(listOf(FAVORITES, "films", "kids"), layout.restoreCategory(kids, 9).sections.map { it.id })
+        assertEquals(layout, layout.restoreCategory(layout.favorites, 1))
     }
 
     @Test

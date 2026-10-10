@@ -2,7 +2,9 @@ package dev.lumbina.tv.core.domain.speech
 
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.launch
@@ -69,13 +71,20 @@ class RunVoiceSession(
                 chunks.close()
             }
         }
-        withContext(captureDispatcher) { engine.newSession(languages()) }.use { session ->
+        // Opened even if the collector has gone meanwhile: a session handed back to nobody would
+        // never be closed, and one may hold more than memory (another app set listening). The
+        // outer context keeps the dispatcher, so what the inner one returns is not dropped.
+        withContext(NonCancellable) {
+            withContext(captureDispatcher) { engine.newSession(languages()) }
+        }.use { session ->
+            ensureActive()
             val aligner = SampleAligner()
             var audioBytes = 0L
             var loudest: Double? = null
             var lastPartial = ""
             var lastPartialAt = Long.MIN_VALUE / 2
             for (chunk in chunks) {
+                if (releasedAt.get() != 0L) session.released()
                 audioBytes += chunk.size
                 val samples = aligner.align(chunk)
                 if (samples.isEmpty()) continue

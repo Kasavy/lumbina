@@ -67,6 +67,20 @@ class RemoteKeyInterpreterTest {
     }
 
     @Test
+    fun `with the double press turned off Home answers at once, and twice for two presses`() = runTest {
+        val interpreter = interpreter(policy = KeyBindingPolicy.defaults(doubleHomeRecents = false))
+        interpreter.onKey(down())
+        advanceTimeBy(100)
+        interpreter.onKey(up())
+        assertEquals(listOf(RemoteAction.OpenLumbina), actions)
+        advanceTimeBy(100)
+        interpreter.onKey(down())
+        advanceTimeBy(100)
+        interpreter.onKey(up())
+        assertEquals(listOf(RemoteAction.OpenLumbina, RemoteAction.OpenLumbina), actions)
+    }
+
+    @Test
     fun `presses further apart are two short presses`() = runTest {
         val interpreter = interpreter()
         repeat(2) {

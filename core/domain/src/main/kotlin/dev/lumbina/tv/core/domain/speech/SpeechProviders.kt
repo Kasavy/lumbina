@@ -3,8 +3,30 @@ package dev.lumbina.tv.core.domain.speech
 import javax.inject.Qualifier
 import kotlinx.coroutines.flow.Flow
 
-/** Who recognizes speech: the device itself (offline models), or a cloud service with the user's key. */
-enum class SpeechProvider { Device, OpenAi, Yandex }
+/**
+ * Who recognizes speech: the device itself (offline models), a cloud service with the user's key,
+ * or another app on the device that serves speech to apps ([SpeechApps]).
+ */
+enum class SpeechProvider {
+    Device,
+    OpenAi,
+    Yandex,
+    App,
+    ;
+
+    /** A service that takes the user's key, and words to expect. */
+    val isCloud: Boolean get() = this == OpenAi || this == Yandex
+}
+
+/** An app on the device that recognizes speech for others: its [service] (`package/class`) and name. */
+data class SpeechApp(val service: String, val label: String) {
+    val packageName: String get() = service.substringBefore('/')
+}
+
+/** The apps that can recognize for Lumbina here; none where they can't be given the remote's sound. */
+fun interface SpeechApps {
+    suspend fun installed(): List<SpeechApp>
+}
 
 /** The user's API keys for the cloud [SpeechProvider]s. */
 interface SpeechKeys {
@@ -47,26 +69,37 @@ interface CloudSpeechEngine : SpeechEngine {
 annotation class DeviceSpeech
 
 /**
- * The recognizer voice input uses: the one on the device or a cloud one, as [choose]n. Everything
- * else is the chosen engine's.
+ * The recognizer voice input uses: the one on the device, a cloud one or another [app], as
+ * [choose]n. Everything else is the chosen engine's.
  */
-class SpeechEngineChoice(private val device: SpeechEngine, private val cloud: Map<SpeechProvider, CloudSpeechEngine>) :
-    SpeechEngine {
+class SpeechEngineChoice(
+    private val device: SpeechEngine,
+    private val cloud: Map<SpeechProvider, CloudSpeechEngine>,
+    private val app: SpeechEngine? = null,
+) : SpeechEngine {
     @Volatile private var chosen: SpeechEngine = device
 
     /** The provider in use: [SpeechProvider.Device] for one without an engine. */
-    val provider: SpeechProvider get() = cloud.entries.firstOrNull { it.value === chosen }?.key ?: SpeechProvider.Device
+    val provider: SpeechProvider
+        get() = cloud.entries.firstOrNull { it.value === chosen }?.key
+            ?: if (chosen === app) SpeechProvider.App else SpeechProvider.Device
 
     fun choose(setup: SpeechSetup) {
         val engine = cloud[setup.provider]
         engine?.useKey(setup.key)
         engine?.useVocabulary(setup.vocabulary)
-        chosen = engine ?: device
+        chosen = engine ?: app.takeIf { setup.provider == SpeechProvider.App } ?: device
     }
 
     override val languages: List<String> get() = chosen.languages
 
-    override fun prepare(languages: List<String>): Boolean = chosen.prepare(languages)
+    /** Another app that is gone, or can't be given the remote's sound here, leaves the device to recognize. */
+    override fun prepare(languages: List<String>): Boolean {
+        if (chosen.prepare(languages)) return true
+        if (chosen !== app) return false
+        chosen = device
+        return device.prepare(languages)
+    }
 
     override fun newSession(languages: List<String>): SpeechSession = chosen.newSession(languages)
 }

@@ -2,6 +2,7 @@ package dev.lumbina.tv.vendor.hisense
 
 import android.content.ContextWrapper
 import dev.lumbina.tv.core.domain.device.DeviceFingerprint
+import dev.lumbina.tv.core.domain.device.FirmwarePart
 import dev.lumbina.tv.core.domain.remote.RemoteKey
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -35,6 +36,30 @@ class HisenseDeviceProfileTest {
     fun `matches devices that have the VIDAA launcher`() {
         assertTrue(profile.matches(device(hasVidaaLauncher = true)))
         assertFalse(profile.matches(device(hasVidaaLauncher = false)))
+    }
+
+    @Test
+    fun `the launcher and the simple start page are home screens, the assistant of the same package is not`() {
+        assertTrue(profile.isHomeScreen("com.jamdeo.tv.vod", "com.ju.main.launcher.LauncherActivity"))
+        assertTrue(profile.isHomeScreen("com.jamdeo.tv.vod", null))
+        assertTrue(profile.isHomeScreen("com.keylab.speech.view.vidaa", "com.ju.secondscreen.HomeActivity"))
+        assertTrue(profile.isHomeScreen("com.keylab.speech.view.vidaa", null))
+        assertTrue(profile.isHomeScreen("com.hisense.widget.pro", "com.ju.secondscreen.HomeActivity"))
+        assertFalse(profile.isHomeScreen("com.hisense.widget.pro", null))
+        assertFalse(profile.isHomeScreen("com.keylab.speech.view.vidaa", "com.hispeech.tv.ui.aiagent.AiAgentActivity"))
+        assertFalse(profile.isHomeScreen("dev.lumbina.tv", null))
+    }
+
+    @Test
+    fun `the remote's mic and the volume rest on packages of the firmware`() {
+        assertEquals(
+            listOf(
+                FirmwarePart("com.hisense.pcm.share", FirmwarePart.Feature.RemoteMic),
+                FirmwarePart("com.vt.mic.service", FirmwarePart.Feature.RemoteMic),
+                FirmwarePart("com.hisense.tv.baseservice", FirmwarePart.Feature.Volume),
+            ),
+            profile.firmwareParts,
+        )
     }
 
     private fun device(hasVidaaLauncher: Boolean) = object : DeviceFingerprint {

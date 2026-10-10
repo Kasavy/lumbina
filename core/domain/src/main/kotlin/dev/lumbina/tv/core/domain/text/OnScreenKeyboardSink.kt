@@ -7,7 +7,7 @@ import kotlinx.coroutines.delay
  *
  * Some TV apps show a plain text label as the search line and draw their own keyboard, so
  * there is no editable field. Their keys are clickable nodes labelled with one letter, plus a
- * space key and layout switches ("Рус", "Eng", "123+"), enough to type. Characters no layout
+ * space key and layout switches ("Рус", "Eng", "123+", "!#1"), enough to type. Characters no layout
  * has (punctuation) are skipped; when nothing could be typed at all, the text is not delivered,
  * so the next way of delivering it gets a try.
  *
@@ -78,7 +78,8 @@ class OnScreenKeyboardSink(
     /**
      * Presses the keys with no label one by one, at most [maxProbes] of them, and reads the line
      * that ends with [typed]: the key that adds a space to it is the space key, and the keys
-     * returned have it (the space is typed by then). A key that erased has its letter typed again.
+     * returned have it (the space is typed by then). A key that erased has its letter typed again
+     * (an emptied line may show its prompt again instead of nothing).
      * One that changed nothing (a shift) is left as pressed: a second press could lock it, and
      * capitals do a search no harm. Null when the line can't be read, a key did anything else to
      * it, or no key is the space.
@@ -90,10 +91,16 @@ class OnScreenKeyboardSink(
         for (index in keys.unlabeled.indices.take(maxProbes)) {
             if (current.unlabeled.getOrNull(index)?.click() != true) continue
             val pressed = rescanned(index)
-            when (pressed.texts[at]) {
-                "$line " -> return pressed
-                line -> Unit
-                line.dropLast(1) -> pressed.letters[typed.last()]?.click()
+            val now = pressed.texts[at]
+            when {
+                now == "$line " -> return pressed
+
+                now == line -> Unit
+
+                // A line of one character, erased, shows nothing, or the prompt it showed before the typing.
+                now == line.dropLast(1) || (line.length == 1 && (now.isNullOrEmpty() || now == keys.texts[at])) ->
+                    pressed.letters[typed.last()]?.click()
+
                 else -> return null
             }
             current = rescanned(spaceAt = null)
@@ -168,6 +175,6 @@ class OnScreenKeyboardSink(
 
     private companion object {
         val SPACE_LABELS = setOf("пробел", "space", "␣")
-        val LAYOUT_LABELS = setOf("рус", "eng", "en", "ru", "abc", "абв", "123+", "123", "?123")
+        val LAYOUT_LABELS = setOf("рус", "eng", "en", "ru", "abc", "абв", "123+", "123", "?123", "!#1")
     }
 }

@@ -10,7 +10,6 @@ import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.domain.text.DeliverText
-import dev.lumbina.tv.core.domain.text.label
 import dev.lumbina.tv.core.domain.text.walk
 import dev.lumbina.tv.core.domain.voice.HandleUtterance
 import java.io.File
@@ -29,6 +28,8 @@ import kotlinx.coroutines.launch
  * - `adb shell am broadcast -a dev.lumbina.tv.debug.SLEEP_IN --ei seconds 70` → a short sleep timer.
  * - `adb shell am broadcast -a dev.lumbina.tv.debug.SAY --es text "открой кинопоиск"` → as if spoken:
  *   a command or typed text.
+ * - `adb shell am broadcast -a dev.lumbina.tv.debug.MIC --es key down|up|tap` → the remote's mic key,
+ *   so what its microphone gives is heard.
  * - `adb shell am broadcast -a dev.lumbina.tv.debug.HEAR` → recognizes `files/hear.wav` in the app's
  *   external storage (16 kHz mono 16-bit, pushed with adb) and handles it as if spoken.
  */
@@ -43,6 +44,9 @@ internal class DebugCommands(
     private val sleepIn: (Int) -> Unit,
     private val log: LumbinaLog,
 ) {
+    /** Presses the remote's mic key; set once the key's handling is built. */
+    var mic: (String) -> Unit = {}
+
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
@@ -63,6 +67,8 @@ internal class DebugCommands(
                     log.log(TAG, "heard \"${text.orEmpty()}\" in ${SystemClock.elapsedRealtime() - started} ms")
                     if (text != null) log.log(TAG, "→ ${say()(text)}")
                 }
+
+                ACTION_MIC -> mic(intent.getStringExtra("key").orEmpty())
 
                 ACTION_SWITCHER -> switcher(intent.getStringExtra("key").orEmpty())
 
@@ -91,6 +97,7 @@ internal class DebugCommands(
             addAction(ACTION_SLEEP_IN)
             addAction(ACTION_SAY)
             addAction(ACTION_HEAR)
+            addAction(ACTION_MIC)
         }
         ContextCompat.registerReceiver(
             service,
@@ -115,6 +122,7 @@ internal class DebugCommands(
         const val ACTION_SLEEP_IN = "dev.lumbina.tv.debug.SLEEP_IN"
         const val ACTION_SAY = "dev.lumbina.tv.debug.SAY"
         const val ACTION_HEAR = "dev.lumbina.tv.debug.HEAR"
+        const val ACTION_MIC = "dev.lumbina.tv.debug.MIC"
         const val DEFAULT_SLEEP_SECONDS = 70
     }
 }

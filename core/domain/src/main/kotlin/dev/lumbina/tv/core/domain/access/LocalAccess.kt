@@ -45,6 +45,13 @@ interface LocalAdb {
 
     /** Runs [command] in a shell and returns its output; null when not connected. */
     suspend fun shell(command: String): String?
+
+    /**
+     * Runs [command] with [input] as its standard input and returns its output; null when not
+     * connected. For what the shell may not open itself, like a file in an app's folder. The
+     * command must know how much to read: the input is sent whole and then left open.
+     */
+    suspend fun exec(command: String, input: ByteArray): String? = null
 }
 
 /** What Lumbina does with that access; shared by the settings screen and the remote's process. */

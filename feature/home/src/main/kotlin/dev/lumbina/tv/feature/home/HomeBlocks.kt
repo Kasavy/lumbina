@@ -54,6 +54,7 @@ import dev.lumbina.tv.core.domain.home.TileSize
 import dev.lumbina.tv.core.ui.focusGlow
 import dev.lumbina.tv.core.ui.highlightBorder
 import dev.lumbina.tv.core.ui.opensOnRest
+import dev.lumbina.tv.core.ui.programTileExtent
 import dev.lumbina.tv.core.ui.rememberOpenOnRest
 
 /**
@@ -157,11 +158,16 @@ internal fun Recommendations(
                 }
             }
         }
+        // As tall as its tallest tab whichever is open: a tab of posters is taller than one of banners,
+        // and the page must not jump when the focus goes from one to the other.
+        val height = programRowHeight(selected.programs, size)
+        val tallest = rows.maxOf { programRowHeight(it.programs, size) }
         ProgramRow(
             rowKey = HomeRow.Recommendations.key,
             programs = selected.programs,
-            height = programRowHeight(selected.programs, size),
+            height = height,
             actions = actions,
+            modifier = Modifier.padding(bottom = programTileExtent(tallest) - programTileExtent(height)),
         )
     }
 }

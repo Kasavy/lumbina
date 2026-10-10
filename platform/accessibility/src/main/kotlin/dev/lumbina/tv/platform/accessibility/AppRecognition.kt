@@ -34,8 +34,8 @@ internal sealed interface AppSpeech {
     /** Somebody spoke, but no words came out of it. */
     data object NotUnderstood : AppSpeech
 
-    /** Recognition failed for a reason the user can mend. */
-    data class Unavailable(val reason: SpeechUnavailable.Reason) : AppSpeech
+    /** Recognition failed for a reason to tell the user; [status]: what the service answered, if it did. */
+    data class Unavailable(val reason: SpeechUnavailable.Reason, val status: Int = 0) : AppSpeech
 
     /** The remote's mic can't be read, or the recognizer failed. */
     data object Failed : AppSpeech
@@ -92,7 +92,7 @@ internal class AppRecognition(
                 log.log(TAG, "for an app: failed: $e")
                 emit(
                     when (e) {
-                        is SpeechUnavailable -> AppSpeech.Unavailable(e.reason)
+                        is SpeechUnavailable -> AppSpeech.Unavailable(e.reason, e.status)
                         is IOException -> AppSpeech.Failed
                         is IllegalStateException -> AppSpeech.NotReady
                         else -> throw e
@@ -162,11 +162,17 @@ internal fun VoiceEvent.Final.readings(max: Int): List<Hypothesis> {
     return (listOf(best) + others).distinctBy { it.text }.take(max.coerceAtLeast(1))
 }
 
-/** What to tell the user for each reason, with where to mend it. */
+/** What to tell the user for each reason, with where to mend it if they can; formatted with the service's status. */
 internal val SpeechUnavailable.Reason.message: Int
     get() = when (this) {
         SpeechUnavailable.Reason.NoKey -> R.string.voice_no_key
         SpeechUnavailable.Reason.KeyRefused -> R.string.voice_key_refused
+        SpeechUnavailable.Reason.NotPaid -> R.string.voice_not_paid
+        SpeechUnavailable.Reason.NotAllowed -> R.string.voice_not_allowed
+        SpeechUnavailable.Reason.Region -> R.string.voice_other_country
+        SpeechUnavailable.Reason.ServiceError -> R.string.voice_service_error
+        SpeechUnavailable.Reason.Busy -> R.string.voice_busy
+        SpeechUnavailable.Reason.MicNotGiven -> R.string.voice_mic_not_given
         SpeechUnavailable.Reason.NoNetwork -> R.string.voice_no_network
     }
 

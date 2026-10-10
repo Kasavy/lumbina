@@ -41,7 +41,7 @@ class RecognizeSpeechActivity : Activity() {
         super.onCreate(savedInstanceState)
         caption = captionView()
         val app = AppRecognition.current
-        if (app == null) return flashAndFinish(R.string.voice_for_apps_unavailable, RESULT_AUDIO_ERROR)
+        if (app == null) return flashAndFinish(getString(R.string.voice_for_apps_unavailable), RESULT_AUDIO_ERROR)
         caption.text = intent.getStringExtra(EXTRA_PROMPT) ?: getString(R.string.voice_listening)
         scope.launch { listen(app) }
     }
@@ -71,19 +71,19 @@ class RecognizeSpeechActivity : Activity() {
 
                 is AppSpeech.Heard -> answer(speech)
 
-                AppSpeech.NoSpeech -> flashAndFinish(R.string.voice_no_speech, RESULT_NO_MATCH)
+                AppSpeech.NoSpeech -> flashAndFinish(getString(R.string.voice_no_speech), RESULT_NO_MATCH)
 
-                AppSpeech.NotUnderstood -> flashAndFinish(R.string.voice_not_heard, RESULT_NO_MATCH)
+                AppSpeech.NotUnderstood -> flashAndFinish(getString(R.string.voice_not_heard), RESULT_NO_MATCH)
 
                 is AppSpeech.Unavailable -> flashAndFinish(
-                    speech.reason.message,
+                    getString(speech.reason.message, speech.status),
                     result(speech.reason),
                     UNAVAILABLE_MILLIS,
                 )
 
-                AppSpeech.Failed -> flashAndFinish(R.string.voice_failed, RESULT_AUDIO_ERROR)
+                AppSpeech.Failed -> flashAndFinish(getString(R.string.voice_failed), RESULT_AUDIO_ERROR)
 
-                AppSpeech.NotReady -> flashAndFinish(R.string.voice_failed, RESULT_CLIENT_ERROR)
+                AppSpeech.NotReady -> flashAndFinish(getString(R.string.voice_failed), RESULT_CLIENT_ERROR)
             }
         }
     }
@@ -102,14 +102,15 @@ class RecognizeSpeechActivity : Activity() {
         }
     }
 
-    private fun result(reason: SpeechUnavailable.Reason) = when (reason) {
-        SpeechUnavailable.Reason.NoKey -> RESULT_CLIENT_ERROR
-        SpeechUnavailable.Reason.KeyRefused -> RESULT_SERVER_ERROR
-        SpeechUnavailable.Reason.NoNetwork -> RESULT_NETWORK_ERROR
+    private fun result(reason: SpeechUnavailable.Reason) = when (reason.side) {
+        SpeechUnavailable.Side.Client -> RESULT_CLIENT_ERROR
+        SpeechUnavailable.Side.Service -> RESULT_SERVER_ERROR
+        SpeechUnavailable.Side.Audio -> RESULT_AUDIO_ERROR
+        SpeechUnavailable.Side.Network -> RESULT_NETWORK_ERROR
     }
 
-    private fun flashAndFinish(text: Int, result: Int, millis: Long = FLASH_MILLIS) {
-        caption.setText(text)
+    private fun flashAndFinish(text: String, result: Int, millis: Long = FLASH_MILLIS) {
+        caption.text = text
         setResult(result)
         scope.launch {
             delay(millis)

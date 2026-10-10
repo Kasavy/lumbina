@@ -8,13 +8,19 @@ import dev.lumbina.tv.core.domain.access.LocalAccess
 import dev.lumbina.tv.core.domain.access.NotificationAccess
 import dev.lumbina.tv.core.domain.access.UsageAccess
 import dev.lumbina.tv.core.domain.app.InstalledApps
+import dev.lumbina.tv.core.domain.channels.ChannelCensus
 import dev.lumbina.tv.core.domain.channels.TvChannels
 import dev.lumbina.tv.core.domain.channels.TvListingsPermission
+import dev.lumbina.tv.core.domain.device.DeviceAnswer
 import dev.lumbina.tv.core.domain.device.DeviceProfile
+import dev.lumbina.tv.core.domain.device.FirmwarePart
+import dev.lumbina.tv.core.domain.device.FirmwareParts
+import dev.lumbina.tv.core.domain.device.PackageStates
 import dev.lumbina.tv.core.domain.diagnostics.AccessFacts
 import dev.lumbina.tv.core.domain.diagnostics.AskDevice
 import dev.lumbina.tv.core.domain.diagnostics.ChannelsFacts
 import dev.lumbina.tv.core.domain.diagnostics.DiagnosticsSnapshot
+import dev.lumbina.tv.core.domain.diagnostics.FirmwarePackage
 import dev.lumbina.tv.core.domain.diagnostics.LogArchive
 import dev.lumbina.tv.core.domain.diagnostics.ReportExporter
 import dev.lumbina.tv.core.domain.diagnostics.SystemInfo
@@ -40,6 +46,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** [notifications], [usage]: whether the user allowed either special access. */
@@ -68,6 +75,9 @@ class DiagnosticsViewModel @Inject constructor(
     private val usageAccess: UsageAccess,
     private val localAccess: LocalAccess,
     private val askDevice: AskDevice,
+    private val firmware: FirmwareParts,
+    private val packages: PackageStates,
+    private val census: ChannelCensus,
     private val channels: TvChannels,
     private val listings: TvListingsPermission,
     accessSettings: AccessSettingsRepository,
@@ -145,7 +155,13 @@ class DiagnosticsViewModel @Inject constructor(
             hiddenApps = layout.hidden.size,
             access = allowed,
             channels = tv,
-            firmwarePackages = profile.diagnostics?.packages.orEmpty().map { it to system.packageVersion(it) },
+            firmware = (
+                listOfNotNull(profile.stockLauncher?.packageName) + profile.firmwareParts.map {
+                    it.packageName
+                }
+                )
+                .map { FirmwarePackage(it, system.packageVersion(it), packages.of(it)) },
+            partsOff = firmware.off(),
         )
     }.flowOn(Dispatchers.IO)
 
@@ -161,12 +177,27 @@ class DiagnosticsViewModel @Inject constructor(
         usageAccess.openSettings()
     }
 
+    private val mutableParts = MutableStateFlow(PartsState(firmware.canTurnOn))
+    val parts: StateFlow<PartsState> = mutableParts.asStateFlow()
+
+    /** One at a time: a press while a part is being turned on would run the command again. */
+    fun turnOn(part: FirmwarePart) {
+        if (mutableParts.value.working != null) return
+        mutableParts.update { it.started(part) }
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = firmware.turnOn(part)
+            mutableParts.update { it.finished(part, result) }
+        }
+    }
+
     private val mutableSaved = MutableStateFlow(SavedReport(null))
     val saved: StateFlow<SavedReport> = mutableSaved.asStateFlow()
 
-    /** The page was left: where the last report went is not news any more. */
-    fun forgetSaved() {
+    /** The page was left: where the last report went and what was turned on or failed is not news any more. */
+    fun forgetDone() {
         mutableSaved.value = SavedReport(null)
+        // What is being turned on still is: forgotten, it could be started a second time.
+        mutableParts.update { PartsState(firmware.canTurnOn, working = it.working) }
     }
 
     /** One report at a time: a second press while one is being put together would ask the device twice at once. */
@@ -177,7 +208,7 @@ class DiagnosticsViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             val now = Date()
             // Asked before the log is read: what the questions stirred up belongs in this report.
-            val answered = askDevice()
+            val answered = askDevice() + DeviceAnswer("TV provider, app by app", census.take().joinToString("\n"))
             val text = snapshot.toReport(
                 SimpleDateFormat(TIME, Locale.US).format(now),
                 logArchive.tail(REPORT_LOG_LINES),

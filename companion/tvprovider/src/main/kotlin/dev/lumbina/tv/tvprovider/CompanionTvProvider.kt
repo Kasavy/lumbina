@@ -109,7 +109,7 @@ class CompanionTvProvider : ContentProvider() {
         val parsedMode = ParcelFileDescriptor.parseMode(mode)
         if (!writing) return ParcelFileDescriptor.open(file, parsedMode)
         file.parentFile?.mkdirs()
-        val channel = ContentUris.withAppendedId(kindUri(CHANNEL), requireNotNull(id))
+        val channel = ContentUris.withAppendedId(kindUri(CHANNEL), id)
         // Readers are told once the app has written the logo and closed the file.
         return ParcelFileDescriptor.open(file, parsedMode, Handler(Looper.getMainLooper())) { notifyChange(channel) }
     }

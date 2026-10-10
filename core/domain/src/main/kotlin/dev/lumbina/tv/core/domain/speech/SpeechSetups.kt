@@ -34,10 +34,10 @@ class SpeechSetups @Inject constructor(
         }
             .distinctUntilChanged()
             .flatMapLatest { setup ->
-                if (setup.provider == SpeechProvider.Device) {
-                    flowOf(setup)
-                } else {
+                if (setup.provider.isCloud) {
                     appNames(refresh).map { setup.copy(vocabulary = it) }
+                } else {
+                    flowOf(setup)
                 }
             }
     }

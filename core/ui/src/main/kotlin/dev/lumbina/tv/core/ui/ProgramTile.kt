@@ -38,9 +38,7 @@ import dev.lumbina.tv.core.domain.channels.ProgramCard
 fun ProgramTile(card: ProgramCard, height: Dp, onClick: () -> Unit, modifier: Modifier = Modifier) {
     var ratio by remember(card.id, card.shape) { mutableFloatStateOf(card.shape?.widthToHeight ?: WIDE) }
     val width = height * ratio
-    // A focused card grows by about a tenth; the gap keeps its caption from being covered.
-    val gap = 6.dp + height * FOCUS_GROWTH / 2
-    Column(verticalArrangement = Arrangement.spacedBy(gap), modifier = modifier.width(width)) {
+    Column(verticalArrangement = Arrangement.spacedBy(captionGap(height)), modifier = modifier.width(width)) {
         Card(
             onClick = onClick,
             colors = CardDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -103,3 +101,12 @@ private const val WIDE = 16f / 9f
 private const val MIN_RATIO = 0.5f
 private const val MAX_RATIO = 2.4f
 private const val FOCUS_GROWTH = 0.1f
+
+/** A focused card grows by about a tenth; the gap keeps its caption from being covered. */
+private fun captionGap(height: Dp): Dp = 6.dp + height * FOCUS_GROWTH / 2
+
+/**
+ * How tall a tile with a card of [height] is, its caption's line aside: what a row of taller
+ * cards takes more than a row of shorter ones.
+ */
+fun programTileExtent(height: Dp): Dp = height + captionGap(height)

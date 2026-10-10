@@ -1,17 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="lumbina_accessibility_label" translatable="false">Lumbina</string>
-    <string name="lumbina_accessibility_description">Lets the remote\'s Home button open Lumbina (a long press opens the quick menu) and turns the mic button into voice input.</string>
+    <string name="lumbina_accessibility_description">Lets the remote\'s Home button open Lumbina (holding it opens the quick menu) and turns the mic button into voice input.</string>
     <string name="voice_listening">Listening…</string>
     <string name="voice_heard">“%1$s”</string>
     <string name="voice_not_heard">Didn\'t catch that</string>
     <string name="voice_no_speech">Heard nothing</string>
     <string name="voice_no_sound">No sound from the remote\'s microphone</string>
+    <string name="voice_mic_service_off">The remote\'s microphone is turned off in the firmware. See “Diagnostics” in Lumbina\'s settings</string>
+    <string name="voice_search_failed">Search didn\'t open. Change “Where to search” in “Widgets” in Lumbina\'s settings</string>
     <string name="voice_no_field">Nowhere to type “%1$s”. Select a text field first</string>
     <string name="voice_failed">Couldn’t recognize that. Try again</string>
     <string name="voice_no_key">The speech service has no key: enter it in “Voice input” in Lumbina\'s settings</string>
-    <string name="voice_key_refused">The speech service refused the key: check it in “Voice input” in Lumbina\'s settings</string>
-    <string name="voice_no_network">Can\'t reach the speech service: check the network</string>
+    <string name="voice_key_refused">The speech service didn\'t accept the key: check it in “Voice input” in Lumbina\'s settings</string>
+    <string name="voice_not_paid">Your speech service account is out of funds. Top it up on the service\'s website</string>
+    <string name="voice_not_allowed">The speech service won\'t work with this key. Check its permissions and billing on the service\'s website</string>
+    <string name="voice_other_country">The speech service isn\'t available in your country. Choose another in “Voice input”</string>
+    <string name="voice_service_error">The speech service isn\'t working right now (error %1$d). Try again later</string>
+    <string name="voice_busy">Too many requests to the speech service. Wait a minute</string>
+    <string name="voice_mic_not_given">The remote\'s sound isn\'t reaching the app. Check “Access” in Lumbina\'s settings</string>
+    <string name="voice_no_network">Speech recognition isn\'t responding. Check your internet connection</string>
     <string name="voice_for_apps_unavailable">Lumbina\'s voice input isn\'t ready: open Lumbina and check “Voice input” in its settings</string>
     <string name="voice_language_auto">Voice: automatic</string>
     <string name="voice_language_only">Voice: %1$s only</string>
@@ -39,7 +47,6 @@
     <string name="quick_off">Off</string>
     <string name="quick_phone">Phone remote</string>
     <string name="quick_lumbina_settings">Lumbina settings</string>
-    <string name="quick_stock_launcher">%1$s launcher</string>
     <string name="quick_recent_apps">Recent apps</string>
     <string name="sleep_extend">+%1$d minutes</string>
     <string name="sleep_timer_off">Cancel the timer</string>

@@ -9,7 +9,10 @@ import kotlinx.coroutines.withContext
 /** Gets recognition ready for a [SpeechSetup]: chooses its provider and prepares its languages. */
 internal class VoiceReadiness(private val engine: SpeechEngineChoice, private val log: LumbinaLog) {
 
-    /** Whether recognition can work now: a model is installed, or a cloud service has its key. */
+    /**
+     * Whether recognition can work now: a model is installed, a cloud service has its key, or
+     * another app is there to recognize.
+     */
     suspend fun prepare(setup: SpeechSetup): Boolean {
         engine.choose(setup)
         val ready = withContext(Dispatchers.IO) {

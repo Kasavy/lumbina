@@ -21,6 +21,7 @@ import java.io.IOException
  * ([TcpTransport]).
  */
 internal object PcmShareProtocol {
+    const val PACKAGE = "com.hisense.pcm.share"
     const val SOCKET = "GETSYSTEMPCMDATALOCAL"
 
     /** Who is recording, as the service is told. */

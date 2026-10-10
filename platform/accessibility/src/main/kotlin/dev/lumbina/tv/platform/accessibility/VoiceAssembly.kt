@@ -19,6 +19,7 @@ import dev.lumbina.tv.core.domain.text.DeliverText
 import dev.lumbina.tv.core.domain.text.FocusedFieldSink
 import dev.lumbina.tv.core.domain.text.LauncherSearchSink
 import dev.lumbina.tv.core.domain.text.OnScreenKeyboardSink
+import dev.lumbina.tv.core.domain.text.Search
 import dev.lumbina.tv.core.domain.text.YouTube
 import dev.lumbina.tv.core.domain.text.YouTubeSearch
 import dev.lumbina.tv.core.domain.text.withYouTube
@@ -35,12 +36,17 @@ internal class VoiceAssembly(
     private val service: AccessibilityService,
     private val engine: SpeechEngine,
     private val voiceSettings: VoiceSettingsRepository,
-    private val youTubeSearch: YouTubeSearch,
+    private val searches: Searches,
     private val launcherPackages: Set<String>,
     private val commandPorts: CommandPorts,
     private val log: LumbinaLog,
+    /** Whether the part of the firmware that gives the remote's sound is turned off: why no sound came, then. */
+    private val micServiceOff: () -> Boolean,
 ) {
     val sessions = VoiceSessions(engine)
+
+    /** Where what was said is looked for: YouTube on a command to, the user's search for a phrase on a launcher. */
+    class Searches(val youTube: YouTubeSearch, val chosen: Search)
 
     /** What voice commands act on. */
     class CommandPorts(
@@ -57,7 +63,7 @@ internal class VoiceAssembly(
         apps = ::spokenApps,
         launcher = commandPorts.launcher,
         device = commandPorts.device,
-        search = youTubeSearch,
+        search = searches.youTube,
         deliver = textDelivery(),
         sleep = commandPorts.sleep,
         now = System::currentTimeMillis,
@@ -81,7 +87,7 @@ internal class VoiceAssembly(
                 FocusedFieldSink(screen),
                 AnyFieldSink(screen),
                 OnScreenKeyboardSink(screen),
-                LauncherSearchSink(screen, launcherPackages, youTubeSearch),
+                LauncherSearchSink(screen, launcherPackages, searches.chosen::search),
             ),
         )
     }
@@ -124,9 +130,11 @@ internal class VoiceAssembly(
         heard = { service.getString(R.string.voice_heard, it) },
         notHeard = service.getString(R.string.voice_not_heard),
         noSound = service.getString(R.string.voice_no_sound),
+        micOff = { if (micServiceOff()) service.getString(R.string.voice_mic_service_off) else null },
         noField = { service.getString(R.string.voice_no_field, it) },
+        searchFailed = service.getString(R.string.voice_search_failed),
         failed = service.getString(R.string.voice_failed),
-        unavailable = { service.getString(it.message) },
+        unavailable = { service.getString(it.reason.message, it.status) },
         opened = { service.getString(R.string.voice_opened, it) },
         closed = { service.getString(R.string.voice_closed, it) },
         appNotFound = { service.getString(R.string.voice_app_not_found, it) },

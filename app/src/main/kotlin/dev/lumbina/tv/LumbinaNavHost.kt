@@ -1,6 +1,7 @@
 package dev.lumbina.tv
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
@@ -78,6 +79,9 @@ internal fun LumbinaNavHost(request: NavRequest?, modifier: Modifier = Modifier)
     var wasOnHome by rememberSaveable { mutableStateOf(true) }
     val onHome = if (route == null) wasOnHome else route == HOME
     SideEffect { wasOnHome = onHome }
+    // Home is where Back ends: left to the system, it would close Lumbina and show what is under
+    // it, the firmware's own home screen where Lumbina does not hold the home role.
+    BackHandler(enabled = onHome) {}
     // Key presses go to a flow, not to state, so pressing keys doesn't recompose this screen.
     val keyPresses = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
     val busy = produceState(false) {

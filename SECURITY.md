@@ -25,7 +25,8 @@ Lumbina for speech, or an app Lumbina passes the mic to is recording.
 
 It is recognized on the device (Vosk) and not saved. If you choose a cloud service in the voice
 settings (OpenAI or Yandex SpeechKit), each phrase goes to that service with your API key and
-nothing else. Recognized phrases are written to Lumbina's log on the device. The log leaves the
+nothing else. If you choose another app on the device to recognize, each phrase goes to that app,
+and what it does with it is the app's own matter. Recognized phrases are written to Lumbina's log on the device. The log leaves the
 device only in a diagnostics report you save yourself.
 
 API keys are pasted on the phone remote page, stored on the TV encrypted with an Android Keystore
@@ -54,13 +55,16 @@ the device's adb on the loopback address and:
 - sets the system speech recognizer;
 - stops an app you close from "Recent apps";
 - installs Lumbina TV Provider, the companion app it carries, if the device has no TV provider;
+- turns a system app of the firmware back on when you choose "Turn on" on the diagnostics page;
+- asks the shell about the device when you save a diagnostics report;
 - starts a helper.
 
 The helper runs as the adb shell from Lumbina's own APK. Android's microphone input is silent on
 the projector, so apps that record the microphone themselves hear nothing. The helper registers
 an audio policy that feeds the remote's audio into the recordings of the apps you allowed. When
 an app on screen starts to record for the first time, Lumbina asks whether to let it hear the
-remote. The answers can be changed in the settings, on the Access page. The helper lives only as
+remote. The app you chose to recognize speech is not asked about: choosing it is the answer, and
+it gets only the phrases of voice input. The answers can be changed in the settings, on the Access page. The helper lives only as
 long as its connection to Lumbina, and only the shell user can connect.
 
 Revoke debugging authorizations in the developer options and all of this is gone.

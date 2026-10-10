@@ -31,7 +31,7 @@ Lumbina is a multi-module Android project organised around a pure-Kotlin domain.
 | `:feature:*` | Screens and view models: `home` (incl. all apps), `settings`, `onboarding`, `screensaver`. |
 | `:platform:*` | Android adapters: `packages`, `accessibility`, `system`, `weather`, `wallpaper`, `tvprovider`, `adb`. |
 | `:speech:vosk` | Offline speech recognition: engine, model store, and the `:voice` process that runs it. |
-| `:speech:cloud` | Cloud speech recognition (OpenAI, Yandex SpeechKit) with the user's API keys; the voice settings choose between it and the device (`SpeechEngineChoice`). |
+| `:speech:cloud` | Cloud speech recognition (OpenAI, Yandex SpeechKit) with the user's API keys; the voice settings choose between it, the device and another app on the device that recognizes for apps (`SpeechEngineChoice`). |
 | `:vendor:*` | Device-specific behaviour (`hisense`, `generic`), selected at runtime. |
 | `:companion:tvprovider` | Lumbina TV Provider: a standalone APK with an `android.media.tv` provider for firmware that lacks one. |
 | `:baselineprofile` | Generates the baseline profile and runs startup/scroll benchmarks against `:app`. |
@@ -55,8 +55,8 @@ Each vendor module contributes a `DeviceProfile` (`@IntoSet`, `core:domain` `dev
 whether it matches the running device (`DeviceFingerprint`: manufacturer, model, installed
 packages). `DeviceProfileResolver` picks the matching profile with the highest priority; the
 generic profile matches everything. The profile supplies the remote's key map, the stock
-launcher (reachable from the quick menu) and, if the vendor exposes it, the remote-mic audio
-source. Adding a device family means adding one module and one line in `:app`.
+launcher (the first of the home screens the quick menu can lead to) and, if the vendor exposes
+it, the remote-mic audio source. Adding a device family means adding one module and one line in `:app`.
 
 ## Processes
 
@@ -74,7 +74,8 @@ model to load; the mic is read meanwhile.
 Speech for other apps runs in `:remote` too: the `RECOGNIZE_SPEECH` screen and the
 `RecognitionService` share the service's connection to the remote's mic. Where Lumbina reaches its
 own adb, it also starts a helper (`MicInjector`) as the adb shell from its own APK; it is no
-process of Lumbina's and lives exactly as long as its socket connection to `:remote`.
+process of Lumbina's and lives exactly as long as its socket connection to `:remote`. The same
+helper carries the remote's audio to another app chosen to recognize (`SpeechAppEngine`).
 
 The names of the processes come from the build (`processNames` in `build-logic`): a release may
 be built with a prefix before them, set outside this repository. A build from source has the

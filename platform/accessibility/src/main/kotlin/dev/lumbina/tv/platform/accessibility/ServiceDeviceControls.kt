@@ -2,6 +2,7 @@ package dev.lumbina.tv.platform.accessibility
 
 import android.accessibilityservice.AccessibilityService
 import android.media.AudioManager
+import android.os.Build
 import android.os.SystemClock
 import android.view.KeyEvent
 import dev.lumbina.tv.core.domain.device.DeviceVolume
@@ -57,7 +58,9 @@ internal class ServiceDeviceControls(
 
     override fun back(): Boolean = service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
 
-    override fun standby(): Boolean = service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN)
+    /** The action is there since Android 9; before it there is nothing to ask for. */
+    override fun standby(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+        service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN)
 
     override fun appInFront(): String? =
         service.rootInActiveWindow?.packageName?.toString()?.takeUnless { it in launchers }

@@ -21,14 +21,30 @@ internal class AdbConnection private constructor(
 
     private var nextLocalId = 1
 
+    /** The most the device takes in one message; it says so when the connection is made. */
+    private var maxData = AdbMessage.MAX_DATA
+
     /** Runs [command] in `shell:` and returns everything it printed. */
-    fun shell(command: String, timeoutMillis: Int): String {
+    fun shell(command: String, timeoutMillis: Int): String = run("shell:$command", null, timeoutMillis)
+
+    /**
+     * Runs [command] in `exec:` (its input and output are raw bytes) with [input] as its input, and
+     * returns everything it printed. The command ends the stream when it has read what it needs.
+     */
+    fun exec(command: String, input: ByteArray, timeoutMillis: Int): String = run("exec:$command", input, timeoutMillis)
+
+    /**
+     * Opens [service] and talks to it until the device closes the stream. The device allows one
+     * message of ours at a time: each piece of [input] goes after its answer to the one before.
+     */
+    private fun run(service: String, input: ByteArray?, timeoutMillis: Int): String {
         socket.soTimeout = timeoutMillis
         val localId = nextLocalId++
-        send(AdbMessage(AdbMessage.OPEN, localId, 0, "shell:$command\u0000".toByteArray()))
+        send(AdbMessage(AdbMessage.OPEN, localId, 0, "$service\u0000".toByteArray()))
         val out = ByteArrayOutputStream()
+        var sent = 0
         while (true) {
-            val message = AdbMessage.read(input)
+            val message = AdbMessage.read(input = this.input)
             when (message.command) {
                 AdbMessage.WRTE -> {
                     out.write(message.data)
@@ -40,7 +56,11 @@ internal class AdbConnection private constructor(
                     return out.toString(Charsets.UTF_8.name())
                 }
 
-                AdbMessage.OKAY -> Unit
+                AdbMessage.OKAY -> if (input != null && sent < input.size) {
+                    val piece = input.copyOfRange(sent, minOf(sent + maxData, input.size))
+                    sent += piece.size
+                    send(AdbMessage(AdbMessage.WRTE, localId, message.arg0, piece))
+                }
 
                 else -> throw IOException("unexpected $message")
             }
@@ -69,7 +89,10 @@ internal class AdbConnection private constructor(
                 if (offered) return false else throw e
             }
             when {
-                message.command == AdbMessage.CNXN -> return true
+                message.command == AdbMessage.CNXN -> {
+                    if (message.arg1 in 1 until AdbMessage.MAX_DATA) maxData = message.arg1
+                    return true
+                }
 
                 message.command != AdbMessage.AUTH || message.arg0 != AdbMessage.AUTH_TOKEN -> Unit
 

@@ -96,4 +96,24 @@ class TvRowsTest {
         )
         assertEquals(listOf(2L, 1L), feeds.single().programs.map { it.id })
     }
+
+    @Test
+    fun `the census counts each app's rows, and the channels the home screen leaves out`() {
+        val census = ProviderCensus()
+        census.channel(row("package_name" to "com.vk.tv", "display_name" to "Recommended", "browsable" to 1))
+        census.channel(row("package_name" to "com.vk.tv", "display_name" to "New", "browsable" to 0))
+        census.channel(row("package_name" to "com.vk.tv", "display_name" to " ", "browsable" to 0))
+        census.channel(row("package_name" to "a.first", "display_name" to "One"))
+        repeat(3) { census.program(row("package_name" to "com.vk.tv")) }
+        census.program(row("title" to "of nobody"))
+
+        assertEquals(
+            listOf(
+                "(no package): 0 channels (0 not browsable, 0 unnamed), 1 programs",
+                "a.first: 1 channels (0 not browsable, 0 unnamed), 0 programs",
+                "com.vk.tv: 3 channels (2 not browsable, 1 unnamed), 3 programs",
+            ),
+            census.lines(),
+        )
+    }
 }

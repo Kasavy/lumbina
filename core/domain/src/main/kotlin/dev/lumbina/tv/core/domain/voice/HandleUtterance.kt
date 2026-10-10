@@ -5,6 +5,7 @@ import dev.lumbina.tv.core.domain.app.AppLauncher
 import dev.lumbina.tv.core.domain.sleep.SleepSettingsRepository
 import dev.lumbina.tv.core.domain.sleep.withTimer
 import dev.lumbina.tv.core.domain.text.DeliverText
+import dev.lumbina.tv.core.domain.text.Delivery
 import dev.lumbina.tv.core.domain.text.YouTubeSearch
 
 /** What the device does for voice commands beyond starting apps. Each returns false if it can't. */
@@ -32,6 +33,9 @@ sealed interface UtteranceOutcome {
     data class Typed(val via: String) : UtteranceOutcome
 
     data class NotDelivered(val text: String) : UtteranceOutcome
+
+    /** Said on a launcher, where it is searched for, and the search did not open. */
+    data object SearchFailed : UtteranceOutcome
 
     data class Opened(val app: String) : UtteranceOutcome
 
@@ -85,8 +89,11 @@ class HandleUtterance(
         }
     }
 
-    private suspend fun type(text: String): UtteranceOutcome =
-        deliver(text)?.let { UtteranceOutcome.Typed(it) } ?: UtteranceOutcome.NotDelivered(text)
+    private suspend fun type(text: String): UtteranceOutcome = when (val delivery = deliver.deliver(text)) {
+        is Delivery.To -> UtteranceOutcome.Typed(delivery.sink)
+        is Delivery.Failed -> UtteranceOutcome.SearchFailed
+        Delivery.Nowhere -> UtteranceOutcome.NotDelivered(text)
+    }
 
     /** [act] on the app [query] names, or says it is ambiguous or not found. */
     private suspend fun withApp(query: String, act: suspend (App) -> UtteranceOutcome): UtteranceOutcome =

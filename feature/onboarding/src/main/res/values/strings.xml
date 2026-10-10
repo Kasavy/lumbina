@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="setup_voice">Download speech recognition: %1$s, %2$s.</string>
+    <string name="setup_voice_none">No language is on. Turn one on in “Voice input” in the settings.</string>
     <string name="setup_voice_download">Download</string>
     <string name="setup_voice_retry">Try again</string>
     <string name="model_missing">%1$s: not downloaded</string>
@@ -21,7 +22,7 @@
     <string name="setup_home_connecting">A request appears on the screen: tick “Always allow” and press “Allow”. Then Lumbina turns its service on, which takes a few seconds.</string>
     <string name="setup_home_turning_on">Connected. Turning the service on…</string>
     <string name="setup_home_not_allowed">The device didn’t allow the connection. Press “Connect” again and choose “Allow”.</string>
-    <string name="setup_home_not_kept">Connected, but the device didn’t let Lumbina keep its service on. Turn the service on in the accessibility settings or from a computer.</string>
+    <string name="setup_home_not_kept">Connected, but this device does not allow Lumbina to keep its service on. Turn the service on in the system settings, under “Accessibility”, or from a computer.</string>
     <string name="setup_home_failed">Debugging is on, but Lumbina could not connect. Press “Connect” again; if it keeps failing, the diagnostics report says why.</string>
     <string name="setup_home_debugging_off">Debugging is off: turn it on in the developer settings and press “Connect”.</string>
     <string name="setup_dev_settings">Developer settings</string>

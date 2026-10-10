@@ -1,6 +1,8 @@
 package dev.lumbina.tv.core.domain.diagnostics
 
 import dev.lumbina.tv.core.domain.device.DeviceAnswer
+import dev.lumbina.tv.core.domain.device.FirmwarePart
+import dev.lumbina.tv.core.domain.device.PackageState
 
 /** The device and app facts a support report needs; read live, see [snapshot]. */
 interface SystemInfo {
@@ -83,6 +85,16 @@ fun SystemInfo.snapshot(): SystemFacts = SystemFacts(
     processExits = processExits,
 )
 
+/** A package of the firmware as a report tells it: its version if it has one, and its state when not plainly on. */
+data class FirmwarePackage(val name: String, val version: String?, val state: PackageState) {
+    fun said(): String = when (state) {
+        PackageState.Missing -> "NOT installed"
+        PackageState.Removed -> "REMOVED for this user"
+        PackageState.Disabled -> "${version ?: "installed"}, DISABLED"
+        PackageState.Enabled -> version ?: "installed"
+    }
+}
+
 /** Lumbina's own log, newest lines last. */
 fun interface LogArchive {
     fun tail(lines: Int): List<String>
@@ -131,8 +143,10 @@ data class DiagnosticsSnapshot(
     val hiddenApps: Int,
     val access: AccessFacts,
     val channels: ChannelsFacts,
-    /** Packages of the firmware Lumbina leans on, each with its version; null for one that is missing. */
-    val firmwarePackages: List<Pair<String, String?>>,
+    /** The packages of the firmware Lumbina leans on. */
+    val firmware: List<FirmwarePackage>,
+    /** Those of them a feature rests on that are turned off, see `FirmwareParts`. */
+    val partsOff: List<FirmwarePart>,
 ) {
     /**
      * Plain-text report (English, for whoever helps), followed by what the device [answered] when
@@ -172,7 +186,7 @@ data class DiagnosticsSnapshot(
             line("RAM", "${mib(system.availableRamBytes)} free of ${mib(system.totalRamBytes)}")
             line("Storage", "${mib(system.freeStorageBytes)} free")
             system.inputDevices.forEach { line("Input device", it) }
-            firmwarePackages.forEach { (name, version) -> line(name, version ?: "NOT installed") }
+            firmware.forEach { line(it.name, it.said()) }
         }
         section("Processes") {
             line("Running", system.processes.joinToString().ifEmpty { "unknown" })

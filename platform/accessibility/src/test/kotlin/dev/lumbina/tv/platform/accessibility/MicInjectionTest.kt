@@ -1,7 +1,9 @@
 package dev.lumbina.tv.platform.accessibility
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MicInjectionTest {
@@ -12,6 +14,26 @@ class MicInjectionTest {
         assertEquals(HelperLine.Recording(10089, on = true), HelperLine.of("rec 10089 1"))
         assertEquals(HelperLine.Recording(10089, on = false), HelperLine.of("rec 10089 0"))
         assertEquals(HelperLine.Heard(10090), HelperLine.of("heard 10090"))
+    }
+
+    @Test
+    fun `the pump sends the remote's sound only to an app with the user's leave that records by itself`() {
+        val cinema = HelperLine.Recording(10090, on = true)
+        val search = HelperLine.Recording(10091, on = true)
+        val fed = MicInjection.Fed(
+            apps = mapOf(10090 to "tv.cinema", 10091 to "tv.search"),
+            allowed = setOf("tv.cinema", "tv.search"),
+            leave = setOf("tv.cinema"),
+        )
+
+        assertTrue(fed.pumpsTo(cinema, owned = null))
+        // Given a feed only as Lumbina's recognizer: recording by itself, it is asked about first.
+        assertFalse(fed.pumpsTo(search, owned = null))
+        // Recording for a session of Lumbina's own, which sends the sound itself.
+        assertFalse(fed.pumpsTo(cinema, owned = 10090))
+        assertTrue(fed.pumpsTo(cinema, owned = 10091))
+        // A recording that stopped is always the pump's to hear of.
+        assertTrue(fed.pumpsTo(HelperLine.Recording(10091, on = false), owned = 10091))
     }
 
     @Test

@@ -1,11 +1,7 @@
 package dev.lumbina.tv.feature.settings
 
 import android.text.format.Formatter
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,7 +12,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
 import dev.lumbina.tv.core.domain.speech.ModelState
 import dev.lumbina.tv.core.domain.speech.SpeechProvider
@@ -60,15 +55,18 @@ fun VoicePanel(
         if (state == null) return@SettingsList
         item { Header(stringResource(R.string.voice_mode_header)) }
         providerRows(recognizer, onClick = { choosing = true })
-        item {
-            ChoiceRow(
-                title = stringResource(R.string.voice_mode),
-                options = state.modes.map { mode ->
-                    Choice(modeText(state, mode), chosen = mode == state.mode) { onMode(mode) }
-                },
-            )
+        // Another app hears in the language set in it: Lumbina's languages and their mode are not shown.
+        if (!recognizer.byApp) {
+            item {
+                ChoiceRow(
+                    title = stringResource(R.string.voice_mode),
+                    options = state.modes.map { mode ->
+                        Choice(modeText(state, mode), chosen = mode == state.mode) { onMode(mode) }
+                    },
+                )
+            }
         }
-        item { Note(stringResource(R.string.voice_mode_hint)) }
+        if (!recognizer.byApp) item { Note(stringResource(R.string.voice_mode_hint)) }
         item {
             SwitchRow(
                 title = stringResource(R.string.voice_commands),
@@ -77,6 +75,7 @@ fun VoicePanel(
                 onClick = onToggleCommands,
             )
         }
+        if (recognizer.byApp) return@SettingsList
         item { Header(stringResource(R.string.voice_languages_header)) }
         item { Note(stringResource(R.string.voice_languages_hint)) }
         items(rows, key = { it.language }) { language ->

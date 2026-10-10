@@ -9,9 +9,8 @@ import dev.lumbina.tv.core.domain.home.HomeAppearanceRepository
 import dev.lumbina.tv.core.domain.sleep.SleepSettingsRepository
 import dev.lumbina.tv.core.domain.sleep.timerMinutesLeft
 import dev.lumbina.tv.core.domain.sleep.withTimer
-import dev.lumbina.tv.core.domain.text.HomeSearch
+import dev.lumbina.tv.core.domain.text.Search
 import dev.lumbina.tv.core.domain.text.SearchTarget
-import dev.lumbina.tv.core.domain.text.YouTubeSearch
 import dev.lumbina.tv.core.domain.weather.CurrentWeather
 import dev.lumbina.tv.core.domain.weather.ShownWeather
 import dev.lumbina.tv.core.domain.weather.WeatherSettingsRepository
@@ -54,8 +53,7 @@ class TopBarViewModel @Inject constructor(
     appearance: HomeAppearanceRepository,
     installedApps: InstalledApps,
     private val sleep: SleepSettingsRepository,
-    private val youTubeSearch: YouTubeSearch,
-    private val homeSearch: HomeSearch,
+    private val search: Search,
 ) : ViewModel() {
 
     /** Minutes left on the sleep timer, counting down only while one runs. */
@@ -72,9 +70,13 @@ class TopBarViewModel @Inject constructor(
         }
     }.distinctUntilChanged()
 
-    /** Looked up again when apps change: installing an app that can search brings the button. */
+    /**
+     * Looked up again when apps change (installing an app that can search brings the button), and
+     * when the user chooses another place to search.
+     */
     private val searchTarget = installedApps.observe()
-        .map { homeSearch.target() }
+        .flatMapLatest { search.choice }
+        .map { it.chosen }
         .flowOn(Dispatchers.IO)
         .distinctUntilChanged()
 
@@ -102,14 +104,14 @@ class TopBarViewModel @Inject constructor(
         language.value = tag
     }
 
-    /** Searches [query] where the search button leads. */
+    /** Looks for [query] where the user chose to search. */
     fun search(query: String) {
-        viewModelScope.launch { youTubeSearch.search(query) }
+        viewModelScope.launch { search.search(query) }
     }
 
     /** Opens the device's own search. */
     fun openSystemSearch() {
-        homeSearch.openSystem()
+        search.openSystem()
     }
 
     /** Turns the device off in [minutes]; null cancels the timer. */

@@ -42,10 +42,21 @@ internal class AndroidAppLauncher @Inject constructor(
         }
     }
 
-    /** The TV launcher category if this activity is the app's TV entry, else the phone one. */
+    /**
+     * The TV launcher category if this activity is the app's TV entry, else the phone one. A home
+     * screen that is in no launcher is started as one: an app may refuse an intent its activity
+     * declared no filter for.
+     */
     private fun launcherCategory(component: ComponentName): String {
-        val tvEntry = context.packageManager.getLeanbackLaunchIntentForPackage(component.packageName)?.component
-        return if (tvEntry == component) Intent.CATEGORY_LEANBACK_LAUNCHER else Intent.CATEGORY_LAUNCHER
+        val packages = context.packageManager
+        val name = component.packageName
+        if (packages.getLeanbackLaunchIntentForPackage(name)?.component == component) {
+            return Intent.CATEGORY_LEANBACK_LAUNCHER
+        }
+        if (packages.getLaunchIntentForPackage(name)?.component == component) return Intent.CATEGORY_LAUNCHER
+        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setPackage(name)
+        val isHome = packages.queryIntentActivities(home, 0).any { it.activityInfo.name == component.className }
+        return if (isHome) Intent.CATEGORY_HOME else Intent.CATEGORY_LAUNCHER
     }
 
     private companion object {

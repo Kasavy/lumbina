@@ -1,6 +1,7 @@
 package dev.lumbina.tv.core.domain.diagnostics
 
 import dev.lumbina.tv.core.domain.device.DeviceAnswer
+import dev.lumbina.tv.core.domain.device.PackageState
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -46,7 +47,11 @@ class DiagnosticsSnapshotTest {
         hiddenApps = 0,
         access = AccessFacts(debugging = "Off", openOnPowerOn = false, notifications = true, usage = false),
         channels = ChannelsFacts(provider = null, permissionMissing = false, channels = 0, programs = 0, watchNext = 0),
-        firmwarePackages = listOf("com.acme.mic" to null, "com.acme.launcher" to "1.2"),
+        firmware = listOf(
+            FirmwarePackage("com.acme.mic", null, PackageState.Missing),
+            FirmwarePackage("com.acme.launcher", "1.2", PackageState.Enabled),
+        ),
+        partsOff = emptyList(),
     )
 
     @Test
@@ -69,6 +74,18 @@ class DiagnosticsSnapshotTest {
         assertTrue("Input device: Acme Remote (000d:3838)" in report)
         assertTrue("com.acme.mic: NOT installed" in report)
         assertTrue("com.acme.launcher: 1.2" in report)
+    }
+
+    @Test
+    fun `the report says which of the firmware's packages is turned off or taken away`() {
+        val report = snapshot.copy(
+            firmware = listOf(
+                FirmwarePackage("com.acme.mic", "11", PackageState.Disabled),
+                FirmwarePackage("com.acme.volume", null, PackageState.Removed),
+            ),
+        ).toReport("<time>", emptyList())
+        assertTrue("com.acme.mic: 11, DISABLED" in report)
+        assertTrue("com.acme.volume: REMOVED for this user" in report)
     }
 
     @Test

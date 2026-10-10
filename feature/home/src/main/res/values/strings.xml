@@ -4,7 +4,7 @@
     <string name="home_favorites">Favorites</string>
     <string name="home_favorites_empty">Hold OK on an app and choose “Where to show…” to pin it here.</string>
     <string name="home_category_empty">Empty. Hold OK on an app and choose “Where to show…” to put it here.</string>
-    <string name="home_action_unavailable">This device does not offer that</string>
+    <string name="home_action_unavailable">This device does not allow that</string>
 
     <string name="menu_move">Move</string>
     <string name="menu_rename">Rename…</string>

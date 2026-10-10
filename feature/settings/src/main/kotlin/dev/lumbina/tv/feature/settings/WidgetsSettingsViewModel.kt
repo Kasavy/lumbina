@@ -6,6 +6,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.lumbina.tv.core.domain.home.ClockFormat
 import dev.lumbina.tv.core.domain.home.HomeAppearance
 import dev.lumbina.tv.core.domain.home.HomeAppearanceRepository
+import dev.lumbina.tv.core.domain.text.Search
+import dev.lumbina.tv.core.domain.text.SearchChoice
+import dev.lumbina.tv.core.domain.text.SearchTarget
 import dev.lumbina.tv.core.domain.text.YouTube
 import dev.lumbina.tv.core.domain.text.YouTubeApp
 import dev.lumbina.tv.core.domain.text.YouTubeChoice
@@ -24,7 +27,12 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-data class WidgetsState(val appearance: HomeAppearance, val weather: WeatherSettings, val youTube: YouTubeChoice)
+data class WidgetsState(
+    val appearance: HomeAppearance,
+    val weather: WeatherSettings,
+    val youTube: YouTubeChoice,
+    val search: SearchChoice,
+)
 
 /** Where a city search is: not started, running, failed (e.g. offline) or found (maybe nothing). */
 sealed interface CitySearch {
@@ -46,6 +54,7 @@ interface WidgetsCommands {
     fun choosePlace(place: Place?)
     fun closeSearch()
     fun useYouTubeApp(app: YouTubeApp)
+    fun searchIn(target: SearchTarget)
 }
 
 @Suppress("TooManyFunctions") // implements WidgetsCommands
@@ -55,6 +64,7 @@ class WidgetsSettingsViewModel @Inject constructor(
     private val weather: WeatherSettingsRepository,
     private val places: PlaceLocator,
     private val youTube: YouTube,
+    private val searches: Search,
 ) : ViewModel(),
     WidgetsCommands {
 
@@ -62,7 +72,13 @@ class WidgetsSettingsViewModel @Inject constructor(
     val citySearch: StateFlow<CitySearch> = search.asStateFlow()
     private var searchJob: Job? = null
 
-    val state: StateFlow<WidgetsState?> = combine(appearance.settings, weather.settings, youTube.choice, ::WidgetsState)
+    val state: StateFlow<WidgetsState?> = combine(
+        appearance.settings,
+        weather.settings,
+        youTube.choice,
+        searches.choice,
+        ::WidgetsState,
+    )
         .stateIn(viewModelScope, WhileUiSubscribed, null)
 
     override fun toggleDate() = look { it.copy(showDate = !it.showDate) }
@@ -77,6 +93,10 @@ class WidgetsSettingsViewModel @Inject constructor(
 
     override fun useYouTubeApp(app: YouTubeApp) {
         viewModelScope.launch { youTube.use(app) }
+    }
+
+    override fun searchIn(target: SearchTarget) {
+        viewModelScope.launch { searches.use(target) }
     }
 
     override fun searchCity(query: String) {

@@ -34,6 +34,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -67,9 +69,9 @@ fun HomeRoute(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val channels by channelsViewModel.state.collectAsStateWithLifecycle()
     val hint by viewModel.holdOkHint.collectAsStateWithLifecycle()
-    LaunchedEffect(refocus, visible) { if (visible) viewModel.onHomeShown() }
-    val menu = remember { MenuState() }
     var moving by remember { mutableStateOf<Moving?>(null) }
+    HomeComings(refocus, visible, shown = viewModel::onHomeShown) { moving = null }
+    val menu = remember { MenuState() }
     val (current, shownChannels) = heldWhileHidden(state to channels, visible)
     val latest by rememberUpdatedState(current)
     val openAllApps by rememberUpdatedState(onOpenAllApps)
@@ -391,6 +393,22 @@ private fun Hint(text: String, modifier: Modifier = Modifier) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier,
     )
+}
+
+/**
+ * [shown] each time home comes up. [left] when it is asked for anew (the Home key takes the focus
+ * off where it was), covered by another screen, or left for an app: a tile's move left unfinished
+ * ends where the tile stands.
+ */
+@Composable
+private fun HomeComings(refocus: Int, visible: Boolean, shown: () -> Unit, left: () -> Unit) {
+    val onShown by rememberUpdatedState(shown)
+    val onLeft by rememberUpdatedState(left)
+    LaunchedEffect(refocus, visible) {
+        onLeft()
+        if (visible) onShown()
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { onLeft() }
 }
 
 /** Padding and spacing of the home and "All apps" grids. */

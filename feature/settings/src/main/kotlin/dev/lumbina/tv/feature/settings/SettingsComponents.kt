@@ -13,13 +13,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,8 +25,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -45,7 +41,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
-import androidx.tv.material3.ListItem
 import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.RadioButton
@@ -55,7 +50,6 @@ import androidx.tv.material3.Text
 import dev.lumbina.tv.core.ui.Choice
 import dev.lumbina.tv.core.ui.ChoiceDialog
 import dev.lumbina.tv.core.ui.LAYERS_ARE_CHEAP
-import dev.lumbina.tv.core.ui.MenuDialog
 
 /**
  * Fades a page's list out at an edge it scrolls past, so a row cut by the edge doesn't look broken.
@@ -120,14 +114,12 @@ internal fun Note(text: String, modifier: Modifier = Modifier) {
 /** A label with its value below; focusable only so the D-pad can scroll the page. */
 @Composable
 internal fun Fact(label: String, value: String, modifier: Modifier = Modifier, problem: Boolean = false) {
+    var focused by remember { mutableStateOf(false) }
     SettingRow(
         onClick = {},
         headlineContent = { Text(label) },
-        // Otherwise the row's own color: a fixed one stays pale on the focused row's light background.
-        supportingContent = {
-            Text(value, color = if (problem) MaterialTheme.colorScheme.error else Color.Unspecified)
-        },
-        modifier = modifier,
+        supportingContent = { Text(value, color = if (problem) problemColor(focused) else Color.Unspecified) },
+        modifier = modifier.onFocusChanged { focused = it.hasFocus },
     )
 }
 

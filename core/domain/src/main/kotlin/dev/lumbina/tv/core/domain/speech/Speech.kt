@@ -15,6 +15,9 @@ object Pcm {
 
     /** A short frame, 40 ms: what is passed on live (to an app being fed the remote's audio). */
     const val FRAME_BYTES = 1_280
+
+    /** Less audio than this is a tap of the key, not a phrase: not worth a recognizer's while. */
+    const val TAP_MILLIS = 500L
     private const val MILLIS_PER_SECOND = 1_000
 
     private const val FULL_SCALE = 32_768.0
@@ -56,23 +59,46 @@ fun List<Hypothesis>.logText(): String =
     joinToString { String.format(Locale.US, "%s=%.2f\"%s\"", it.language, it.confidence, it.text) }
 
 /**
- * Recognition failed for a [reason] the user can mend. An [IOException] still, for those who
- * only report that it failed.
+ * Recognition failed for a [reason] worth telling the user: one they can mend, or the service's
+ * own failure with the HTTP [status] it answered (0 where there was none). An [IOException] still,
+ * for those who only report that it failed.
  */
-class SpeechUnavailable(val reason: Reason, message: String, cause: Throwable? = null) : IOException(message, cause) {
-    enum class Reason {
+class SpeechUnavailable(val reason: Reason, message: String, cause: Throwable? = null, val status: Int = 0) :
+    IOException(message, cause) {
+    /** Whose failure it is, as an app that asked Lumbina for speech is told. */
+    enum class Side { Client, Service, Audio, Network }
+
+    enum class Reason(val side: Side) {
         /** A cloud service is chosen, and its key is gone. */
-        NoKey,
+        NoKey(Side.Client),
 
         /** The service refused the key. */
-        KeyRefused,
+        KeyRefused(Side.Service),
+
+        /** The service took the key, and its account has nothing to pay with. */
+        NotPaid(Side.Service),
+
+        /** The service took the key and does not let it recognize: its rights, or the account behind it. */
+        NotAllowed(Side.Service),
+
+        /** The service does not serve the country the request came from. */
+        Region(Side.Service),
+
+        /** The service answered with an error that is not about the key, the account or the pace. */
+        ServiceError(Side.Service),
+
+        /** The service is asked too often: to wait a little. */
+        Busy(Side.Service),
+
+        /** Another app recognizes, and the remote's sound can't be given to it now. */
+        MicNotGiven(Side.Audio),
 
         /** The service can't be reached. */
-        NoNetwork,
+        NoNetwork(Side.Network),
     }
 }
 
-/** A speech recognizer: on the device (a model per language) or in the cloud. */
+/** A speech recognizer: on the device (a model per language), in the cloud, or another app on the device. */
 interface SpeechEngine {
     /** Languages sessions recognize in, preferred first; empty until [prepare] succeeds. */
     val languages: List<String>
@@ -98,6 +124,12 @@ interface SpeechSession : AutoCloseable {
 
     /** Best-effort text so far in the preferred language, for live feedback. */
     fun partial(): String
+
+    /**
+     * The key was let go: the audio still to come was said before that (the remote delivers it
+     * with a lag). May be told more than once.
+     */
+    fun released() = Unit
 
     /** Final readings, one per language. */
     fun finish(): List<Hypothesis>

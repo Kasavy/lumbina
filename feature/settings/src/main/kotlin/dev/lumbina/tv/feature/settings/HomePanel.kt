@@ -1,11 +1,7 @@
 package dev.lumbina.tv.feature.settings
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -14,7 +10,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
 import dev.lumbina.tv.core.domain.app.App
 import dev.lumbina.tv.core.domain.home.HomeAppearance
@@ -45,11 +40,13 @@ fun HomePanel(state: HomeSettingsState?, commands: HomeSettingsCommands, modifie
     if (state == null) return
     var dialog by remember { mutableStateOf<HomePanelDialog?>(null) }
     var moving by remember { mutableStateOf<MovingRow?>(null) }
+    val returning = remember { Returning() }
     SettingsList(modifier) {
         rowItems(
             state = state,
             moving = moving,
             onMoving = { moving = it },
+            returning = returning,
             commands = commands,
             onCategory = { dialog = HomePanelDialog.CategoryActions(it.id) },
             onNew = { dialog = HomePanelDialog.NewCategory },

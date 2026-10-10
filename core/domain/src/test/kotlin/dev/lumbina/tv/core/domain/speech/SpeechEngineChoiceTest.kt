@@ -31,6 +31,26 @@ class SpeechEngineChoiceTest {
     }
 
     @Test
+    fun `another app recognizes when it is chosen, and where there is none the device does`() {
+        val app = FakeSpeechEngine(listOf(Hypothesis("ru", "from the app", 1.0)))
+        val withApp = SpeechEngineChoice(device, emptyMap(), app)
+        withApp.choose(SpeechSetup(SpeechProvider.App, key = null, languages = listOf("ru")))
+        assertEquals(SpeechProvider.App, withApp.provider)
+
+        choice.choose(SpeechSetup(SpeechProvider.App, key = null, languages = listOf("ru")))
+        assertEquals(SpeechProvider.Device, choice.provider)
+    }
+
+    @Test
+    fun `another app that is gone leaves the device to recognize`() {
+        val gone = FakeSpeechEngine(emptyList())
+        val withApp = SpeechEngineChoice(device, emptyMap(), gone)
+        withApp.choose(SpeechSetup(SpeechProvider.App, key = null, languages = listOf("ru")))
+        assertTrue(withApp.prepare(listOf("ru")))
+        assertEquals(SpeechProvider.Device, withApp.provider)
+    }
+
+    @Test
     fun `a provider without an engine falls back to the device`() {
         choice.choose(SpeechSetup(SpeechProvider.Yandex, key = "key", languages = listOf("ru")))
         assertEquals(SpeechProvider.Device, choice.provider)

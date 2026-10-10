@@ -9,11 +9,8 @@ import dev.lumbina.tv.core.domain.speech.SpeechUnavailable
 import dev.lumbina.tv.core.domain.speech.SpeechUnavailable.Reason
 import java.io.ByteArrayOutputStream
 import java.io.IOException
-import java.net.ConnectException
 import java.net.HttpURLConnection
-import java.net.SocketTimeoutException
 import java.net.URL
-import java.net.UnknownHostException
 import org.json.JSONException
 import org.json.JSONObject
 
@@ -58,7 +55,7 @@ internal abstract class CloudRecognizer : CloudSpeechEngine {
 
             override fun finish(): List<Hypothesis> {
                 // A tap, not a phrase: not worth a request, and services make things up on silence.
-                if (Pcm.durationMillis(audio.size().toLong()) < MIN_AUDIO_MILLIS) return emptyList()
+                if (Pcm.durationMillis(audio.size().toLong()) < Pcm.TAP_MILLIS) return emptyList()
                 val text = transcribe(audio.toByteArray(), expected, key).trimEnd('.', '!', '?', '…').trimEnd()
                 return listOf(Hypothesis(languageOf(text, expected), text, 1.0))
             }
@@ -87,10 +84,9 @@ internal fun languageOf(text: String, expected: List<String>): String {
 }
 
 /**
- * POSTs [body] to [url] and returns the response. A failure or an error status is an
- * [IOException] naming the status and the start of the service's answer; not for a refused key,
- * which services quote back in part. A service that can't be reached, or refuses the key, is a
- * [SpeechUnavailable].
+ * POSTs [body] to [url] and returns the response. A service that gave no answer, or answered
+ * with an error status, is a [SpeechUnavailable] naming the status and the service's own error
+ * code, for the log.
  */
 internal fun post(url: String, headers: Map<String, String>, contentType: String, body: ByteArray): String {
     val connection = URL(url).openConnection() as HttpURLConnection
@@ -102,29 +98,61 @@ internal fun post(url: String, headers: Map<String, String>, contentType: String
         connection.setRequestProperty("Content-Type", contentType)
         headers.forEach { (name, value) -> connection.setRequestProperty(name, value) }
         connection.setFixedLengthStreamingMode(body.size)
-        return reaching {
+        val (status, answer) = reaching {
             connection.outputStream.use { it.write(body) }
             val status = connection.responseCode
-            if (status !in HTTP_OK_RANGE) throw failure(status, connection)
-            connection.inputStream.use { it.readBytes().decodeToString() }
+            val stream = if (status in HTTP_OK_RANGE) connection.inputStream else connection.errorStream
+            status to stream?.use { it.readBytes().decodeToString() }.orEmpty()
         }
+        if (status !in HTTP_OK_RANGE) throw failure(status, answer)
+        return answer
     } finally {
         connection.disconnect()
     }
 }
 
-private fun failure(status: Int, connection: HttpURLConnection): IOException {
-    if (status in REFUSED) return SpeechUnavailable(Reason.KeyRefused, "HTTP $status: the key was refused")
-    val answer = connection.errorStream?.use { it.readBytes().decodeToString() }.orEmpty()
-    return IOException("HTTP $status: ${excerpt(answer)}")
+/**
+ * What an error status is to the user. The answer itself is quoted only for the service's own
+ * errors: services quote a refused key back in part.
+ */
+private fun failure(status: Int, answer: String): IOException {
+    val code = errorCode(answer)
+    val told = listOfNotNull("HTTP $status", code).joinToString(" ")
+    val reason = when {
+        status == HTTP_UNAUTHORIZED -> Reason.KeyRefused
+
+        status == HTTP_FORBIDDEN && code == OTHER_COUNTRY -> Reason.Region
+
+        status == HTTP_FORBIDDEN -> Reason.NotAllowed
+
+        // OpenAI answers "too many requests" to an account with no funds as well; its code tells the two apart.
+        status == HTTP_PAYMENT_REQUIRED || (status == HTTP_TOO_MANY_REQUESTS && code in NOT_PAID) -> Reason.NotPaid
+
+        status == HTTP_TOO_MANY_REQUESTS -> Reason.Busy
+
+        else -> return SpeechUnavailable(Reason.ServiceError, "$told: ${excerpt(answer)}", status = status)
+    }
+    return SpeechUnavailable(reason, told, status = status)
 }
 
-/** Runs [request]; no route to the service, or no answer in time, is [Reason.NoNetwork]. */
+/** The service's own name for the error: OpenAI's `error.code` (or `type`), Yandex's `error_code`. */
+private fun errorCode(answer: String): String? = try {
+    val json = JSONObject(answer)
+    val error = json.optJSONObject("error")
+    listOf(error?.optString("code"), error?.optString("type"), json.optString("error_code"))
+        .firstOrNull { !it.isNullOrEmpty() && it != "null" }
+} catch (_: JSONException) {
+    null
+}
+
+/**
+ * Runs [request]; a failure before the service answered (no route, a connection cut or refused, no
+ * answer in time) is [Reason.NoNetwork], whatever the cause: it is named for the log.
+ */
 private inline fun <T> reaching(request: () -> T): T = try {
     request()
 } catch (e: IOException) {
-    val unreachable = e is UnknownHostException || e is ConnectException || e is SocketTimeoutException
-    throw if (unreachable) SpeechUnavailable(Reason.NoNetwork, e.toString(), e) else e
+    throw SpeechUnavailable(Reason.NoNetwork, e.toString(), e)
 }
 
 /** The [name] text in a service's JSON [answer]; an [IOException] quoting the answer without one. */
@@ -136,10 +164,14 @@ internal fun answerText(answer: String, name: String): String = try {
 
 private fun excerpt(answer: String) = answer.replace(WHITESPACE, " ").take(EXCERPT_CHARS)
 
-private const val MIN_AUDIO_MILLIS = 500
 private const val CONNECT_TIMEOUT_MILLIS = 5_000
 private const val READ_TIMEOUT_MILLIS = 20_000
 private const val EXCERPT_CHARS = 200
 private val HTTP_OK_RANGE = 200..299
-private val REFUSED = setOf(401, 403)
+private const val HTTP_UNAUTHORIZED = 401
+private const val HTTP_PAYMENT_REQUIRED = 402
+private const val HTTP_FORBIDDEN = 403
+private const val HTTP_TOO_MANY_REQUESTS = 429
+private const val OTHER_COUNTRY = "unsupported_country_region_territory"
+private val NOT_PAID = setOf("insufficient_quota", "credit_balance_exhausted", "billing_not_active")
 private val WHITESPACE = Regex("""\s+""")

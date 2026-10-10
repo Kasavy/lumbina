@@ -18,7 +18,11 @@ class OnScreenKeyboardSinkTest {
     private fun key(label: String) = FakeUiNode(text = label.uppercase(), isClickable = true) { typed.append(label) }
 
     private fun keyboard(): FakeUiNode {
-        val letters = if (layout == "ru") RU else EN
+        val letters = when (layout) {
+            "ru" -> RU
+            "en" -> EN
+            else -> DIGITS
+        }
         val keys = letters.map { key(it.toString()) } + listOf(
             FakeUiNode(description = "Пробел", isClickable = true) { typed.append(' ') },
             FakeUiNode(text = "Рус", isClickable = true) {
@@ -27,6 +31,10 @@ class OnScreenKeyboardSinkTest {
             },
             FakeUiNode(text = "Eng", isClickable = true) {
                 layout = "en"
+                screen.root = keyboard()
+            },
+            FakeUiNode(text = "!#1", isClickable = true) {
+                layout = "digits"
                 screen.root = keyboard()
             },
         )
@@ -47,6 +55,13 @@ class OnScreenKeyboardSinkTest {
         screen.root = keyboard()
         assertTrue(sink().deliver("blade раннер"))
         assertEquals("blade раннер", typed.toString())
+    }
+
+    @Test
+    fun `digits are typed on the layout behind the symbols switch`() = runTest {
+        screen.root = keyboard()
+        assertTrue(sink().deliver("1 2 3 прием"))
+        assertEquals("1 2 3 прием", typed.toString())
     }
 
     @Test
@@ -105,6 +120,44 @@ class OnScreenKeyboardSinkTest {
         screen.root = pictureKeyboard(line)
         assertTrue(sink().deliver("раз два три"))
         assertEquals("раз два три", line.text)
+    }
+
+    @Test
+    fun `a single character erased while the space is looked for is typed again`() = runTest {
+        // An empty line shows a prompt, as a search field does.
+        val line = FakeUiNode(text = "Search")
+        fun show(text: String) {
+            line.text = text.ifEmpty { "Search" }
+        }
+        var written = ""
+        fun letter(char: Char) = FakeUiNode(text = char.toString(), isClickable = true) {
+            written += char
+            show(written)
+        }
+        val erase = FakeUiNode(isClickable = true) {
+            written = written.dropLast(1)
+            show(written)
+        }
+        val space = FakeUiNode(isClickable = true) {
+            written += " "
+            show(written)
+        }
+        val keys = RU.take(11).map(::letter) + erase + RU.drop(11).take(11).map(::letter) + space +
+            RU.drop(22).map(::letter)
+        screen.root = FakeUiNode(children = listOf(line) + keys)
+        assertTrue(sink().deliver("я тут"))
+        assertEquals("я тут", written)
+    }
+
+    @Test
+    fun `a key that typed something else after a single character is not taken for erasing`() = runTest {
+        val line = FakeUiNode(text = "")
+        fun letter(char: Char) = FakeUiNode(text = char.toString(), isClickable = true) { line.text += char }
+        val dot = FakeUiNode(isClickable = true) { line.text += "." }
+        val keys = RU.take(11).map(::letter) + dot + RU.drop(11).map(::letter)
+        screen.root = FakeUiNode(children = listOf(line) + keys)
+        sink().deliver("я тут")
+        assertEquals("я.", line.text)
     }
 
     @Test
@@ -189,5 +242,6 @@ class OnScreenKeyboardSinkTest {
     private companion object {
         const val RU = "йцукенгшщзхфывапролджэячсмитьбю"
         const val EN = "qwertyuiopasdfghjklzxcvbnm"
+        const val DIGITS = "1234567890"
     }
 }

@@ -4,6 +4,7 @@ import dev.lumbina.tv.core.domain.app.App
 import dev.lumbina.tv.core.domain.app.AppId
 import dev.lumbina.tv.core.domain.sleep.SleepSettings
 import dev.lumbina.tv.core.domain.text.DeliverText
+import dev.lumbina.tv.core.domain.text.Taking
 import dev.lumbina.tv.core.domain.text.TextSink
 import dev.lumbina.tv.core.testing.FakeSettings
 import kotlinx.coroutines.test.runTest
@@ -57,6 +58,28 @@ class HandleUtteranceTest {
         now = { 1_000L },
         commandsEnabled = { commands },
     )
+
+    @Test
+    fun `a phrase whose search did not open is told as such, not as having nowhere to go`() = runTest {
+        val search = object : TextSink {
+            override val name = "launcher search"
+
+            override suspend fun deliver(text: String) = false
+
+            override suspend fun take(text: String) = Taking.Failed
+        }
+        val handler = HandleUtterance(
+            apps = { emptyList() },
+            launcher = { true },
+            device = device,
+            search = { true },
+            deliver = DeliverText(listOf(field, search)),
+            sleep = sleep,
+            now = { 1_000L },
+            commandsEnabled = { true },
+        )
+        assertEquals(UtteranceOutcome.SearchFailed, handler("котики"))
+    }
 
     @Test
     fun `closes the app named, or the one in front`() = runTest {

@@ -191,6 +191,11 @@ private fun adbHint(status: SetupStatus): String = stringResource(
 
 @Composable
 private fun VoiceStep(number: Int, voice: VoiceSetup, onDownload: () -> Unit, modifier: Modifier = Modifier) {
+    // With no language turned on there is nothing to download: only where to turn one on.
+    if (voice.models.isEmpty()) {
+        Step(number, stringResource(R.string.setup_voice_title), stringResource(R.string.setup_voice_none), modifier) {}
+        return
+    }
     val context = LocalContext.current
     val names = voice.models.keys.map { languageName(it) }.joinToString()
     val size = Formatter.formatShortFileSize(context, voice.missingBytes)

@@ -42,6 +42,12 @@ internal class AndroidLocalAdb @Inject constructor(
         return result.value
     }
 
+    override suspend fun exec(command: String, input: ByteArray): String? {
+        val result = open(offerKey = false) { it.exec(command, input, SHELL_TIMEOUT_MILLIS) }
+        log.log(TAG, "exec \"$command\" with ${input.size} bytes: ${if (result.value != null) "ok" else result.state}")
+        return result.value
+    }
+
     private class Result<T>(val state: AdbState, val value: T? = null)
 
     private suspend fun <T> open(offerKey: Boolean, use: (AdbConnection) -> T): Result<T> =

@@ -3,7 +3,6 @@ package dev.lumbina.tv.speech.cloud
 import com.sun.net.httpserver.HttpServer
 import dev.lumbina.tv.core.domain.speech.SpeechUnavailable
 import dev.lumbina.tv.core.domain.speech.SpeechUnavailable.Reason
-import java.io.IOException
 import java.net.InetSocketAddress
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -39,7 +38,9 @@ class CloudRecognizerTest {
     }
 
     @After
-    fun stop() = server.stop(0)
+    fun stop() {
+        server.stop(0)
+    }
 
     private val speech = ByteArray(32_000) { (it % 7).toByte() }
 
@@ -142,6 +143,39 @@ class CloudRecognizerTest {
     }
 
     @Test
+    fun `an account with nothing to pay with is told as such`() {
+        val url = answer(429, """{"error":{"message":"You exceeded your current quota","code":"insufficient_quota"}}""")
+        val failure = runCatching { OpenAiRecognizer(url).recognize(listOf("ru")) }.exceptionOrNull()
+        assertEquals(Reason.NotPaid, (failure as SpeechUnavailable).reason)
+    }
+
+    @Test
+    fun `a key the service takes and does not let recognize is told apart from a wrong one`() {
+        val url = answer(403, """{"error_code":"PERMISSION_DENIED","error_message":"Permission denied"}""")
+        val failure = runCatching { YandexRecognizer(url).recognize(listOf("ru")) }.exceptionOrNull()
+        assertEquals(Reason.NotAllowed, (failure as SpeechUnavailable).reason)
+        assertEquals("HTTP 403 PERMISSION_DENIED", failure.message)
+    }
+
+    @Test
+    fun `a country the service does not serve is told as such`() {
+        val url =
+            answer(
+                403,
+                """{"error":{"message":"Country not supported","code":"unsupported_country_region_territory"}}""",
+            )
+        val failure = runCatching { OpenAiRecognizer(url).recognize(listOf("ru")) }.exceptionOrNull()
+        assertEquals(Reason.Region, (failure as SpeechUnavailable).reason)
+    }
+
+    @Test
+    fun `asking too often is told apart from an account with nothing to pay with`() {
+        val url = answer(429, """{"error":{"message":"Rate limit reached","code":"rate_limit_exceeded"}}""")
+        val failure = runCatching { OpenAiRecognizer(url).recognize(listOf("ru")) }.exceptionOrNull()
+        assertEquals(Reason.Busy, (failure as SpeechUnavailable).reason)
+    }
+
+    @Test
     fun `a service that can't be reached is told as such`() {
         val port = server.address.port
         server.stop(0)
@@ -152,11 +186,11 @@ class CloudRecognizerTest {
     }
 
     @Test
-    fun `a service that fails is not the user's to mend`() {
+    fun `a service that fails is told with the status it answered`() {
         val failure = runCatching { OpenAiRecognizer(answer(500, "oops")).recognize(listOf("ru")) }.exceptionOrNull()
-
-        assertTrue(failure is IOException && failure !is SpeechUnavailable)
-        assertTrue(failure!!.message!!.contains("500: oops"))
+        assertEquals(Reason.ServiceError, (failure as SpeechUnavailable).reason)
+        assertEquals(500, failure.status)
+        assertTrue(failure.message!!.contains("500: oops"))
     }
 
     @Test

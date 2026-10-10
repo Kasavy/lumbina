@@ -2,9 +2,6 @@ package dev.lumbina.tv.feature.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,6 +14,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
 import dev.lumbina.tv.core.domain.home.ClockFormat
+import dev.lumbina.tv.core.domain.text.SearchTarget
 import dev.lumbina.tv.core.domain.weather.Place
 import dev.lumbina.tv.core.ui.Choice
 import dev.lumbina.tv.core.ui.ChoiceDialog
@@ -66,6 +64,22 @@ fun WidgetsPanel(
             checked = look.showNowPlaying,
             onClick = commands::toggleNowPlaying,
         )
+
+        // With one place to search there is nothing to choose.
+        state.search.chosen?.takeIf { state.search.targets.size > 1 }?.let { chosen ->
+            Header(stringResource(R.string.widgets_search))
+            ChoiceRow(
+                title = stringResource(R.string.widgets_search_in),
+                hint = stringResource(R.string.widgets_search_in_hint),
+                options = state.search.targets.map { target ->
+                    val label = when (target) {
+                        SearchTarget.System -> R.string.widgets_search_system
+                        SearchTarget.YouTube -> R.string.widgets_youtube
+                    }
+                    Choice(stringResource(label), chosen = target == chosen) { commands.searchIn(target) }
+                },
+            )
+        }
 
         // With one app for YouTube there is nothing to choose.
         state.youTube.chosen?.takeIf { state.youTube.apps.size > 1 }?.let { chosen ->

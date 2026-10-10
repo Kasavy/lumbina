@@ -144,7 +144,7 @@ internal class LocalThenOnlinePhotos @Inject constructor(
     private var picsumRetryAt = 0L
     private var lastOnline: String? = null
 
-    override suspend fun next(width: Int, height: Int): BackdropPhoto? = withContext(Dispatchers.IO) {
+    override suspend fun next(width: Int, height: Int): BackdropPhoto = withContext(Dispatchers.IO) {
         if (wallpaper.settings.first().source == WallpaperSource.MyMedia) local()?.let { return@withContext it }
         if (sleep.settings.first().onlinePhotos) online(width, height)?.let { return@withContext it }
         local() ?: BackdropPhoto(bundled.next())

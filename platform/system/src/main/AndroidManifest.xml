@@ -19,6 +19,10 @@
             <category android:name="android.intent.category.BROWSABLE" />
             <data android:scheme="https" />
         </intent>
+        <!-- The apps that recognize speech for others, to offer one for voice input (AndroidSpeechApps). -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
         <!-- The system's own search (Google TV, Android TV) for the search button. -->
         <intent>
             <action android:name="android.intent.action.ASSIST" />

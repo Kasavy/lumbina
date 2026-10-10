@@ -49,6 +49,7 @@ enum class SettingsPage(val title: Int) {
     Wallpaper(R.string.settings_wallpaper),
     Look(R.string.page_look),
     Voice(R.string.settings_voice),
+    HomeKey(R.string.page_home_key),
     Keyboard(R.string.page_keyboard),
     Phone(R.string.settings_phone),
     Sleep(R.string.settings_sleep),
@@ -68,7 +69,7 @@ enum class SettingsSection(val title: Int, val icon: Int, val pages: List<Settin
     Input(
         R.string.section_input,
         R.drawable.ic_section_input,
-        listOf(SettingsPage.Voice, SettingsPage.Keyboard, SettingsPage.Phone),
+        listOf(SettingsPage.Voice, SettingsPage.HomeKey, SettingsPage.Keyboard, SettingsPage.Phone),
     ),
     Sleep(R.string.settings_sleep, R.drawable.ic_section_sleep, listOf(SettingsPage.Sleep)),
     System(
@@ -189,7 +190,7 @@ private fun Sections(
         SettingsSection.entries.forEach { entry ->
             SettingRow(
                 selected = entry == open,
-                onClick = { resting.now(entry) },
+                onClick = { if (entry != open) resting.now(entry) },
                 leadingContent = {
                     Icon(painterResource(entry.icon), contentDescription = null, modifier = Modifier.size(26.dp))
                 },

@@ -5,7 +5,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.domain.access.CompanionApp
 import dev.lumbina.tv.core.domain.access.LocalAdb
-import java.io.File
 import java.io.IOException
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
@@ -21,9 +20,6 @@ internal class TvProviderCompanion @Inject constructor(
     private val log: LumbinaLog,
 ) : CompanionApp {
 
-    /** In the app's external files: the adb shell can read there, and not in the app's own folder. */
-    private val staged: File? get() = context.getExternalFilesDir(null)?.let { File(it, STAGED) }
-
     override fun missing(): Boolean = !channels.isAvailable() && carried()
 
     private fun carried(): Boolean = try {
@@ -33,14 +29,18 @@ internal class TvProviderCompanion @Inject constructor(
         false
     }
 
-    /** `pm` reads the APK from the shell's input: it can't open files in an app's folder itself. */
+    /**
+     * The APK goes to `pm` through the connection, as `adb install` sends it: a file would have to
+     * lie where the shell can read, and on some firmware that is not an app's folder.
+     */
     override suspend fun install(adb: LocalAdb): Boolean {
-        val apk = stage() ?: return false
-        val answer = try {
-            adb.shell("pm install -r -S ${apk.length()} < '${apk.absolutePath}'")
-        } finally {
-            apk.delete()
+        val apk = try {
+            withContext(Dispatchers.IO) { context.assets.open(ASSET).use { it.readBytes() } }
+        } catch (e: IOException) {
+            log.log(TAG, "Lumbina TV Provider not read: $e")
+            return false
         }
+        val answer = adb.exec("cmd package install -r -S ${apk.size}", apk)
         val installed = answer?.contains("Success") == true
         // pm's answer is the only place the reason shows: a signature clash, no space, a firmware's refusal.
         val why = if (installed) "" else ": ${answer?.trim()?.take(ANSWER_CHARS) ?: "no connection"}"
@@ -49,25 +49,9 @@ internal class TvProviderCompanion @Inject constructor(
         return installed
     }
 
-    /** Megabytes to copy: off the caller's thread. Null when it can't be put there. */
-    private suspend fun stage(): File? = withContext(Dispatchers.IO) {
-        val file = staged ?: run {
-            log.log(TAG, "TV provider not staged: no external files folder")
-            return@withContext null
-        }
-        try {
-            context.assets.open(ASSET).use { apk -> file.outputStream().use(apk::copyTo) }
-            file
-        } catch (e: IOException) {
-            log.log(TAG, "TV provider not staged: $e")
-            null
-        }
-    }
-
     private companion object {
         const val TAG = "channels"
         const val ASSET = "companion/tvprovider.apk"
-        const val STAGED = "tvprovider.apk"
         const val ANSWER_CHARS = 200
     }
 }

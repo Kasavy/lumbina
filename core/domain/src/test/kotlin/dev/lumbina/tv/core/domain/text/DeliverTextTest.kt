@@ -24,7 +24,7 @@ class DeliverTextTest {
             FocusedFieldSink(screen),
             AnyFieldSink(screen),
             OnScreenKeyboardSink(screen, clickDelayMillis = 0, layoutDelayMillis = 0),
-            LauncherSearchSink(screen, setOf("dev.lumbina.tv"), search),
+            LauncherSearchSink(screen, setOf("dev.lumbina.tv"), search::search),
         ),
     )
 
@@ -82,6 +82,14 @@ class DeliverTextTest {
 
         assertNull(chain(FakeScreenReader(root = FakeUiNode(packageName = "ru.kinopoisk.tv")))("котики"))
         assertEquals(1, searches.size)
+    }
+
+    @Test
+    fun `a launcher's search that did not open is a failure, not a text with nowhere to go`() = runTest {
+        val launcher = FakeScreenReader(root = FakeUiNode(packageName = "dev.lumbina.tv"))
+        val refusing = DeliverText(listOf(LauncherSearchSink(launcher, setOf("dev.lumbina.tv")) { false }))
+        assertEquals(Delivery.Failed("launcher search"), refusing.deliver("x"))
+        assertEquals(Delivery.Nowhere, chain(FakeScreenReader()).deliver("x"))
     }
 
     @Test

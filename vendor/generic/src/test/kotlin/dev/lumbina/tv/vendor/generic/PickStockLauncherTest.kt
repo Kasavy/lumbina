@@ -30,4 +30,10 @@ class PickStockLauncherTest {
     fun `third-party launchers and fallback home are not the stock launcher`() {
         assertNull(pickStockLauncher(listOf(lumbina, projectivy, fallback), "dev.lumbina.tv"))
     }
+
+    @Test
+    fun `the first-run setup, a home activity of the system too, is passed over`() {
+        val setup = HomeCandidate(AppId("com.google.android.setupwizard", "Setup"), isSystemApp = true)
+        assertEquals(googleTv.id, pickStockLauncher(listOf(setup, googleTv), "dev.lumbina.tv"))
+    }
 }

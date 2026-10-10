@@ -14,5 +14,7 @@
 
     <queries>
         <provider android:authorities="android.media.tv" />
+        <!-- The system's provider by name too: turned off, it answers to no authority, and a report says so. -->
+        <package android:name="com.android.providers.tv" />
     </queries>
 </manifest>

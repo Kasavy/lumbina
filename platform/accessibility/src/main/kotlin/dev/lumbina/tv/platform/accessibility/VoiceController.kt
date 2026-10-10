@@ -47,9 +47,12 @@ internal class VoiceController(
         val notHeard: String,
         /** No sound came from the mic at all. */
         val noSound: String,
+        /** Why no sound came, when the device can tell (the mic turned off in the firmware), and where to mend it. */
+        val micOff: () -> String?,
         val noField: (String) -> String,
+        val searchFailed: String,
         val failed: String,
-        val unavailable: (SpeechUnavailable.Reason) -> String,
+        val unavailable: (SpeechUnavailable) -> String,
         val languageMode: (VoiceLanguageMode) -> String,
         val opened: (String) -> String,
         val closed: (String) -> String,
@@ -95,7 +98,7 @@ internal class VoiceController(
                 throw e // a CancellationException is an IllegalStateException; don't report it
             } catch (e: SpeechUnavailable) {
                 log.log(TAG, "failed: $e")
-                if (!cancelled) overlay.flash(strings.unavailable(e.reason), UNAVAILABLE_MILLIS)
+                if (!cancelled) strings.unavailable(e).let { overlay.flash(it, toRead(it)) }
             } catch (e: IOException) {
                 fail(e) // mic source unreachable or closed, or the recognizer failed
             } catch (e: IllegalStateException) {
@@ -170,19 +173,28 @@ internal class VoiceController(
         val text = event.result?.text
         if (text == null) {
             // No sound at all points at the mic rather than at how it was said.
-            overlay.flash(if (stats.loudestDb == null) strings.noSound else strings.notHeard, FLASH_MILLIS)
+            val off = if (stats.loudestDb == null) strings.micOff() else null
+            when {
+                // Says what to do, like the other notices of that kind: on screen for as long.
+                off != null -> overlay.flash(off, UNAVAILABLE_MILLIS)
+
+                stats.loudestDb == null -> overlay.flash(strings.noSound, FLASH_MILLIS)
+
+                else -> overlay.flash(strings.notHeard, FLASH_MILLIS)
+            }
             return
         }
         overlay.flash(strings.heard(text), RESULT_MILLIS)
         val outcome = handle(text)
         log.log(TAG, "→ $outcome")
-        feedback(outcome)?.let { overlay.flash(it, RESULT_MILLIS) }
+        feedback(outcome)?.let { overlay.flash(it, toRead(it, atLeast = RESULT_MILLIS)) }
     }
 
     /** What to show after the utterance was handled; null keeps the recognized text on screen. */
     private fun feedback(outcome: UtteranceOutcome): String? = when (outcome) {
         is UtteranceOutcome.Typed, is UtteranceOutcome.Done -> null
         is UtteranceOutcome.NotDelivered -> strings.noField(outcome.text)
+        UtteranceOutcome.SearchFailed -> strings.searchFailed
         is UtteranceOutcome.Opened -> strings.opened(outcome.app)
         is UtteranceOutcome.Closed -> strings.closed(outcome.app)
         is UtteranceOutcome.AppNotFound -> strings.appNotFound(outcome.query)
@@ -200,5 +212,13 @@ internal class VoiceController(
 
         /** Longer: these say what to do. */
         const val UNAVAILABLE_MILLIS = 4_000L
+
+        /** A notice with something to do stays long enough to be read: by its length, at a TV's reading pace. */
+        const val MILLIS_PER_CHAR = 60L
+
+        fun toRead(text: String, atLeast: Long = UNAVAILABLE_MILLIS): Long = maxOf(
+            atLeast,
+            text.length * MILLIS_PER_CHAR,
+        )
     }
 }

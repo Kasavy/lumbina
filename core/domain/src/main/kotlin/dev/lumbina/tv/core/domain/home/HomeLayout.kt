@@ -93,6 +93,17 @@ data class HomeLayout(
     fun removeCategory(id: String): HomeLayout =
         if (id == HomeSection.FAVORITES) this else copy(sections = sections.filterNot { it.id == id })
 
+    /**
+     * Puts back a category that was removed, where it stood ([at], among all the sections); as it
+     * is when one of that id is there.
+     */
+    fun restoreCategory(category: HomeSection, at: Int): HomeLayout =
+        if (category.isFavorites || section(category.id) != null) {
+            this
+        } else {
+            copy(sections = sections.toMutableList().apply { add(at.coerceIn(1, size), category) })
+        }
+
     /** Moves a category [by] places among the categories; favorites stay first. */
     fun moveCategory(id: String, by: Int): HomeLayout {
         val moved = categories.moved(categories.indexOfFirst { it.id == id }, by) ?: return this

@@ -53,7 +53,8 @@ class AskDeviceTest {
         val answers = AskDevice(Profile(localAdb = true, firmware), adb, StandardTestDispatcher(testScheduler))()
 
         assertEquals(DeviceAnswer("service: hello", "OK"), answers.first())
-        assertEquals(listOf("pm list packages -d", "dumpsys firmware"), adb.commands.takeLast(2))
+        assertEquals("pm list packages -d", adb.commands[1])
+        assertEquals("dumpsys firmware", adb.commands.last())
         assertEquals(adb.commands, answers.drop(1).map { it.question })
     }
 
@@ -81,13 +82,14 @@ class AskDeviceTest {
     @Test
     fun `a long answer is cut to its head, and one that fits is left whole`() = runTest {
         val fits = (1..60).joinToString("\n") { "line $it" } + "\n"
-        val long = (1..61).joinToString("\n") { "line $it" }
-        val adb = FakeAdb { if (it == "pm list packages -d") long else fits }
+        val tooLong = (1..61).joinToString("\n") { "line $it" }
+        val adb = FakeAdb { if (it == "pm list packages -d") tooLong else fits }
         val answers = AskDevice(Profile(localAdb = true, null), adb, StandardTestDispatcher(testScheduler))()
 
+        val long = answers.single { it.question == "pm list packages -d" }.answer
         assertEquals(fits, answers.first().answer)
-        assertEquals(61, answers.last().answer.lines().size)
-        assertTrue(answers.last().answer.endsWith("line 60\n… 61 lines"))
+        assertEquals(61, long.lines().size)
+        assertTrue(long.endsWith("line 60\n… 61 lines"))
     }
 
     @Test

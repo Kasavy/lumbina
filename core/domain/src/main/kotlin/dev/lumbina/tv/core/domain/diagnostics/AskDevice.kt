@@ -59,6 +59,10 @@ class AskDevice(
         const val ANSWER_LINES = 60
         const val MILLIS_PER_SECOND = 1_000
 
+        /** How the system holds its TV provider: there, hidden or turned off for the user. */
+        const val SYSTEM_TV_PROVIDER =
+            "dumpsys package com.android.providers.tv | grep -E 'pkgFlags=|enabled=|hidden=|installed='"
+
         /**
          * Asked of any device: which apps offer themselves as the home screen, and which packages
          * are turned off (a firmware service Lumbina leans on may be among them).
@@ -66,6 +70,7 @@ class AskDevice(
         val COMMANDS = listOf(
             "cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME",
             "pm list packages -d",
+            SYSTEM_TV_PROVIDER,
         )
     }
 }

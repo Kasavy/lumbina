@@ -6,19 +6,29 @@ package dev.lumbina.tv.feature.settings
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.lumbina.tv.core.domain.access.AccessSettingsRepository
 import dev.lumbina.tv.core.domain.device.DeviceProfile
 import dev.lumbina.tv.core.domain.diagnostics.SystemInfo
 import dev.lumbina.tv.core.domain.diagnostics.snapshot
 import dev.lumbina.tv.core.ui.ServiceConsentDialog
+import dev.lumbina.tv.core.ui.WhileUiSubscribed
 import dev.lumbina.tv.core.ui.rememberServiceConsent
 import javax.inject.Inject
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /**
  * One settings page with its view model, created when the page is first shown, so pages that
@@ -35,10 +45,11 @@ internal fun SettingsPageContent(page: SettingsPage, onPreviewScreensaver: () ->
         SettingsPage.Wallpaper -> WallpaperPage()
         SettingsPage.Look -> LookPage()
         SettingsPage.Voice -> VoicePage()
+        SettingsPage.HomeKey -> HomeKeyPage()
         SettingsPage.Keyboard -> KeyboardPage()
         SettingsPage.Phone -> PhonePage()
         SettingsPage.Sleep -> SleepPage(onPreviewScreensaver, openAccess)
-        SettingsPage.State -> StatePage()
+        SettingsPage.State -> StatePage(openAccess)
         SettingsPage.About -> AboutPage()
         SettingsPage.Access -> AccessPage()
     }
@@ -102,6 +113,12 @@ private fun VoicePage(viewModel: VoiceSettingsViewModel = hiltViewModel()) {
 }
 
 @Composable
+private fun HomeKeyPage(viewModel: HomeKeySettingsViewModel = hiltViewModel()) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    HomeKeyPanel(state = state, onToggleDoubleHome = viewModel::toggleDoubleHome, onUseHome = viewModel::useHome)
+}
+
+@Composable
 private fun KeyboardPage(viewModel: InputSettingsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     InputPanel(state = state, onToggleLumbinaKeyboard = viewModel::toggleLumbinaKeyboard)
@@ -131,13 +148,17 @@ private fun SleepPage(
 }
 
 @Composable
-private fun StatePage(viewModel: DiagnosticsViewModel = hiltViewModel()) {
+private fun StatePage(openAccess: (() -> Unit)?, viewModel: DiagnosticsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val saved by viewModel.saved.collectAsStateWithLifecycle()
-    DisposableEffect(viewModel) { onDispose(viewModel::forgetSaved) }
+    val parts by viewModel.parts.collectAsStateWithLifecycle()
+    DisposableEffect(viewModel) { onDispose(viewModel::forgetDone) }
     DiagnosticsPanel(
         state = state,
         saved = saved,
+        parts = parts,
+        onTurnOn = viewModel::turnOn,
+        openAccess = openAccess,
         onSaveReport = viewModel::saveReport,
         onNotificationAccess = viewModel::openNotificationAccess,
         onUsageAccess = viewModel::openUsageAccess,
@@ -165,11 +186,30 @@ private fun AccessPage(viewModel: AccessViewModel = hiltViewModel()) {
 
 @Composable
 private fun AboutPage(viewModel: AboutViewModel = hiltViewModel()) {
-    AboutPanel(system = viewModel.system, deviceProfile = viewModel.deviceProfile)
+    val setupHidden by viewModel.setupHidden.collectAsStateWithLifecycle()
+    var offered by remember { mutableStateOf(false) }
+    LaunchedEffect(setupHidden) { if (setupHidden) offered = true }
+    AboutPanel(
+        system = viewModel.system,
+        deviceProfile = viewModel.deviceProfile,
+        setup = SetupOffer(setupHidden, viewModel::showSetup).takeIf { offered || setupHidden },
+    )
 }
 
 @HiltViewModel
-class AboutViewModel @Inject constructor(profile: DeviceProfile, system: SystemInfo) : ViewModel() {
+class AboutViewModel @Inject constructor(
+    profile: DeviceProfile,
+    system: SystemInfo,
+    private val access: AccessSettingsRepository,
+) : ViewModel() {
     val system = system.snapshot()
     val deviceProfile: String = profile.id
+
+    /** Whether the user hid the first-setup card of the home screen: it can be asked back here. */
+    val setupHidden: StateFlow<Boolean> =
+        access.settings.map { it.setupCardHidden }.stateIn(viewModelScope, WhileUiSubscribed, false)
+
+    fun showSetup() {
+        viewModelScope.launch { access.update { it.copy(setupCardHidden = false) } }
+    }
 }

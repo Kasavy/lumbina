@@ -7,18 +7,23 @@ import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.domain.device.DeviceProfile
+import dev.lumbina.tv.core.domain.device.FirmwarePart
 import dev.lumbina.tv.core.domain.remote.KeyAction
 import dev.lumbina.tv.core.domain.remote.KeyBindingPolicy
 import dev.lumbina.tv.core.domain.remote.LumbinaHome
 import dev.lumbina.tv.core.domain.remote.RawKey
 import dev.lumbina.tv.core.domain.remote.RemoteAction
 import dev.lumbina.tv.core.domain.remote.RemoteKeyInterpreter
+import dev.lumbina.tv.core.domain.remote.RemoteSettingsRepository
 import dev.lumbina.tv.core.domain.speech.AudioSource
 import dev.lumbina.tv.core.domain.voice.DeviceControls
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
 /**
@@ -30,6 +35,7 @@ internal class RemoteFeatures(
     private val parts: Parts,
     private val profile: DeviceProfile,
     private val lumbinaHome: LumbinaHome,
+    private val remoteSettings: RemoteSettingsRepository,
     private val scope: CoroutineScope,
     private val log: LumbinaLog,
 ) {
@@ -56,6 +62,8 @@ internal class RemoteFeatures(
         val micInjection: MicInjection?,
         val micPrompt: MicAppPrompt?,
         val mic: AudioSource?,
+        /** Takes back what was handed to those who outlive the service. */
+        val detach: () -> Unit = {},
     )
 
     private val interpreter = RemoteKeyInterpreter(
@@ -67,6 +75,10 @@ internal class RemoteFeatures(
     )
     private var started = false
 
+    /** What the keys are bound by: whether voice input is there to take the mic key, and the user's settings. */
+    private var voiceAvailable = false
+    private var doubleHomeRecents = true
+
     /** When each key was last written to the log: what this remote sends is logged again only after a while. */
     private val loggedKeys = HashMap<Long, Long>()
 
@@ -76,7 +88,16 @@ internal class RemoteFeatures(
         if (started) return
         started = true
         with(parts) {
-            voice.start(scope) { interpreter.policy = KeyBindingPolicy.defaults(voiceAvailable = it) }
+            voice.start(scope) {
+                voiceAvailable = it
+                bindKeys()
+            }
+            scope.launch {
+                remoteSettings.settings.collect {
+                    doubleHomeRecents = it.doubleHomeRecents
+                    bindKeys()
+                }
+            }
             start(forApps)
             switching.start(scope)
             powerOn.start(scope)
@@ -85,6 +106,10 @@ internal class RemoteFeatures(
             phoneRemote.start(scope)
             debug?.register()
         }
+    }
+
+    private fun bindKeys() {
+        interpreter.policy = KeyBindingPolicy.defaults(voiceAvailable, doubleHomeRecents)
     }
 
     fun stop() {
@@ -97,6 +122,7 @@ internal class RemoteFeatures(
             quickMenu.hide()
             sleep.stop()
             forApps.micInjection?.stop()
+            forApps.detach()
             forApps.micPrompt?.hide()
             voice.stop()
             powerOn.stop()
@@ -181,16 +207,21 @@ internal class RemoteFeatures(
             val profile = device.profile
             val lumbinaHome = device.lumbinaHome
             val log = device.log
-            val launchers = setOfNotNull(service.packageName, profile.stockLauncher?.packageName)
+            val own = setOfNotNull(service.packageName, profile.stockLauncher?.packageName)
+            // Read off the main thread too; the other home screen in use joins it as the user chooses.
+            val launchers = ConcurrentHashMap.newKeySet<String>().apply { addAll(own) }
             val stop = if (profile.localAdb) apps.localAccess::forceStop else null
             val controls = ServiceDeviceControls(service, lumbinaHome, profile.volume, launchers, stop)
             val commandPorts = commandPorts(controls)
-            val assembly =
-                VoiceAssembly(service, voice.engine, voice.settings, voice.youTubeSearch, launchers, commandPorts, log)
+            val assembly = voiceAssembly(service, launchers, commandPorts)
             val sleep = SleepWatcher(service, stores.sleep, controls::standby, log)
             val closing = if (profile.localAdb) AppSwitching.Closing(apps.accessSettings, apps.localAccess) else null
             val switching = AppSwitching(service, apps.installed, apps.launcher, launchers, apps.recent, closing, log)
-            val quickMenuPorts = QuickMenu.Ports(profile.stockLauncher, apps.launcher, recentApps = switching::show)
+            val otherHome = stores.otherHome.choice.map { it.chosen }.onEach { home ->
+                home?.let { launchers += it.id.packageName }
+                launchers.retainAll(own + listOfNotNull(home?.id?.packageName))
+            }
+            val quickMenuPorts = QuickMenu.Ports(otherHome, apps.launcher, recentApps = switching::show)
             val quickMenu = QuickMenu(service, stores.sleep, quickMenuPorts)
             val phonePorts = PhoneRemote.Ports(
                 controls = controls,
@@ -206,32 +237,53 @@ internal class RemoteFeatures(
                 appSwitcher = switching::show,
                 overlayKey = { event -> quickMenu.onKey(event) || switching.onKey(event) },
             )
-            val powerOn = PowerOnWatcher(
-                service,
-                apps.accessSettings,
-                profile.stockLauncher?.packageName,
-                frontPackage = { service.rootInActiveWindow?.packageName?.toString() },
-                open = { lumbinaHome.open(toStart = true) },
-                log = log,
-            )
+            val powerOn = powerOn(service)
             // One mic connection for everything: the remote has room for one reader only.
             val mic = profile.remoteMicAudio?.let { assembly.warm(scope, it) }
             val readiness = VoiceReadiness(voice.engine, log)
             val remoteVoice = RemoteVoice(service, assembly, voice.setups, readiness, mic, log)
             val forApps = forApps(service, scope, mic, controls::appInFront)
+            val micKey = MicKey(remoteVoice, forApps.micInjection)
+            val debug = debugCommands(service, scope, assembly, readiness, switching, quickMenu, sleep)
+            debug?.mic = micKey::debug
             val parts = Parts(
                 voice = remoteVoice,
-                micKey = MicKey(remoteVoice, forApps.micInjection),
+                micKey = micKey,
                 forApps = forApps,
                 switching = switching,
                 powerOn = powerOn,
                 quickMenu = quickMenu,
                 sleep = sleep,
                 phoneRemote = PhoneRemote(service, stores.phoneRemote, phonePorts, log),
-                debug = debugCommands(service, scope, assembly, readiness, switching, quickMenu, sleep),
+                debug = debug,
             )
-            return RemoteFeatures(parts, profile, lumbinaHome, scope, log)
+            return RemoteFeatures(parts, profile, lumbinaHome, stores.remote, scope, log)
         }
+
+        private fun voiceAssembly(
+            service: AccessibilityService,
+            launchers: Set<String>,
+            commandPorts: VoiceAssembly.CommandPorts,
+        ) = VoiceAssembly(
+            service,
+            voice.engine,
+            voice.settings,
+            VoiceAssembly.Searches(voice.youTubeSearch, voice.search),
+            launchers,
+            commandPorts,
+            device.log,
+            micServiceOff = { device.firmware.isOff(FirmwarePart.Feature.RemoteMic) },
+        )
+
+        private fun powerOn(service: AccessibilityService) = PowerOnWatcher(
+            service,
+            apps.accessSettings,
+            // Without a launcher of the firmware there is no home screen of its to open over.
+            isHomeScreen = device.profile.takeIf { it.stockLauncher != null }?.let { it::isHomeScreen },
+            frontPackage = { service.rootInActiveWindow?.packageName?.toString() },
+            open = { device.lumbinaHome.open(toStart = true) },
+            log = device.log,
+        )
 
         private fun commandPorts(controls: DeviceControls) = VoiceAssembly.CommandPorts(
             apps.installed,
@@ -262,7 +314,10 @@ internal class RemoteFeatures(
             }
             val micInjection =
                 prompt?.let { MicInjection(service, apps.localAccess, apps.accessSettings, it::ask, log) }
-            return ForApps(recognizerSetup, micInjection, prompt, mic)
+            val speech = micInjection?.speech
+            voice.appSpeech.feed = speech
+            val detach = { if (voice.appSpeech.feed === speech) voice.appSpeech.feed = null }
+            return ForApps(recognizerSetup, micInjection, prompt, mic, detach)
         }
 
         /** Only in debuggable builds. */

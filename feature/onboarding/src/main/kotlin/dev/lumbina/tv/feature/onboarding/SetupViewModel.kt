@@ -15,7 +15,9 @@ import dev.lumbina.tv.core.domain.health.AccessibilityHealth
 import dev.lumbina.tv.core.domain.health.SecureSettings
 import dev.lumbina.tv.core.domain.phone.LocalAddress
 import dev.lumbina.tv.core.domain.speech.ModelState
+import dev.lumbina.tv.core.domain.speech.SpeechProvider
 import dev.lumbina.tv.core.domain.speech.VoiceLanguages
+import dev.lumbina.tv.core.domain.speech.VoiceSettingsRepository
 import dev.lumbina.tv.core.ui.WhileUiSubscribed
 import dev.lumbina.tv.core.ui.serviceScope
 import javax.inject.Inject
@@ -103,6 +105,7 @@ class SetupViewModel @Inject constructor(
     private val health: AccessibilityHealth,
     private val secureSettings: SecureSettings,
     private val voiceLanguages: VoiceLanguages,
+    voiceSettings: VoiceSettingsRepository,
     private val access: LocalAccess,
     private val screens: SetupScreens,
     private val accessSettings: AccessSettingsRepository,
@@ -140,8 +143,10 @@ class SetupViewModel @Inject constructor(
     private val voice = if (!profile.hasRemoteMic) {
         flowOf(null)
     } else {
-        voiceLanguages.state.map { state ->
+        // Models are a step only for the device's own recognizer: a service or another app needs none.
+        combine(voiceLanguages.state, voiceSettings.settings) { state, settings ->
             VoiceSetup(state.enabled.associate { it.language to it.model }, state.missingBytes)
+                .takeIf { settings.provider == SpeechProvider.Device }
         }
     }
 

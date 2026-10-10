@@ -2,23 +2,24 @@ package dev.lumbina.tv.platform.accessibility
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
-import android.os.Build
 import android.view.KeyEvent
 import dev.lumbina.tv.core.common.LumbinaActions
-import dev.lumbina.tv.core.domain.app.AppId
 import dev.lumbina.tv.core.domain.app.AppLauncher
+import dev.lumbina.tv.core.domain.remote.HomeScreen
 import dev.lumbina.tv.core.domain.sleep.SleepSettings
 import dev.lumbina.tv.core.domain.sleep.SleepSettingsRepository
 import dev.lumbina.tv.core.domain.sleep.nextSleepTimer
 import dev.lumbina.tv.core.domain.sleep.timerMinutesLeft
 import dev.lumbina.tv.core.domain.sleep.withTimer
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
 /**
  * The quick menu (long press on Home), only what the remote doesn't have: recent apps, the
- * sleep timer right there, and control from a phone; below, smaller, the device's own launcher
- * and Lumbina's settings. Volume, picture and power are the remote's own buttons. Main thread.
+ * sleep timer right there, and control from a phone; below, smaller, the other home screen (the
+ * device's own launcher unless the user chose another) and Lumbina's settings. Volume, picture
+ * and power are the remote's own buttons. Main thread.
  */
 internal class QuickMenu(
     private val service: AccessibilityService,
@@ -26,7 +27,7 @@ internal class QuickMenu(
     private val ports: Ports,
 ) {
     /** What the menu's items open or act on. */
-    class Ports(val stockLauncher: AppId?, val launcher: AppLauncher, val recentApps: () -> Unit)
+    class Ports(val otherHome: Flow<HomeScreen?>, val launcher: AppLauncher, val recentApps: () -> Unit)
 
     private val overlay = QuickMenuOverlay(
         context = service,
@@ -35,9 +36,11 @@ internal class QuickMenu(
     )
     private var scope: CoroutineScope? = null
     private var sleep = SleepSettings()
+    private var otherHome: HomeScreen? = null
 
     fun start(scope: CoroutineScope) {
         this.scope = scope
+        scope.launch { ports.otherHome.collect { otherHome = it } }
         scope.launch {
             sleepSettings.settings.collect {
                 sleep = it
@@ -72,18 +75,13 @@ internal class QuickMenu(
         QuickMenuOverlay.Item(service.getString(R.string.quick_phone), value = { "QR ›" }) {
             openLumbinaSettings(LumbinaActions.SETTINGS_PAGE_PHONE)
         },
-        ports.stockLauncher?.let { app ->
-            QuickMenuOverlay.Item(service.getString(R.string.quick_stock_launcher, brand()), secondary = true) {
-                ports.launcher.launch(app)
-            }
+        otherHome?.let { home ->
+            QuickMenuOverlay.Item(home.label, secondary = true) { ports.launcher.launch(home.id) }
         },
         QuickMenuOverlay.Item(service.getString(R.string.quick_lumbina_settings), secondary = true) {
             openLumbinaSettings(LumbinaActions.SETTINGS_PAGE_ROWS)
         },
     )
-
-    /** The device's brand, capitalized. */
-    private fun brand(): String = Build.BRAND.replaceFirstChar { it.titlecase() }
 
     private fun minutesLeft(): Int? = sleep.timerMinutesLeft(System.currentTimeMillis())
 

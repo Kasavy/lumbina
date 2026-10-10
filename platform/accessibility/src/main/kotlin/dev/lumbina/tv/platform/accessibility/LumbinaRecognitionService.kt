@@ -67,10 +67,11 @@ class LumbinaRecognitionService : RecognitionService() {
         }
     }
 
-    private fun error(reason: SpeechUnavailable.Reason) = when (reason) {
-        SpeechUnavailable.Reason.NoKey -> SpeechRecognizer.ERROR_CLIENT
-        SpeechUnavailable.Reason.KeyRefused -> SpeechRecognizer.ERROR_SERVER
-        SpeechUnavailable.Reason.NoNetwork -> SpeechRecognizer.ERROR_NETWORK
+    private fun error(reason: SpeechUnavailable.Reason) = when (reason.side) {
+        SpeechUnavailable.Side.Client -> SpeechRecognizer.ERROR_CLIENT
+        SpeechUnavailable.Side.Service -> SpeechRecognizer.ERROR_SERVER
+        SpeechUnavailable.Side.Audio -> SpeechRecognizer.ERROR_AUDIO
+        SpeechUnavailable.Side.Network -> SpeechRecognizer.ERROR_NETWORK
     }
 
     /** The listening ran to its end, whatever came of it. */

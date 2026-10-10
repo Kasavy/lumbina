@@ -36,7 +36,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * The remote's mic for apps that record by themselves instead of asking the system for speech:
- * Android's microphone input has no sound on the projector, so their voice search hears nothing.
+ * Android's microphone input has no sound on such a device, so their voice search hears nothing.
  * A helper ([MicInjector]), started as the shell over Lumbina's own adb, injects audio into the
  * recordings of the apps the user allowed; Lumbina sends it the remote's audio while one of them
  * records, and stays the remote's only reader. When another app records, the helper says so and
@@ -44,6 +44,11 @@ import kotlinx.coroutines.withTimeoutOrNull
  * set of apps. So does an allowed app that turns up under a uid the helper wasn't given: it was
  * installed, or installed again, after the helper started. The helper lives exactly as long as
  * its connection to Lumbina, so nothing is left behind when Lumbina's process goes.
+ *
+ * An app that recognizes speech for Lumbina itself ([SpeechAppEngine]) is given a feed without
+ * asking, but gets audio only while a session of Lumbina's has it listening: the session sends what
+ * it already reads, and no second reader is opened. Recording by itself, it is asked about like
+ * any other app.
  */
 internal class MicInjection(
     private val context: Context,
@@ -52,7 +57,7 @@ internal class MicInjection(
     private val onHeard: (String) -> Unit,
     private val log: LumbinaLog,
 ) {
-    /** Whether the remote's audio goes to an app right now: the mic key then belongs to that app. */
+    /** Whether the remote's audio goes to an app that records by itself right now: the mic key is then that app's. */
     @Volatile var feeding = false
         private set
 
@@ -67,12 +72,68 @@ internal class MicInjection(
     /** The apps to feed changed: the helper in service is let go and the next starts at once. */
     @Volatile private var changed = false
 
+    /** A helper was started and has not connected yet. */
+    @Volatile private var connecting = false
+
     /** Ends the wait before the next start. */
     private val hurry = Channel<Unit>(Channel.CONFLATED)
 
+    /** Apps given a feed without the user's leave: those Lumbina itself asks for speech. */
+    @Volatile private var extra: Set<String> = emptySet()
+
+    /** What the helper in service feeds, by uid; empty while there is none. */
+    @Volatile private var fedNow: Map<Int, String> = emptyMap()
+
+    /** The session of Lumbina's own that has an app listening. */
+    @Volatile private var owner: Owner? = null
+
+    private class Owner(val uid: Int)
+
+    /** One writer to the helper at a time: a session's audio and the pump's never interleave. */
+    private val writing = Any()
+
+    /** The side of [SpeechAppEngine]: an app that recognizes for Lumbina itself. */
+    val speech = Speech()
+
+    inner class Speech {
+        /** Gives [app] a feed too from now on; true if the helper starts again to take it in. */
+        fun alsoFeed(app: String): Boolean {
+            if (app in extra) return false
+            extra = extra + app
+            restart()
+            return true
+        }
+
+        /** A helper is on its way: who it will feed is known a moment later. */
+        val starting: Boolean get() = changed || connecting
+
+        /** The uid under which the helper in service feeds [app]; null while it doesn't. */
+        fun uidFed(app: String): Int? = fedNow.entries.firstOrNull { it.value == app }?.key
+
+        /** [uid]'s recordings are a session's of Lumbina's own until what is returned is [release]d. */
+        fun own(uid: Int): Any = Owner(uid).also { owner = it }
+
+        /** Gives the recordings back, unless a later session has taken them since. */
+        fun release(token: Any) {
+            if (owner === token) owner = null
+        }
+
+        /** A session's audio for the app it has listening; false with no helper to take it. */
+        fun send(pcm: ByteArray, length: Int): Boolean {
+            return try {
+                // A socket closed meanwhile throws on being asked for its stream, too.
+                val out = helper?.outputStream ?: return false
+                synchronized(writing) { out.write(pcm, 0, length) }
+                true
+            } catch (_: IOException) {
+                false
+            }
+        }
+    }
+
     @OptIn(FlowPreview::class)
     fun start(scope: CoroutineScope, audio: AudioSource) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
         job = scope.launch(Dispatchers.IO) {
             launch {
                 // A few switches flipped in a row in the settings make one restart.
@@ -118,6 +179,8 @@ internal class MicInjection(
         helper = null
         server = null
         feeding = false
+        changed = false
+        connecting = false
     }
 
     /**
@@ -135,21 +198,28 @@ internal class MicInjection(
         while (scope.isActive) {
             changed = false
             hurry.tryReceive()
-            val allowed = settings.settings.first().micAllowed
+            val leave = settings.settings.first().micAllowed
+            val allowed = leave + extra
             val apps = context.packageManager.installed(allowed)
+            connecting = true
             val socket = if (launch(name, apps.keys)) accept(scope, listening, name) else null
             val servedFrom = SystemClock.elapsedRealtime()
             if (socket != null && scope.isActive) {
                 log.log(TAG, "mic helper connected (${apps.values.joinToString().ifEmpty { "no app allowed yet" }})")
+                // Before a session may write to it: the helper takes nothing ahead of this line.
+                runCatching { socket.outputStream.write("${MicInjector.GO}\n".toByteArray()) }
                 helper = socket
+                fedNow = apps
+                connecting = false
                 socket.use {
-                    runCatching { it.outputStream.write("${MicInjector.GO}\n".toByteArray()) }
-                    if (!changed) serve(scope, it, Fed(apps, allowed), audio)
+                    if (!changed) serve(scope, it, Fed(apps, allowed, leave), audio)
                 }
                 helper = null
+                fedNow = emptyMap()
                 log.log(TAG, "mic helper gone")
             } else {
                 socket?.close()
+                connecting = false
             }
             if (changed) {
                 wait = RETRY_MIN_MILLIS
@@ -198,7 +268,11 @@ internal class MicInjection(
                 when (val said = HelperLine.of(line)) {
                     is HelperLine.Log -> log.log(TAG, "mic helper: ${said.text}")
 
-                    is HelperLine.Recording -> {
+                    is HelperLine.Recording -> if (!fed.pumpsTo(said, owner?.uid)) {
+                        log.log(TAG, "${apps[said.uid]} records, and is not sent the remote's mic by the pump")
+                        // Not a session's, so it records by itself with no leave: the user is asked.
+                        if (said.uid != owner?.uid) apps[said.uid]?.let(onHeard)
+                    } else {
                         val uid = said.uid
                         val on = said.on
                         if (on) recording += uid else recording -= uid
@@ -262,7 +336,7 @@ internal class MicInjection(
                         n == 0 -> delay(POLL_MILLIS)
 
                         else -> {
-                            out.write(buffer, 0, n)
+                            synchronized(writing) { out.write(buffer, 0, n) }
                             sent.add(buffer, n)
                         }
                     }
@@ -299,8 +373,19 @@ internal class MicInjection(
         runCatching { LocalSocket().use { it.connect(LocalSocketAddress(name)) } }
     }
 
-    /** What a helper was started with: the [apps] it feeds, by uid, out of the [allowed] ones. */
-    private class Fed(val apps: Map<Int, String>, val allowed: Set<String>)
+    /**
+     * What a helper was started with: the [apps] it feeds, by uid, out of the [allowed] ones; those
+     * of them the user gave [leave] to hear the remote whenever they record.
+     */
+    class Fed(val apps: Map<Int, String>, val allowed: Set<String>, val leave: Set<String>) {
+        /**
+         * Whether the pump answers this line. Not when the app starts recording for a session of
+         * Lumbina's own ([owned]), which sends the audio itself; nor when it has a feed only as
+         * Lumbina's recognizer and records by itself.
+         */
+        fun pumpsTo(said: HelperLine.Recording, owned: Int?): Boolean =
+            !said.on || (said.uid != owned && apps[said.uid] in leave)
+    }
 
     private companion object {
         const val TAG = "voice"

@@ -1,16 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="lumbina_accessibility_description">Кнопка «Домой» на пульте открывает Lumbina (долгое нажатие — быстрое меню), кнопка микрофона включает голосовой ввод.</string>
+    <string name="lumbina_accessibility_description">Кнопка «Домой» на пульте открывает Lumbina (удержание открывает быстрое меню), кнопка микрофона включает голосовой ввод.</string>
     <string name="voice_listening">Слушаю…</string>
     <string name="voice_heard">«%1$s»</string>
     <string name="voice_not_heard">Не расслышала</string>
     <string name="voice_no_speech">Ничего не слышно</string>
     <string name="voice_no_sound">Нет звука с микрофона пульта</string>
+    <string name="voice_mic_service_off">Микрофон пульта отключён в прошивке. Подробности в разделе «Диагностика» в настройках Lumbina</string>
+    <string name="voice_search_failed">Поиск не открылся. Смените «Где искать» в разделе «Виджеты» в настройках Lumbina</string>
     <string name="voice_no_field">Некуда вписать «%1$s». Сначала выберите поле ввода</string>
-    <string name="voice_failed">Не получилось распознать. Попробуйте ещё раз</string>
+    <string name="voice_failed">Не удалось распознать. Попробуйте ещё раз</string>
     <string name="voice_no_key">У сервиса распознавания нет ключа: укажите его в разделе «Голосовой ввод» в настройках Lumbina</string>
     <string name="voice_key_refused">Сервис распознавания не принял ключ: проверьте его в разделе «Голосовой ввод» в настройках Lumbina</string>
-    <string name="voice_no_network">Нет связи с сервисом распознавания: проверьте сеть</string>
+    <string name="voice_not_paid">На счёте сервиса распознавания нет средств. Пополните его на сайте сервиса</string>
+    <string name="voice_not_allowed">Сервис распознавания отказал этому ключу. Проверьте права ключа и оплату на сайте сервиса</string>
+    <string name="voice_other_country">Сервис распознавания не работает в вашей стране. Выберите другой в разделе «Голосовой ввод»</string>
+    <string name="voice_service_error">Сервис распознавания сейчас не работает (ошибка %1$d). Попробуйте позже</string>
+    <string name="voice_busy">Слишком много запросов к сервису распознавания. Подождите минуту</string>
+    <string name="voice_mic_not_given">Звук пульта не доходит до приложения. Проверьте раздел «Доступ» в настройках Lumbina</string>
+    <string name="voice_no_network">Распознавание не отвечает. Проверьте интернет</string>
     <string name="voice_for_apps_unavailable">Голосовой ввод Lumbina не готов: откройте Lumbina и проверьте раздел «Голосовой ввод» в настройках</string>
     <string name="voice_language_auto">Голос: автоматически</string>
     <string name="voice_language_only">Голос: только %1$s</string>
@@ -40,7 +48,6 @@
     <string name="quick_off">Выключен</string>
     <string name="quick_phone">Пульт на телефоне</string>
     <string name="quick_lumbina_settings">Настройки Lumbina</string>
-    <string name="quick_stock_launcher">Лаунчер %1$s</string>
     <string name="quick_recent_apps">Недавние приложения</string>
     <string name="sleep_extend">+%1$d минут</string>
     <string name="sleep_timer_off">Отменить таймер</string>

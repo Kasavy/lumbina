@@ -22,3 +22,6 @@ docs/.obsidian/
 # Icon generator: the downloaded font and the SVG previews.
 scripts/design/Golos.ttf
 scripts/design/preview/
+
+# Diagnostics reports saved from a device.
+/lumbina-report-*.txt

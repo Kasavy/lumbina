@@ -1,6 +1,7 @@
 package dev.lumbina.tv.platform.adb
 
 import java.io.File
+import java.io.InputStream
 import java.math.BigInteger
 import java.net.ServerSocket
 import java.nio.ByteBuffer
@@ -64,6 +65,19 @@ class AdbConnectionTest {
     }
 
     @Test
+    fun `feeds a command its input in pieces the device takes`() {
+        val key = AdbKey.loadOrCreate(folder.root)
+        val bytes = ByteArray(10_000) { it.toByte() }
+        FakeAdbd(knownKey = key).use { adbd ->
+            val connection = requireNotNull(AdbConnection.open("127.0.0.1", adbd.port, key, false, 1_000))
+            assertEquals("took:10000", connection.exec("take 10000", bytes, 1_000))
+            connection.close()
+            assertArrayEquals(bytes, adbd.taken)
+            assertEquals(listOf(4096, 4096, 1808), adbd.pieces)
+        }
+    }
+
+    @Test
     fun `an unknown key is refused without the prompt`() {
         val key = AdbKey.loadOrCreate(folder.root)
         FakeAdbd(knownKey = AdbKey.loadOrCreate(File(folder.root, "other"))).use { adbd ->
@@ -80,12 +94,18 @@ class AdbConnectionTest {
         }
     }
 
-    /** One-connection adbd: checks signatures against [knownKey], accepts any offered key, echoes shell. */
+    /**
+     * One-connection adbd: checks signatures against [knownKey], accepts any offered key, echoes
+     * shell, and for `exec:take N` reads N bytes of input (up to 4096 a message) before it answers.
+     */
     private class FakeAdbd(private val knownKey: AdbKey?) : AutoCloseable {
         private val server = ServerSocket(0)
         val port: Int get() = server.localPort
 
         @Volatile var offered: RSAPublicKey? = null
+
+        @Volatile var taken = ByteArray(0)
+        val pieces = mutableListOf<Int>()
 
         private val worker = thread {
             runCatching { serve() }
@@ -110,11 +130,33 @@ class AdbConnectionTest {
                 send(AdbMessage(AdbMessage.CNXN, AdbMessage.VERSION, 4096, "device::\u0000".toByteArray()))
             }
             val open = runCatching { AdbMessage.read(input) }.getOrNull() ?: return
-            val command = String(open.data).removePrefix("shell:").trimEnd('\u0000')
+            val service = String(open.data).trimEnd('\u0000')
             send(AdbMessage(AdbMessage.OKAY, 99, open.arg0))
-            send(AdbMessage(AdbMessage.WRTE, 99, open.arg0, "echo:$command".toByteArray()))
+            if (service.startsWith("exec:take ")) {
+                take(service.substringAfterLast(' ').toInt(), open.arg0, input, ::send)
+            } else {
+                echo(service.removePrefix("shell:"), open.arg0, input, ::send)
+            }
+        }
+
+        private fun take(wanted: Int, id: Int, input: InputStream, send: (AdbMessage) -> Unit) {
+            while (taken.size < wanted) {
+                val piece = AdbMessage.read(input)
+                assertEquals(AdbMessage.WRTE, piece.command)
+                pieces += piece.data.size
+                taken += piece.data
+                send(AdbMessage(AdbMessage.OKAY, 99, id))
+            }
+            send(AdbMessage(AdbMessage.WRTE, 99, id, "took:${taken.size}".toByteArray()))
             AdbMessage.read(input) // OKAY
-            send(AdbMessage(AdbMessage.CLSE, 99, open.arg0))
+            send(AdbMessage(AdbMessage.CLSE, 99, id))
+            AdbMessage.read(input) // CLSE
+        }
+
+        private fun echo(command: String, id: Int, input: InputStream, send: (AdbMessage) -> Unit) {
+            send(AdbMessage(AdbMessage.WRTE, 99, id, "echo:$command".toByteArray()))
+            AdbMessage.read(input) // OKAY
+            send(AdbMessage(AdbMessage.CLSE, 99, id))
             AdbMessage.read(input) // CLSE
         }
 

@@ -4,7 +4,7 @@
     <string name="home_favorites">Избранное</string>
     <string name="home_favorites_empty">Удерживайте OK на приложении и выберите «Где показывать…», чтобы закрепить его здесь.</string>
     <string name="home_category_empty">Пусто. Удерживайте OK на приложении и выберите «Где показывать…», чтобы положить его сюда.</string>
-    <string name="home_action_unavailable">На этом устройстве это недоступно</string>
+    <string name="home_action_unavailable">Устройство не позволяет это сделать</string>
 
     <string name="menu_move">Переместить</string>
     <string name="menu_rename">Переименовать…</string>

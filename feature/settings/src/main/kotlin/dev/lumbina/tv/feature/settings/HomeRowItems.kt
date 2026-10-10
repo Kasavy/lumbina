@@ -4,10 +4,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -15,6 +15,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
@@ -41,11 +43,17 @@ import dev.lumbina.tv.core.domain.home.SectionStyle
 /** A row being moved, and the order to put back if the move is cancelled. */
 internal data class MovingRow(val key: String, val before: List<String>)
 
+/** The category being put back: its row takes the focus the offer to put it back had. */
+internal class Returning {
+    var id: String? = null
+}
+
 @Suppress("LongParameterList") // the row list's state and what its rows do
 internal fun LazyListScope.rowItems(
     state: HomeSettingsState,
     moving: MovingRow?,
     onMoving: (MovingRow?) -> Unit,
+    returning: Returning,
     commands: HomeSettingsCommands,
     onCategory: (HomeSection) -> Unit,
     onNew: () -> Unit,
@@ -62,9 +70,21 @@ internal fun LazyListScope.rowItems(
             dimmed = moving != null,
         )
     }
-    itemsIndexed(state.rows, key = { _, entry -> entry.row.key }) { position, entry ->
-        RowEntry(entry, position, state, moving, onMoving, commands, onCategory)
+    // A category just removed leaves a row in its place for a while: OK on it puts the category back.
+    val removed = state.removed
+    val gap = removed?.row?.coerceIn(0, state.rows.size)
+    val undo = {
+        returning.id = removed?.section?.id
+        commands.undoRemove()
     }
+    state.rows.forEachIndexed { position, entry ->
+        if (removed != null && position == gap) undoItem(removed, undo, commands::offerFocused)
+        item(key = entry.row.key) {
+            val focus = Modifier.focusedIf(returning, entry.row)
+            RowEntry(entry, position, state, moving, onMoving, commands, onCategory, focus)
+        }
+    }
+    if (removed != null && gap == state.rows.size) undoItem(removed, undo, commands::offerFocused)
     item {
         SettingRow(
             onClick = onNew,
@@ -73,6 +93,36 @@ internal fun LazyListScope.rowItems(
             dimmed = moving != null,
         )
     }
+}
+
+private fun LazyListScope.undoItem(removed: RemovedCategory, onUndo: () -> Unit, onFocused: (Boolean) -> Unit) {
+    item(key = "removed:${removed.section.id}") {
+        // The focus was on the category's row, which is gone: its place takes it, the first time
+        // it is shown and not each time the list brings it back on screen.
+        val focus = remember { FocusRequester() }
+        val first = remember { !removed.shown }
+        LaunchedEffect(Unit) { if (first) runCatching { focus.requestFocus() } }
+        DisposableEffect(Unit) { onDispose { onFocused(false) } }
+        SettingRow(
+            onClick = onUndo,
+            modifier = Modifier.focusRequester(focus).onFocusChanged { onFocused(it.isFocused) },
+            headlineContent = { Text(stringResource(R.string.home_category_removed, removed.section.name)) },
+            supportingContent = { Text(stringResource(R.string.home_category_undo)) },
+        )
+    }
+}
+
+/** Takes the focus once if [row] is the category [returning]. */
+@Composable
+private fun Modifier.focusedIf(returning: Returning, row: HomeRow): Modifier {
+    val id = returning.id ?: return this
+    if ((row as? HomeRow.Category)?.id != id) return this
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        returning.id = null
+        runCatching { focus.requestFocus() }
+    }
+    return focusRequester(focus)
 }
 
 /** One row below Favorites: a built-in one with its switch, or a category that opens its menu. */
@@ -86,6 +136,7 @@ private fun RowEntry(
     onMoving: (MovingRow?) -> Unit,
     commands: HomeSettingsCommands,
     onCategory: (HomeSection) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val key = entry.row.key
     val category = (entry.row as? HomeRow.Category)?.let { row -> state.categories.firstOrNull { it.id == row.id } }
@@ -97,6 +148,7 @@ private fun RowEntry(
         isMoving = isMoving,
         position = position,
         dimmed = moving != null && !isMoving,
+        modifier = modifier,
         onClick = {
             when {
                 isMoving -> onMoving(null)

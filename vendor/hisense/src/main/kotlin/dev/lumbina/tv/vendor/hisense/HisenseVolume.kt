@@ -3,6 +3,7 @@ package dev.lumbina.tv.vendor.hisense
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.lumbina.tv.core.domain.device.DeviceVolume
 import javax.inject.Inject
@@ -14,14 +15,30 @@ import kotlin.math.absoluteValue
  */
 class HisenseVolume @Inject constructor(@ApplicationContext private val context: Context) : DeviceVolume {
 
-    /** Asked once: a held volume button changes it many times, each a trip to the package manager otherwise. */
-    private val hasReceiver: Boolean by lazy {
-        context.packageManager.queryBroadcastReceivers(Intent(ACTION).setComponent(RECEIVER), 0).isNotEmpty()
+    @Volatile
+    private var receiverSeen = false
+
+    @Volatile
+    private var askedAt = 0L
+
+    /**
+     * Asked once in a while, not at every change: a held volume button changes the volume many
+     * times, each a trip to the package manager otherwise, and the receiver may be turned on or
+     * off while Lumbina runs.
+     */
+    private fun hasReceiver(): Boolean {
+        val now = SystemClock.elapsedRealtime()
+        if (askedAt == 0L || now - askedAt >= ASK_AGAIN_MILLIS) {
+            receiverSeen =
+                context.packageManager.queryBroadcastReceivers(Intent(ACTION).setComponent(RECEIVER), 0).isNotEmpty()
+            askedAt = now
+        }
+        return receiverSeen
     }
 
     /** False on firmware without TvBaseService's receiver: the broadcast would go nowhere, silently. */
     override fun change(percent: Int): Boolean {
-        if (!hasReceiver) return false
+        if (!hasReceiver()) return false
         if (percent == 0) return true
         val intent = Intent(ACTION)
             .setComponent(RECEIVER)
@@ -32,10 +49,12 @@ class HisenseVolume @Inject constructor(@ApplicationContext private val context:
         return true
     }
 
-    private companion object {
-        const val ACTION = "com.hisense.tv.aiot.VOLUME"
-        val RECEIVER = ComponentName("com.hisense.tv.baseservice", "com.hisense.tv.baseservice.MainReceiver")
-        const val RAISE = 5012
-        const val LOWER = 5013
+    internal companion object {
+        const val PACKAGE = "com.hisense.tv.baseservice"
+        private const val ACTION = "com.hisense.tv.aiot.VOLUME"
+        private val RECEIVER = ComponentName(PACKAGE, "$PACKAGE.MainReceiver")
+        private const val RAISE = 5012
+        private const val LOWER = 5013
+        private const val ASK_AGAIN_MILLIS = 5_000L
     }
 }

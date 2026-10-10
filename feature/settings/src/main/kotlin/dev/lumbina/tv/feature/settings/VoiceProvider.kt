@@ -18,8 +18,21 @@ internal fun LazyListScope.providerRows(recognizer: Recognizer, onClick: () -> U
             supportingContent = { Text(providerText(recognizer)) },
         )
     }
-    if (recognizer.provider != SpeechProvider.Device) {
-        item { Note(stringResource(R.string.voice_provider_cloud_hint, providerName(recognizer.provider))) }
+    when (recognizer.provider) {
+        SpeechProvider.Device -> Unit
+
+        SpeechProvider.App -> item {
+            val app = recognizer.app
+            Note(
+                if (app == null) {
+                    stringResource(R.string.voice_provider_app_gone)
+                } else {
+                    stringResource(R.string.voice_provider_app_hint, app.label)
+                },
+            )
+        }
+
+        else -> item { Note(stringResource(R.string.voice_provider_cloud_hint, providerName(recognizer.provider))) }
     }
 }
 
@@ -31,9 +44,12 @@ internal fun ProviderDialog(
     modifier: Modifier = Modifier,
 ) {
     val noKey = stringResource(R.string.voice_provider_no_key)
-    val choices = SpeechProvider.entries.map { provider ->
+    // Another app is offered only where there is one that can be given the remote's sound.
+    val offered = SpeechProvider.entries.filter { it != SpeechProvider.App || recognizer.app != null }
+    val choices = offered.map { provider ->
         val subtitle = when {
             provider == SpeechProvider.Device -> stringResource(R.string.voice_provider_device_hint)
+            provider == SpeechProvider.App -> recognizer.app?.label.orEmpty()
             provider in recognizer.withKey -> stringResource(R.string.voice_provider_key_set)
             else -> noKey
         }
@@ -54,6 +70,7 @@ private fun providerName(provider: SpeechProvider): String = stringResource(
         SpeechProvider.Device -> R.string.voice_provider_device
         SpeechProvider.OpenAi -> R.string.voice_provider_openai
         SpeechProvider.Yandex -> R.string.voice_provider_yandex
+        SpeechProvider.App -> R.string.voice_provider_app
     },
 )
 

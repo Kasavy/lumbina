@@ -194,3 +194,10 @@ private class OkPress {
 private val SHAPE = RoundedCornerShape(8.dp)
 private const val SELECTED_ALPHA = 0.4f
 private const val DIMMED_ALPHA = 0.4f
+
+/**
+ * The color for a row's text that names a problem: the error color, except while the row is
+ * [focused], when its light background makes that color pale; then the row's own.
+ */
+@Composable
+internal fun problemColor(focused: Boolean): Color = if (focused) Color.Unspecified else MaterialTheme.colorScheme.error

@@ -15,15 +15,20 @@ accessibility service.
 
 ## What it does
 
-- Home opens Lumbina. Double press shows recent apps, long press opens a quick menu: recent
-  apps, sleep timer, the phone remote, the device's own launcher, Lumbina's settings.
+- Home opens Lumbina. Double press shows recent apps (can be turned off), long press opens a
+  quick menu: recent apps, sleep timer, the phone remote, another home screen (the device's own
+  launcher, or one you choose), Lumbina's settings.
+- Search from the home screen goes to the system's search or to YouTube, as you choose.
 - Home screen with favorites, rows and folders. Rows can be reordered and hidden, apps renamed
   and hidden.
 - "Continue watching" and the channels apps publish. If the firmware has no TV provider, Lumbina
   installs its own.
-- Voice input from the remote's mic into any text field. Offline (Vosk, Russian and English) or
-  through OpenAI or Yandex SpeechKit with your own key.
-- Voice search in other apps on Hisense, where the firmware gives them no microphone.
+- Voice input from the remote's mic into any text field. Offline (Vosk, Russian and English),
+  through OpenAI or Yandex SpeechKit with your own key, or by another app on the device that
+  recognizes speech for apps (experimental: on Hisense, Android 13 or newer, with debugging
+  Lumbina can reach).
+- Voice search in other apps on Hisense, where the firmware gives them no microphone (Android 13
+  or newer, with debugging Lumbina can reach).
 - Voice commands: open an app, search, volume, playback, sleep timer.
 - Wallpapers: your own pictures and videos, photo of the day, Projectivy wallpaper plugins, or
   none: the theme's background.
@@ -93,13 +98,14 @@ Lumbina talks to these services directly, so each of them sees your IP:
 | [picsum.photos](https://picsum.photos), [bing.com](https://www.bing.com) | Screensaver or "Photo of the day" wallpaper | Screen size | Turn off online photos, pick another wallpaper |
 | [alphacephei.com](https://alphacephei.com), [huggingface.co](https://huggingface.co) | You download a speech model | Which model | Don't download |
 | [api.openai.com](https://openai.com), [stt.api.cloud.yandex.net](https://yandex.cloud/services/speechkit) | You chose cloud recognition | Audio of each phrase and your API key | Recognize on the device, it's the default |
+| Another app on the device, and whatever it sends on | You chose another app to recognize | Audio of each phrase | Recognize on the device, it's the default |
 | Whatever hosts the apps name | An app publishes channels or "continue watching" | The request for the artwork the app points to | Hide the row or the channel |
 | Wallpaper plugins | You chose a plugin as wallpaper | Whatever the plugin asks for | Pick another wallpaper |
 
 Recognized phrases go to Lumbina's log on the device, with the names of the apps and windows you
 open. The log leaves the device only if you save a diagnostics report yourself and send it to
 someone: the report is a file with the log's tail, facts about the device and its firmware, and
-lists of its system apps. The phone remote is plain HTTP on the local network, protected by
+lists of its system apps and of the apps that publish channels. The phone remote is plain HTTP on the local network, protected by
 the key in its QR code.
 
 What every permission is used for: [SECURITY.md](SECURITY.md).

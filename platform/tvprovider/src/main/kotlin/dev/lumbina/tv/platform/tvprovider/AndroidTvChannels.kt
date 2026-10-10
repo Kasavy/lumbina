@@ -19,6 +19,7 @@ import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.domain.access.CompanionApp
+import dev.lumbina.tv.core.domain.channels.ChannelCensus
 import dev.lumbina.tv.core.domain.channels.ChannelFeed
 import dev.lumbina.tv.core.domain.channels.ProgramCard
 import dev.lumbina.tv.core.domain.channels.ProgramLauncher
@@ -175,19 +176,19 @@ internal class AndroidTvChannels @Inject constructor(
 
     private fun TvRow.weight(): Long = long(Columns.WEIGHT) ?: 0L
 
-    private companion object {
-        const val TAG = "channels"
-        const val AUTHORITY = "android.media.tv"
-        const val READ_TV_LISTINGS = "android.permission.READ_TV_LISTINGS"
-        const val COMPANION = "dev.lumbina.tv.tvprovider"
-        const val DEBOUNCE_MILLIS = 500L
+    companion object {
+        private const val AUTHORITY = "android.media.tv"
         val CHANNELS: Uri = Uri.parse("content://$AUTHORITY/channel")
         val PREVIEW_PROGRAMS: Uri = Uri.parse("content://$AUTHORITY/preview_program")
-        val WATCH_NEXT: Uri = Uri.parse("content://$AUTHORITY/watch_next_program")
+        private const val TAG = "channels"
+        private const val READ_TV_LISTINGS = "android.permission.READ_TV_LISTINGS"
+        private const val COMPANION = "dev.lumbina.tv.tvprovider"
+        private const val DEBOUNCE_MILLIS = 500L
+        private val WATCH_NEXT: Uri = Uri.parse("content://$AUTHORITY/watch_next_program")
     }
 }
 
-private class CursorRow(private val cursor: Cursor) : TvRow {
+internal class CursorRow(private val cursor: Cursor) : TvRow {
     override fun string(column: String): String? =
         cursor.getColumnIndex(column).takeIf { it >= 0 && !cursor.isNull(it) }?.let(cursor::getString)
 
@@ -243,6 +244,8 @@ internal interface TvProviderModule {
     @Binds fun channels(impl: AndroidTvChannels): TvChannels
 
     @Binds fun listingsPermission(impl: AndroidTvChannels): TvListingsPermission
+
+    @Binds fun census(impl: TvProviderCensus): ChannelCensus
 
     @Binds @IntoSet
     fun companion(impl: TvProviderCompanion): CompanionApp

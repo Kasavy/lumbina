@@ -20,8 +20,15 @@ interface DeviceProfile {
     val priority: Int
     val keyMap: KeyMap
 
-    /** The vendor's own launcher, reachable with a long press on Home; null if none. */
+    /** The firmware's own launcher; null if none. */
     val stockLauncher: AppId?
+
+    /**
+     * Whether a window ([className] of [packageName]; null when the class is not known) is the
+     * firmware's home screen, which may come up at power-on instead of Lumbina: over it Lumbina
+     * opens again. Any window of [stockLauncher] unless the profile knows better.
+     */
+    fun isHomeScreen(packageName: String, className: String?): Boolean = packageName == stockLauncher?.packageName
 
     /** Audio from the remote's mic, if the vendor exposes it; null keeps the mic key with the firmware. */
     val remoteMicAudio: AudioSource? get() = null
@@ -38,7 +45,8 @@ interface DeviceProfile {
     /**
      * Android's microphone input hears nothing on this device, so apps that record their voice
      * search themselves get silence. Where true, Lumbina feeds the remote's audio into the
-     * recordings of the apps the user allows (`AccessSettings.micApps`), see [feedsMicToApps].
+     * recordings of the apps the user allows (`AccessSettings.micApps`), and of an app that
+     * recognizes speech for Lumbina itself, see [feedsMicToApps].
      */
     val micInjection: Boolean get() = false
 
@@ -54,6 +62,12 @@ interface DeviceProfile {
      */
     val localAdb: Boolean get() = false
 
+    /**
+     * The parts of the firmware this profile's features rest on, see [FirmwareParts]. Each must be
+     * visible to Lumbina (a `queries` entry in the manifest), or it reads as missing.
+     */
+    val firmwareParts: List<FirmwarePart> get() = emptyList()
+
     /** What a diagnostics report asks about this firmware; null: nothing beyond the common facts. */
     val diagnostics: DeviceDiagnostics? get() = null
 
@@ -65,13 +79,6 @@ data class DeviceAnswer(val question: String, val answer: String)
 
 /** What a diagnostics report finds out about one firmware, so a tester need not be asked to. */
 interface DeviceDiagnostics {
-    /**
-     * Packages of the firmware the profile leans on: the report says which are there, and their
-     * versions. Each must be visible to Lumbina (a `queries` entry in the manifest), or it reads
-     * as missing.
-     */
-    val packages: List<String> get() = emptyList()
-
     /** Shell commands whose output the report carries, run over Lumbina's own adb (`DeviceProfile.localAdb`). */
     val shellCommands: List<String> get() = emptyList()
 

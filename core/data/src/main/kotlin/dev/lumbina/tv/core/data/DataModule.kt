@@ -33,6 +33,8 @@ import dev.lumbina.tv.core.domain.input.InputSettings
 import dev.lumbina.tv.core.domain.input.InputSettingsRepository
 import dev.lumbina.tv.core.domain.phone.PhoneRemoteSettings
 import dev.lumbina.tv.core.domain.phone.PhoneRemoteSettingsRepository
+import dev.lumbina.tv.core.domain.remote.RemoteSettings
+import dev.lumbina.tv.core.domain.remote.RemoteSettingsRepository
 import dev.lumbina.tv.core.domain.settings.SettingsRepository
 import dev.lumbina.tv.core.domain.sleep.SleepSettings
 import dev.lumbina.tv.core.domain.sleep.SleepSettingsRepository
@@ -40,6 +42,8 @@ import dev.lumbina.tv.core.domain.speech.DefaultVoiceLanguages
 import dev.lumbina.tv.core.domain.speech.SpeechKeys
 import dev.lumbina.tv.core.domain.speech.VoiceSettings
 import dev.lumbina.tv.core.domain.speech.VoiceSettingsRepository
+import dev.lumbina.tv.core.domain.text.SearchSettings
+import dev.lumbina.tv.core.domain.text.SearchSettingsRepository
 import dev.lumbina.tv.core.domain.text.YouTubeSettings
 import dev.lumbina.tv.core.domain.text.YouTubeSettingsRepository
 import dev.lumbina.tv.core.domain.weather.WeatherSettings
@@ -148,6 +152,17 @@ internal object DataModule {
         multiProcess = true,
     )
 
+    /** Multi-process: a phrase said on a launcher is searched for in the service process. */
+    @Provides
+    @Singleton
+    fun searchSettings(@ApplicationContext context: Context): SearchSettingsRepository = context.settings(
+        "search_settings",
+        StoredSearchSettings(),
+        StoredSearchSettings::toDomain,
+        SearchSettings::toStored,
+        multiProcess = true,
+    )
+
     /** Multi-process: the switcher (in the service process) reads whether it may close apps. */
     @Provides
     @Singleton
@@ -166,6 +181,17 @@ internal object DataModule {
         StoredChannelSettings(),
         StoredChannelSettings::toDomain,
         ChannelSettings::toStored,
+    )
+
+    /** Multi-process: set in the settings, acted on by the service process, which sees the remote. */
+    @Provides
+    @Singleton
+    fun remoteSettings(@ApplicationContext context: Context): RemoteSettingsRepository = context.settings(
+        "remote_settings",
+        StoredRemoteSettings(),
+        StoredRemoteSettings::toDomain,
+        RemoteSettings::toStored,
+        multiProcess = true,
     )
 
     @Provides
