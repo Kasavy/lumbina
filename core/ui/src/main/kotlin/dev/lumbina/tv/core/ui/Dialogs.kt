@@ -1,14 +1,11 @@
 package dev.lumbina.tv.core.ui
 
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,7 +22,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,13 +31,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEvent
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -64,8 +54,6 @@ import androidx.tv.material3.ListItem
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 
 /** One entry of a [ChoiceDialog], with an optional second line; [chosen] marks the one in effect. */
 class Choice(val title: String, val subtitle: String? = null, val chosen: Boolean = false, val onChoose: () -> Unit)
@@ -89,7 +77,7 @@ fun ChoiceDialog(
             val focus = remember { FocusRequester() }
             if (choice.chosen && !placed) {
                 LaunchedEffect(Unit) {
-                    runCatching { focus.requestFocus() }
+                    focus.requestFocusSoon()
                     placed = true
                 }
             }
@@ -101,7 +89,7 @@ fun ChoiceDialog(
                 },
                 headlineContent = { Text(choice.title) },
                 supportingContent = choice.subtitle?.let { { Text(it, maxLines = 2) } },
-                trailingContent = if (choice.chosen) ({ Text("✓") }) else null,
+                trailingContent = if (choice.chosen) ({ Text(TICK) }) else null,
                 modifier = Modifier.focusRequester(focus),
             )
         }
@@ -109,7 +97,7 @@ fun ChoiceDialog(
 }
 
 /**
- * A titled dialog around a list of [items] that decide themselves what choosing them does, e.g.
+ * A titled list in the [SidePanel]; its [items] decide themselves what choosing them does, e.g.
  * switches that stay open. Presses still down when it appears (OK held to open it) are ignored.
  */
 @Composable
@@ -120,37 +108,16 @@ fun MenuDialog(
     hint: String? = null,
     items: LazyListScope.() -> Unit,
 ) {
-    val guard = remember { FreshPressGuard() }
-    Dialog(onDismissRequest = onDismiss) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = modifier
-                .width(DIALOG_WIDTH)
-                .onPreviewKeyEvent(guard::swallow)
-                .dialogSurface()
-                .padding(16.dp),
-        ) {
-            Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(12.dp))
-            hint?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
-                )
-            }
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.heightIn(max = 480.dp),
-                content = items,
-            )
-        }
+    SidePanel(title = title, onDismiss = onDismiss, modifier = modifier, subtitle = hint) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp), content = items)
     }
 }
 
 /**
  * Asks for a name, typed on [LumbinaKeyboard] when [LocalUseLumbinaKeyboard] is on, otherwise on the
- * device's keyboard; voice input can fill it either way. A blank name is passed on as is.
+ * device's keyboard; voice input can fill it either way. A blank name is passed on as is where it
+ * means something (an app goes back to its own name); where it means nothing, [needsText] keeps
+ * the save button off and Done from closing the dialog until there is text.
  * Lumbina's keyboard is a compact block right under [anchor] (the tile being named), so the
  * tile stays in sight; with nothing to name on screen it sits at the top in the middle. [hint] is
  * a line under the field, e.g. what an empty name does.
@@ -166,14 +133,13 @@ fun NameDialog(
     modifier: Modifier = Modifier,
     anchor: Rect? = null,
     hint: String? = null,
+    needsText: Boolean = false,
 ) {
     val lumbinaKeyboard = LocalUseLumbinaKeyboard.current
     var value by remember { mutableStateOf(TextFieldValue(initial, TextRange(initial.length))) }
     val focus = remember { FocusRequester() }
-    val save = {
-        onDismiss()
-        onSave(value.text)
-    }
+    val ready = !needsText || value.text.isNotBlank()
+    val save = { if (ready) onDismiss().also { onSave(value.text) } }
     if (lumbinaKeyboard) {
         AnchoredPanel(anchor = anchor, width = KEYBOARD_WIDTH, onDismiss = onDismiss) {
             Column(verticalArrangement = Arrangement.spacedBy(9.dp), modifier = modifier.padding(14.dp)) {
@@ -195,7 +161,7 @@ fun NameDialog(
                     OutlinedButton(onClick = onDismiss, scale = ButtonDefaults.scale(focusedScale = 1f)) {
                         Text(cancelLabel, style = MaterialTheme.typography.labelLarge)
                     }
-                    Button(onClick = save, scale = ButtonDefaults.scale(focusedScale = 1f)) {
+                    Button(onClick = save, enabled = ready, scale = ButtonDefaults.scale(focusedScale = 1f)) {
                         Text(saveLabel, style = MaterialTheme.typography.labelLarge)
                     }
                 }
@@ -217,7 +183,7 @@ fun NameDialog(
                 hint?.let { NameHint(it) }
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     OutlinedButton(onClick = onDismiss) { Text(cancelLabel) }
-                    Button(onClick = save) { Text(saveLabel) }
+                    Button(onClick = save, enabled = ready) { Text(saveLabel) }
                 }
             }
         }
@@ -283,14 +249,13 @@ fun ConfirmDialog(
     val cancel = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { cancel.requestFocus() } }
     val scroll = rememberScrollState()
-    val scope = rememberCoroutineScope()
-    val scrollStep = with(LocalDensity.current) { SCROLL_STEP.toPx() }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = width == null)) {
         Column(
             verticalArrangement = Arrangement.spacedBy(24.dp),
             modifier = modifier
                 .then(if (width != null) Modifier.width(width) else Modifier)
-                .onPreviewKeyEvent { guard.swallow(it) || scroll.scrollOn(it, scrollStep, scope) }
+                .onPreviewKeyEvent(guard::swallow)
+                .keyScroll(scroll)
                 .dialogSurface()
                 .padding(32.dp),
         ) {
@@ -346,23 +311,11 @@ fun CommandsDialog(
 private val COMMANDS_WIDTH = 760.dp
 private val COMMANDS_QR = 180.dp
 
-/** Up and down scroll by [step] while there is more that way; true when the key did. */
-private fun ScrollState.scrollOn(event: KeyEvent, step: Float, scope: CoroutineScope): Boolean {
-    val by = when (event.key) {
-        Key.DirectionDown -> step.takeIf { canScrollForward }
-        Key.DirectionUp -> (-step).takeIf { canScrollBackward }
-        else -> null
-    } ?: return false
-    if (event.type == KeyEventType.KeyDown) scope.launch { animateScrollBy(by) }
-    return true
-}
-
+/** A dialog's or a window's ground: the theme's panel with round corners. */
 @Composable
-private fun Modifier.dialogSurface(): Modifier =
-    background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
+fun Modifier.dialogSurface(): Modifier = background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
 
 private val DIALOG_WIDTH = 480.dp
-private val SCROLL_STEP = 120.dp
 
 // About 900 × 470 px on a 1080p screen: under half the width, so the named tile stays in view.
 private val KEYBOARD_WIDTH = 450.dp

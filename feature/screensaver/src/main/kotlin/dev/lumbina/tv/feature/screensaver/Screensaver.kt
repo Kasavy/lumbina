@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,6 +40,9 @@ import androidx.tv.material3.Text
 import dev.lumbina.tv.core.domain.backdrop.BackdropPhotos
 import dev.lumbina.tv.core.domain.home.ClockFormat
 import dev.lumbina.tv.core.domain.home.HomeAppearanceRepository
+import dev.lumbina.tv.core.domain.phone.LocalAddress
+import dev.lumbina.tv.core.domain.phone.PhoneRemoteSettingsRepository
+import dev.lumbina.tv.core.domain.phone.phoneRemoteAddress
 import dev.lumbina.tv.core.domain.weather.CurrentWeather
 import dev.lumbina.tv.core.domain.weather.ShownWeather
 import dev.lumbina.tv.core.domain.weather.WeatherSettingsRepository
@@ -48,9 +52,11 @@ import dev.lumbina.tv.core.ui.CREDIT_MAX_LINES
 import dev.lumbina.tv.core.ui.CreditLineBreak
 import dev.lumbina.tv.core.ui.GradientTones
 import dev.lumbina.tv.core.ui.MINUTE_MILLIS
+import dev.lumbina.tv.core.ui.QrCode
 import dev.lumbina.tv.core.ui.creditLines
 import dev.lumbina.tv.core.ui.dateText
 import dev.lumbina.tv.core.ui.label
+import dev.lumbina.tv.core.ui.line
 import dev.lumbina.tv.core.ui.rememberMinuteClock
 import dev.lumbina.tv.core.ui.temperatureText
 import dev.lumbina.tv.core.ui.timeText
@@ -60,7 +66,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
@@ -76,7 +84,25 @@ class ScreensaverModel @Inject constructor(
     weatherSettings: WeatherSettingsRepository,
     appearance: HomeAppearanceRepository,
     private val backdrop: BackdropPhotos,
+    phoneRemote: PhoneRemoteSettingsRepository,
+    address: LocalAddress,
 ) {
+
+    /**
+     * The phone remote page's address, to show as a code: only where the user asked for it on the
+     * screensaver, the page is on and the device has a network address. Null otherwise. The
+     * address is asked again every minute: the network may come, or change, while the screensaver shows.
+     */
+    val remoteCode: Flow<String?> = combine(phoneRemote.settings, minutes()) { remote, _ ->
+        if (remote.enabled && remote.onScreensaver) phoneRemoteAddress(address.ipv4(), remote.key) else null
+    }.distinctUntilChanged().flowOn(Dispatchers.IO)
+
+    private fun minutes(): Flow<Unit> = flow {
+        while (true) {
+            emit(Unit)
+            delay(ADDRESS_MILLIS)
+        }
+    }
 
     /** Null while unknown or switched off. */
     val weather: Flow<ShownWeather?> =
@@ -123,14 +149,19 @@ private const val PHOTO_WIDTH = 1920
 private const val PHOTO_HEIGHT = 1080
 
 /**
- * Full-screen photos (slow zoom, cross-fades) with the time, date and weather. The text block
- * moves to another corner every few minutes so nothing stays in one place for hours.
+ * Full-screen photos (slow zoom, cross-fades) with the time, date and weather, and the phone
+ * remote's code in the opposite corner when it is to be shown there. The text block moves to
+ * another corner every few minutes so nothing stays in one place for hours.
  */
 @Composable
 fun Screensaver(model: ScreensaverModel, modifier: Modifier = Modifier) {
     val photo by model.photos.collectAsStateWithLifecycle(null)
     val report by model.weather.collectAsStateWithLifecycle(null)
     val clock by model.clock.collectAsStateWithLifecycle(ClockLook())
+    val remoteCode by model.remoteCode.collectAsStateWithLifecycle(null)
+    val now = rememberMinuteClock()
+    val startedAt = remember { System.currentTimeMillis() }
+    val corner = cornerIndex(now, startedAt, CORNERS.size)
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
         Crossfade(targetState = photo, animationSpec = tween(FADE_MILLIS), label = "photo") { shown ->
             if (shown != null) SlowZoom(shown.image) else DriftingGradient()
@@ -140,7 +171,9 @@ fun Screensaver(model: ScreensaverModel, modifier: Modifier = Modifier) {
                 Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = SCRIM_ALPHA))),
             ),
         )
-        TimeAndWeather(report, clock, photo?.credit)
+        TimeAndWeather(report, clock, photo?.credit, now, CORNERS[corner])
+        // Across from the clock, and moving with it: neither stays in one place for hours.
+        remoteCode?.let { RemoteCode(it, CORNERS[(corner + CORNERS.size / 2) % CORNERS.size]) }
     }
 }
 
@@ -185,11 +218,30 @@ private fun DriftingGradient(modifier: Modifier = Modifier) {
     )
 }
 
+/** The phone remote page as a code to point a camera at; no address in letters: nobody types one from a sofa. */
 @Composable
-private fun TimeAndWeather(shown: ShownWeather?, clock: ClockLook, credit: String?, modifier: Modifier = Modifier) {
-    val now = rememberMinuteClock()
-    val startedAt = remember { System.currentTimeMillis() }
-    val corner = CORNERS[cornerIndex(now, startedAt, CORNERS.size)]
+private fun RemoteCode(address: String, corner: Alignment, modifier: Modifier = Modifier) {
+    Box(modifier = modifier.fillMaxSize().padding(64.dp), contentAlignment = corner) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            QrCode(address, size = CODE_SIZE)
+            Text(
+                stringResource(R.string.screensaver_phone_remote),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = TEXT_ALPHA),
+            )
+        }
+    }
+}
+
+@Composable
+private fun TimeAndWeather(
+    shown: ShownWeather?,
+    clock: ClockLook,
+    credit: String?,
+    now: Long,
+    corner: Alignment,
+    modifier: Modifier = Modifier,
+) {
     // Lines keep to the corner's side: a credit wider than the clock would otherwise push the
     // clock sideways with every photo.
     val atEnd = corner == Alignment.TopEnd || corner == Alignment.BottomEnd
@@ -212,8 +264,11 @@ private fun TimeAndWeather(shown: ShownWeather?, clock: ClockLook, credit: Strin
             }
             shown?.let { (report, fahrenheit) ->
                 Text(
-                    text = "${report.weather.temperatureText(fahrenheit)} · ${report.weather.condition.label()} · " +
+                    text = line(
+                        report.weather.temperatureText(fahrenheit),
+                        report.weather.condition.label(),
                         report.place.name,
+                    ),
                     style = MaterialTheme.typography.titleLarge,
                     color = Color.White.copy(alpha = TEXT_ALPHA),
                 )
@@ -237,7 +292,9 @@ private fun TimeAndWeather(shown: ShownWeather?, clock: ClockLook, credit: Strin
 internal fun cornerIndex(now: Long, startedAt: Long, corners: Int): Int =
     ((maxOf(0L, now - startedAt) / (MINUTE_MILLIS * MINUTES_PER_CORNER)) % corners).toInt()
 
-private val CORNERS = listOf(Alignment.BottomStart, Alignment.TopEnd, Alignment.BottomEnd, Alignment.TopStart)
+// Each corner's opposite is two places on: the clock and the phone remote's code stand across from each other.
+private val CORNERS = listOf(Alignment.BottomStart, Alignment.BottomEnd, Alignment.TopEnd, Alignment.TopStart)
+private val CODE_SIZE = 90.dp
 private const val MINUTES_PER_CORNER = 5
 private const val FADE_MILLIS = 2_000
 private const val GRADIENT_MILLIS = 40_000
@@ -246,3 +303,6 @@ private const val MAX_ZOOM = 1.08f
 private const val SCRIM_ALPHA = 0.6f
 private const val TEXT_ALPHA = 0.9f
 private val CREDIT_WIDTH = 560.dp
+
+/** How often the device's address is asked for the phone remote's code. */
+private const val ADDRESS_MILLIS = 60_000L

@@ -8,11 +8,14 @@ import dev.lumbina.tv.core.domain.access.AccessSettingsRepository
 import dev.lumbina.tv.core.domain.access.AdbState
 import dev.lumbina.tv.core.domain.access.ComputerSetup
 import dev.lumbina.tv.core.domain.access.LocalAccess
+import dev.lumbina.tv.core.domain.access.NotificationAccess
 import dev.lumbina.tv.core.domain.access.SetupResult
 import dev.lumbina.tv.core.domain.access.SetupScreens
+import dev.lumbina.tv.core.domain.channels.TvListingsPermission
 import dev.lumbina.tv.core.domain.device.DeviceProfile
 import dev.lumbina.tv.core.domain.health.AccessibilityHealth
 import dev.lumbina.tv.core.domain.health.SecureSettings
+import dev.lumbina.tv.core.domain.locale.AppLanguage
 import dev.lumbina.tv.core.domain.phone.LocalAddress
 import dev.lumbina.tv.core.domain.speech.ModelState
 import dev.lumbina.tv.core.domain.speech.SpeechProvider
@@ -28,10 +31,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -69,6 +74,9 @@ enum class ConnectResult {
     /** Connected, but the device didn't let Lumbina keep its service on. */
     NotKept,
 
+    /** Allowed once, without "Always allow": nothing could be set up over it. */
+    AllowedOnce,
+
     /** Connected and set up: the service is coming on, until the next poll sees it (or gives up). */
     TurningOn,
 
@@ -77,8 +85,9 @@ enum class ConnectResult {
 }
 
 /**
- * What still needs to be done: the service (when it isn't running) and speech models ([voice]
- * is null on devices without a remote mic Lumbina can use). [adb] is known on the [ServicePath.LocalAdb] path.
+ * Where the setup stands: the service and how it is turned on ([path]; [adb] is known on the
+ * [ServicePath.LocalAdb] path, [connect] after a try), and the speech models ([voice]: null where
+ * there is no remote mic Lumbina can use, or voice is not recognized on the device).
  */
 data class SetupStatus(
     val serviceRunning: Boolean,
@@ -86,17 +95,36 @@ data class SetupStatus(
     val path: ServicePath = ServicePath.Computer,
     val adb: AdbState? = null,
     val connect: ConnectResult? = null,
-    /** The service is down but Lumbina is bringing it back itself: "starting", not steps. */
+    /** The service is down but Lumbina is bringing it back itself: "starting", not one of [userSteps]. */
     val starting: Boolean = false,
+    /** The permission to read apps' channels, where the user has yet to give it; null: nothing to ask. */
+    val channels: String? = null,
+    /** Notification access is the user's to give here, and not given yet. */
+    val noticesMissing: Boolean = false,
+    /** The setup was asked back after it was over: it opens at its steps, with no welcome. */
+    val again: Boolean = false,
 ) {
-    val steps: Int get() = (if (serviceRunning) 0 else 1) + (if (voice?.ready == false) 1 else 0)
-
-    /** Of [steps], those the user has to take: not the service while Lumbina is starting it. */
-    val userSteps: Int get() = if (starting && !serviceRunning) steps - 1 else steps
+    /** How many of the setup's steps are not done. */
+    val steps: Int
+        get() = listOf(!serviceRunning, channels != null, noticesMissing, voice?.ready == false).count { it }
     val complete: Boolean get() = steps == 0
+
+    /** The steps the user has to take: the service is not one while Lumbina brings it back itself. */
+    val userSteps: Int get() = if (starting && !serviceRunning) steps - 1 else steps
 
     /** Debugging is known to be on, so "Connect" can work. */
     val debuggingOn: Boolean get() = adb != null && adb != AdbState.Off
+}
+
+/** What a poll of the device found: none of it has a callback. */
+private data class Polled(
+    val running: Boolean,
+    val adb: AdbState?,
+    val channels: String?,
+    val noticesMissing: Boolean,
+) {
+    /** Nothing left that could change under the user's hands: polling can slow down. */
+    val settled: Boolean get() = running && channels == null && !noticesMissing
 }
 
 @Suppress("LongParameterList") // one port per setup step
@@ -111,8 +139,32 @@ class SetupViewModel @Inject constructor(
     private val accessSettings: AccessSettingsRepository,
     private val address: LocalAddress,
     @Named(OUR_ACCESSIBILITY_SERVICE) private val ourService: String,
+    private val appLanguage: AppLanguage,
+    private val listings: TvListingsPermission,
+    private val notices: NotificationAccess,
     profile: DeviceProfile,
 ) : ViewModel() {
+
+    /** With its own debugging Lumbina gives itself notification access as it connects: no step for the user. */
+    private val noticesByUser = !profile.localAdb
+
+    /** Whether Lumbina's language can be chosen apart from the device's. */
+    val languageSupported: Boolean = appLanguage.supported
+
+    /** Whether to ask the language before anything else: see [DeviceProfile.languageFirst]. */
+    val languageFirst: Boolean = profile.languageFirst && appLanguage.supported && appLanguage.current() == null
+
+    val hasAccessibilitySettings: Boolean get() = screens.hasAccessibilitySettings
+
+    fun language(): String? = appLanguage.current()
+
+    /** Lumbina's language, and voice's with it: the setup offers to download that one. */
+    fun setLanguage(tag: String?) {
+        viewModelScope.launch {
+            voiceLanguages.followAppLanguage(tag, previous = appLanguage.current())
+            appLanguage.set(tag)
+        }
+    }
 
     /** What the consent says the service does here. */
     val serviceScope = profile.serviceScope()
@@ -130,15 +182,19 @@ class SetupViewModel @Inject constructor(
 
     /**
      * Polled while visible: the service and debugging change from outside, with no callback.
-     * Often while the service is missing, rarely once it runs.
+     * Often while the service is missing or the wizard waits for an answer, rarely otherwise.
      */
     private val service = flow {
         while (true) {
             val running = health.isServiceBound()
-            emit(running to if (!running && path == ServicePath.LocalAdb) access.state() else null)
-            delay(if (running) IDLE_POLL_MILLIS else POLL_MILLIS)
+            val adb = if (!running && path == ServicePath.LocalAdb) access.state() else null
+            val polled = Polled(running, adb, listings.missing(), noticesByUser && !notices.granted())
+            emit(polled)
+            // Steps put off with the wizard closed are nobody's to watch.
+            val watched = !polled.settled && !accessSettings.settings.first().setupCardHidden
+            delay(if (watched || !running) POLL_MILLIS else IDLE_POLL_MILLIS)
         }
-    }.flowOn(Dispatchers.IO).distinctUntilChanged()
+    }.flowOn(Dispatchers.IO).distinctUntilChanged().shareIn(viewModelScope, WhileUiSubscribed, replay = 1)
 
     private val voice = if (!profile.hasRemoteMic) {
         flowOf(null)
@@ -159,24 +215,75 @@ class SetupViewModel @Inject constructor(
         emit(false)
     }
 
-    /** Null while loading and once the user chose "Hide". */
+    /**
+     * The setup is not over yet: its window is to come, so home stays covered until it does. Taken
+     * so until the settings are read: the first launch would show home for a moment before.
+     */
+    val pending: StateFlow<Boolean> =
+        accessSettings.settings.map { !it.setupCardHidden }.stateIn(viewModelScope, WhileUiSubscribed, true)
+
+    /** Null while loading and once the setup was finished or skipped. */
     val status: StateFlow<SetupStatus?> = combine(
         service,
         voice,
         connect,
-        accessSettings.settings.map { it.setupCardHidden },
+        accessSettings.settings.map { it.setupCardHidden to it.setupReopened },
         justOpened,
-    ) { (running, adb), voice, connect, hidden, justOpened ->
-        val starting = justOpened && !running && secureSettings.canWrite
-        SetupStatus(running, voice, path, adb, connect, starting).takeUnless { hidden }
+    ) { polled, voice, connect, (hidden, again), justOpened ->
+        val starting = justOpened && !polled.running && secureSettings.canWrite
+        SetupStatus(
+            serviceRunning = polled.running,
+            voice = voice,
+            path = path,
+            adb = polled.adb,
+            connect = connect,
+            starting = starting,
+            channels = polled.channels,
+            noticesMissing = polled.noticesMissing,
+            again = again,
+        ).takeUnless { hidden }
     }.stateIn(viewModelScope, WhileUiSubscribed, null)
 
-    fun downloadSpeechModels() {
-        viewModelScope.launch { voiceLanguages.installEnabled() }
+    /** The user answered the system's question about apps' channels. */
+    fun onChannels(granted: Boolean) {
+        if (granted) listings.onGranted()
     }
 
-    fun hide() {
-        viewModelScope.launch { accessSettings.update { it.copy(setupCardHidden = true) } }
+    fun openNotificationAccess(): Boolean = notices.openSettings()
+
+    /** Downloads the models the voice step shows. */
+    fun downloadSpeechModels() {
+        status.value?.voice?.models?.keys?.let(voiceLanguages::install)
+    }
+
+    /** After the setup: the service is not running and Lumbina is not bringing it back, so home should say so. */
+    val serviceOff: StateFlow<Boolean> = combine(
+        service,
+        accessSettings.settings.map { it.setupCardHidden },
+        justOpened,
+    ) { polled, dismissed, justOpened ->
+        dismissed && !polled.running && !(justOpened && secureSettings.canWrite)
+    }.stateIn(viewModelScope, WhileUiSubscribed, false)
+
+    /** How many of the setup's steps are not done, whether or not the setup is on screen. */
+    val left: StateFlow<Int> = combine(service, voice, justOpened) { polled, voice, justOpened ->
+        SetupStatus(
+            serviceRunning = polled.running,
+            voice = voice,
+            starting = justOpened && !polled.running && secureSettings.canWrite,
+            channels = polled.channels,
+            noticesMissing = polled.noticesMissing,
+        ).userSteps
+    }.stateIn(viewModelScope, WhileUiSubscribed, 0)
+
+    /** The setup is over: finished, or skipped with its steps left for later. */
+    fun finish() {
+        viewModelScope.launch { accessSettings.update { it.copy(setupCardHidden = true, setupReopened = false) } }
+    }
+
+    /** Brings the setup back, at its steps. */
+    fun reopen() {
+        viewModelScope.launch { accessSettings.update { it.copy(setupCardHidden = false, setupReopened = true) } }
     }
 
     fun openDeveloperSettings() {
@@ -195,12 +302,13 @@ class SetupViewModel @Inject constructor(
             connect.value = when (access.connectAndSetUp()) {
                 SetupResult.Done -> ConnectResult.TurningOn
                 SetupResult.NotKept -> ConnectResult.NotKept
+                SetupResult.AllowedOnce -> ConnectResult.AllowedOnce
                 SetupResult.NotAllowed -> ConnectResult.NotAllowed
                 SetupResult.Off -> ConnectResult.DebuggingOff
                 SetupResult.Failed -> ConnectResult.Failed
             }
             if (connect.value == ConnectResult.TurningOn) {
-                // The card goes once a poll sees the service; if it doesn't come, back to the plain hint.
+                // The step is done once a poll sees the service; if it doesn't come, back to the plain hint.
                 delay(TURN_ON_MILLIS)
                 connect.compareAndSet(ConnectResult.TurningOn, null)
             }

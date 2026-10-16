@@ -7,6 +7,7 @@ import dev.lumbina.tv.core.domain.access.AdbState
 import dev.lumbina.tv.core.domain.access.LocalAdb
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 import java.security.GeneralSecurityException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -42,9 +43,9 @@ internal class AndroidLocalAdb @Inject constructor(
         return result.value
     }
 
-    override suspend fun exec(command: String, input: ByteArray): String? {
-        val result = open(offerKey = false) { it.exec(command, input, SHELL_TIMEOUT_MILLIS) }
-        log.log(TAG, "exec \"$command\" with ${input.size} bytes: ${if (result.value != null) "ok" else result.state}")
+    override suspend fun exec(command: String, input: InputStream): String? {
+        val result = open(offerKey = false) { it.exec(command, input, EXEC_TIMEOUT_MILLIS) }
+        log.log(TAG, "exec \"$command\": ${if (result.value != null) "ok" else result.state}")
         return result.value
     }
 
@@ -74,5 +75,9 @@ internal class AndroidLocalAdb @Inject constructor(
         const val KEY_DIR = "adb"
         const val PROMPT_MILLIS = 60_000
         const val SHELL_TIMEOUT_MILLIS = 15_000
+
+        // What takes input is an install; it says something every second while it waits, but a slow
+        // device may take a while over writing the package before that.
+        const val EXEC_TIMEOUT_MILLIS = 120_000
     }
 }

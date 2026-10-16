@@ -1,6 +1,5 @@
 package dev.lumbina.tv.core.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,7 +8,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -20,7 +21,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.FocusState
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
@@ -38,7 +38,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 
 /**
- * Where the focused tile is on screen, so a menu or the keyboard can open right under it.
+ * Where the focused tile is on screen, so the keyboard that names it can open right under it.
  * Tiles report themselves with [anchorWhenFocused]; plain state, read only when a panel opens.
  */
 class TileAnchor {
@@ -92,7 +92,7 @@ internal fun AnchoredPanel(anchor: Rect?, width: Dp, onDismiss: () -> Unit, cont
                 Box(
                     Modifier
                         .width(width)
-                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp)),
+                        .dialogSurface(),
                 ) { content() }
             },
             modifier = Modifier.fillMaxSize(),
@@ -124,56 +124,78 @@ internal fun AnchoredPanel(anchor: Rect?, width: Dp, onDismiss: () -> Unit, cont
 }
 
 /**
- * The menu of a tile: a small title and the entries, under the tile. An entry may carry a hint
- * on the right ("◀ ▶", where the app is now). Choosing one closes the menu and runs it.
+ * The menu of a tile, in the [SidePanel]: the entries, each under the caption of its
+ * [MenuEntry.group] when that differs from the entry before. An entry may carry a hint on the right
+ * ("◀ ▶", where the app is now). Choosing one runs it, then closes the menu ([onDismiss]); Back
+ * goes [onBack], by default the same. [focused]: the entry the focus starts on, the first when
+ * there is none of that title (one come back to, [onChoose] told which). A list longer than the
+ * panel (large text) scrolls to keep the focused entry in view.
  */
 @Composable
-fun AnchoredMenu(
+fun TileMenu(
     title: String,
     entries: List<MenuEntry>,
-    anchor: Rect?,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    onBack: () -> Unit = onDismiss,
+    subtitle: String? = null,
+    path: List<String> = emptyList(),
+    focused: String? = null,
+    onChoose: (String) -> Unit = {},
 ) {
-    val guard = remember { FreshPressGuard() }
     val first = remember { FocusRequester() }
-    AnchoredPanel(anchor = anchor, width = MENU_WIDTH, onDismiss = onDismiss) {
+    val start = entries.indexOfFirst { it.title == focused }.coerceAtLeast(0)
+    SidePanel(title = title, onDismiss = onBack, modifier = modifier, path = path, subtitle = subtitle) {
         Column(
             verticalArrangement = Arrangement.spacedBy(2.dp),
-            modifier = modifier.onPreviewKeyEvent(guard::swallow).padding(9.dp),
+            modifier = Modifier.verticalScroll(rememberScrollState()),
         ) {
-            Text(
-                title,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 12.dp, top = 3.dp, bottom = 6.dp),
-            )
             entries.forEachIndexed { index, entry ->
+                val group = entry.group
+                if (group != null && group != entries.getOrNull(index - 1)?.group) PanelGroup(group)
                 MenuRow(
                     entry = entry,
+                    // Chosen first: one that leads on to a page opens it, and the closing after leaves it be.
                     onClick = {
-                        onDismiss()
+                        onChoose(entry.title)
                         entry.onChoose()
+                        if (!entry.staysOpen) onDismiss()
                     },
-                    modifier = if (index == 0) Modifier.focusRequester(first) else Modifier,
+                    modifier = (if (index == start) Modifier.focusRequester(first) else Modifier)
+                        .padding(start = if (entry.nested) 24.dp else 0.dp),
                 )
             }
         }
     }
-    LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
+    LaunchedEffect(Unit) { first.requestFocusSoon() }
 }
 
-/** One entry of an [AnchoredMenu]; [hint] shows on the right, dimmer. */
-class MenuEntry(val title: String, val hint: String? = null, val onChoose: () -> Unit)
+/**
+ * One entry of a [TileMenu]; [hint] shows on the right, dimmer; [group] is the caption it stands
+ * under; a [nested] one belongs to the entry above it (a folder of a row) and is set in. One that
+ * [staysOpen] leads on within the menu instead of closing it.
+ */
+class MenuEntry(
+    val title: String,
+    val hint: String? = null,
+    val group: String? = null,
+    val nested: Boolean = false,
+    val staysOpen: Boolean = false,
+    val onChoose: () -> Unit,
+)
 
 @Composable
 private fun MenuRow(entry: MenuEntry, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    PanelRow(entry.title, onClick, modifier, entry.hint)
+}
+
+/** One row of a [SidePanel]'s list: a [title] and, on the right and dimmer, a [hint] (a tick, a value). */
+@Composable
+fun PanelRow(title: String, onClick: () -> Unit, modifier: Modifier = Modifier, hint: String? = null) {
     val scheme = MaterialTheme.colorScheme
     Surface(
         onClick = onClick,
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(13.dp)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = scheme.surface,
             contentColor = scheme.onSurface,
@@ -186,16 +208,21 @@ private fun MenuRow(entry: MenuEntry, onClick: () -> Unit, modifier: Modifier = 
         Row(
             horizontalArrangement = Arrangement.spacedBy(9.dp),
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
         ) {
-            Text(entry.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, modifier = Modifier.weight(1f))
-            entry.hint?.let {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            hint?.let {
                 Text(it, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
 }
 
-private val MENU_WIDTH = 280.dp
 private val MARGIN = 24.dp
 private val GAP = 14.dp

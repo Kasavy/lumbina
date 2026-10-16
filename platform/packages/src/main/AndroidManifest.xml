@@ -20,4 +20,10 @@
             <category android:name="android.intent.category.HOME" />
         </intent>
     </queries>
+    <application>
+        <!-- Hears from the system's installer while Lumbina updates itself. -->
+        <receiver
+            android:name=".UpdateReceiver"
+            android:exported="false" />
+    </application>
 </manifest>

@@ -21,6 +21,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.tv.material3.Switch
 import androidx.tv.material3.Text
 import dev.lumbina.tv.core.domain.access.PermissionAnswer
+import dev.lumbina.tv.core.ui.line
 
 /**
  * The channels apps published, each shown as a tab under Recommendations or hidden. Where the
@@ -60,8 +61,10 @@ fun ChannelsPanel(
                 headlineContent = { Text(channel.name) },
                 supportingContent = {
                     Text(
-                        "${channel.app} · " +
+                        line(
+                            channel.app,
                             pluralStringResource(R.plurals.channels_programs, channel.programs, channel.programs),
+                        ),
                     )
                 },
                 trailingContent = { Switch(checked = channel.shown, onCheckedChange = null) },

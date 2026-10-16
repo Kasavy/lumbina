@@ -13,7 +13,7 @@ class SetupStatusTest {
     private val downloading = VoiceSetup(mapOf("ru" to ModelState.Installed, "en" to ModelState.Downloading(1, 2)), 2)
 
     @Test
-    fun `without a remote mic only the service matters`() {
+    fun `without a remote mic voice is no step`() {
         assertTrue(SetupStatus(serviceRunning = true, voice = null).complete)
         assertFalse(SetupStatus(serviceRunning = false, voice = null).complete)
     }
@@ -34,9 +34,20 @@ class SetupStatusTest {
     }
 
     @Test
-    fun `the service Lumbina is starting is no step for the user`() {
+    fun `the service Lumbina is bringing back itself is no step of the user's`() {
         assertEquals(1, SetupStatus(serviceRunning = false, voice = downloading, starting = true).userSteps)
         assertEquals(2, SetupStatus(serviceRunning = false, voice = downloading).userSteps)
+        assertEquals(0, SetupStatus(serviceRunning = false, starting = true).userSteps)
+    }
+
+    @Test
+    fun `channels and notifications not allowed yet are steps too`() {
+        val asked =
+            SetupStatus(serviceRunning = true, voice = installed, channels = "permission", noticesMissing = true)
+        assertEquals(2, asked.steps)
+        assertFalse(asked.complete)
+        assertFalse(SetupStatus(serviceRunning = true, noticesMissing = true).complete)
+        assertTrue(SetupStatus(serviceRunning = true).complete)
     }
 
     @Test

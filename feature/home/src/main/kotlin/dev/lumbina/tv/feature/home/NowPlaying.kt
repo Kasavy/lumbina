@@ -11,7 +11,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -22,20 +21,21 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.IconButton
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import dev.lumbina.tv.core.ui.line
 
-/** A bar under the clock while some app plays (or has paused) media; nothing otherwise. */
+/** A plate at the left of the top line while some app plays (or has paused) media; nothing otherwise. */
 @Composable
-fun NowPlayingRoute(modifier: Modifier = Modifier, viewModel: NowPlayingViewModel = hiltViewModel()) {
+internal fun NowPlayingRoute(modifier: Modifier = Modifier, viewModel: NowPlayingViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val current = state ?: return
     Row(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
-            .background(Color.Black.copy(alpha = BAR_ALPHA), RoundedCornerShape(28.dp))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = BAR_ALPHA), RoundedCornerShape(28.dp))
             .padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
-        Column(Modifier.widthIn(max = 640.dp)) {
+        Column(Modifier.weight(1f, fill = false).widthIn(max = 640.dp)) {
             Text(
                 text = current.playing.title,
                 style = MaterialTheme.typography.titleMedium,
@@ -43,7 +43,7 @@ fun NowPlayingRoute(modifier: Modifier = Modifier, viewModel: NowPlayingViewMode
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = listOfNotNull(current.playing.artist, current.app).joinToString(" · "),
+                text = line(current.playing.artist, current.app),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -69,4 +69,4 @@ fun NowPlayingRoute(modifier: Modifier = Modifier, viewModel: NowPlayingViewMode
     }
 }
 
-private const val BAR_ALPHA = 0.45f
+private const val BAR_ALPHA = 0.6f

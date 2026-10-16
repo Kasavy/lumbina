@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="screensaver_name">Lumbina screensaver</string>
+    <string name="screensaver_phone_remote">Phone remote</string>
 </resources>

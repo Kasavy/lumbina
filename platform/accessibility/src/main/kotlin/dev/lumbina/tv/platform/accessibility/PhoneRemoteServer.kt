@@ -1,6 +1,7 @@
 package dev.lumbina.tv.platform.accessibility
 
 import dev.lumbina.tv.core.common.LumbinaLog
+import dev.lumbina.tv.core.domain.phone.PhoneRemoteSettings
 import java.io.BufferedInputStream
 import java.io.IOException
 import java.io.InputStream
@@ -49,10 +50,12 @@ internal enum class PhoneAnswer(val json: String) {
 /**
  * The phone remote's web server: plain HTTP on the local network, one short request per
  * connection (the page sends a request per button press or touchpad move). Serves the page to
- * anyone; the API answers only requests whose `X-Key` header carries the [key] from the QR code.
+ * anyone; the API answers only requests whose `X-Key` header carries the [key] from the QR code,
+ * and the last diagnostics report ([report]) is given to an address that carries it (a phone's
+ * camera opens an address, it sends no headers).
  * Serves a few connections at a time, so stuck clients can't take up every I/O thread. A client
- * without the key holds a slot for at most [HEAD_MILLIS] (the head must arrive by then) and at
- * most [MAX_PER_ADDRESS] slots, so one device on the network can't keep the phone out. Several
+ * without the key waits with its request for at most [HEAD_MILLIS] (the head must arrive by then)
+ * and holds at most [MAX_PER_ADDRESS] slots, so one device on the network can't keep the phone out. Several
  * devices acting together still can: the network is trusted that far.
  */
 internal class PhoneRemoteServer(
@@ -61,6 +64,9 @@ internal class PhoneRemoteServer(
     private val page: () -> ByteArray,
     private val handle: suspend (PhoneRequest) -> PhoneAnswer,
     private val log: LumbinaLog,
+    private val report: () -> ByteArray? = { null },
+    /** What the page asks first: the device's name and what it can do, as JSON. */
+    private val info: () -> String = { PhoneAnswer.Done.json },
 ) {
     private val keyBytes = key.toByteArray()
     private val connections = Semaphore(MAX_CONNECTIONS)
@@ -98,6 +104,8 @@ internal class PhoneRemoteServer(
             }
             val address = client.inetAddress
             if (!admit(address)) {
+                // Said once in a while: a phone that can't open the page must leave a trace of why.
+                noteRefused(address)
                 runCatching { client.close() }
                 continue
             }
@@ -116,6 +124,15 @@ internal class PhoneRemoteServer(
                 }
             }
         }
+    }
+
+    private var refusedLoggedAt = 0L
+
+    private fun noteRefused(address: InetAddress) {
+        val now = System.currentTimeMillis()
+        if (now - refusedLoggedAt < REFUSED_LOG_MILLIS) return
+        refusedLoggedAt = now
+        log.log(TAG, "too many connections from ${address.hostAddress}: closed one")
     }
 
     private fun admit(address: InetAddress): Boolean = synchronized(perAddress) {
@@ -150,13 +167,19 @@ internal class PhoneRemoteServer(
             null
         } ?: return@use respond(output, STATUS_BAD_REQUEST, "text/plain", "bad request".toByteArray())
         when {
-            request.method == "GET" && (request.path == "/" || request.path == "/index.html") ->
+            request.method == "GET" && (request.path == "/" || request.path == "/index.html") -> {
+                log.log(TAG, "page opened from ${client.inetAddress.hostAddress}")
                 respond(output, STATUS_OK, "text/html; charset=utf-8", page())
+            }
+
+            request.method == "GET" && request.path == PhoneRemoteSettings.REPORT_PATH -> giveReport(output, request)
 
             request.command == null -> respond(output, STATUS_NOT_FOUND, "text/plain", "not found".toByteArray())
 
             !MessageDigest.isEqual(request.headers["x-key"]?.toByteArray(), keyBytes) ->
                 respond(output, STATUS_FORBIDDEN, JSON, """{"ok":false,"error":"key"}""".toByteArray())
+
+            request.command == "info" -> respond(output, STATUS_OK, JSON, info().toByteArray())
 
             else -> {
                 val answer = runCatching { handle(request) }.onFailure { log.log(TAG, "${request.command}: $it") }
@@ -166,8 +189,18 @@ internal class PhoneRemoteServer(
         }
     }
 
-    private fun respond(output: OutputStream, status: String, type: String, body: ByteArray) {
-        val head = "HTTP/1.1 $status\r\nContent-Type: $type\r\nContent-Length: ${body.size}\r\n" +
+    /** The report as a file to save or share: that is what a phone's browser then offers. */
+    private fun giveReport(output: OutputStream, request: PhoneRequest) {
+        // The key first: nobody without it makes the service read the file.
+        val keyed = MessageDigest.isEqual(request.query["k"]?.toByteArray(), keyBytes)
+        val text = if (keyed) report() else null
+        if (text == null) return respond(output, STATUS_NOT_FOUND, "text/plain", "not found".toByteArray())
+        val asFile = "Content-Disposition: attachment; filename=\"${PhoneRemoteSettings.REPORT_FILE}\"\r\n"
+        respond(output, STATUS_OK, "text/plain; charset=utf-8", text, asFile)
+    }
+
+    private fun respond(output: OutputStream, status: String, type: String, body: ByteArray, more: String = "") {
+        val head = "HTTP/1.1 $status\r\nContent-Type: $type\r\nContent-Length: ${body.size}\r\n$more" +
             "Cache-Control: no-store\r\nConnection: close\r\n\r\n"
         runCatching {
             output.write(head.toByteArray())
@@ -180,8 +213,12 @@ internal class PhoneRemoteServer(
         const val TAG = "phone"
         const val READ_TIMEOUT_MILLIS = 30_000
         const val HEAD_MILLIS = 10_000L
-        const val MAX_CONNECTIONS = 4
-        const val MAX_PER_ADDRESS = 2
+        const val REFUSED_LOG_MILLIS = 10_000L
+
+        // A phone's browser keeps several connections open at once, some of them idle ones it opened
+        // ahead of need: with fewer slots than it uses, the page stops opening on that phone.
+        const val MAX_CONNECTIONS = 12
+        const val MAX_PER_ADDRESS = 6
         const val JSON = "application/json"
         const val STATUS_OK = "200 OK"
         const val STATUS_BAD_REQUEST = "400 Bad Request"

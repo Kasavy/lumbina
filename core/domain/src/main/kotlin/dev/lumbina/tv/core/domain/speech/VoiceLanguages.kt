@@ -3,7 +3,6 @@ package dev.lumbina.tv.core.domain.speech
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 
 /** One row of the language list: its model and whether voice input uses it. */
 data class VoiceLanguage(val language: String, val sizeBytes: Long, val model: ModelState, val enabled: Boolean) {
@@ -30,6 +29,7 @@ data class VoiceLanguagesState(val languages: List<VoiceLanguage>, val mode: Voi
 class VoiceLanguages @Inject constructor(
     private val models: SpeechModels,
     private val settings: VoiceSettingsRepository,
+    private val defaults: DefaultVoiceLanguages,
 ) {
     /** Enabled languages first (in order of preference), then the rest of the catalog. */
     val state: Flow<VoiceLanguagesState> = combine(settings.settings, models.states) { current, states ->
@@ -60,9 +60,26 @@ class VoiceLanguages @Inject constructor(
         models.delete(language)
     }
 
-    /** Downloads every enabled language that is missing or failed. */
-    suspend fun installEnabled() {
-        settings.settings.first().languages.forEach(models::install)
+    /** Downloads [languages], those a screen offered: not read anew, it gets what it showed. */
+    fun install(languages: Collection<String>) = languages.forEach(models::install)
+
+    /**
+     * Lumbina's language just chosen ([language], null: the device's; it was [previous]) becomes the
+     * one voice listens for, when it has a model: the default one followed the device and was read
+     * before the choice. Only while voice's languages are still not the user's own: the defaults,
+     * or the one an earlier choice of Lumbina's language gave.
+     */
+    suspend fun followAppLanguage(language: String?, previous: String?) {
+        val tag = language?.substringBefore('-') ?: return
+        if (models.catalog.none { it.language == tag }) return
+        val followed = previous?.substringBefore('-')?.let(::listOf)
+        settings.update {
+            if (it.languages != defaults.get() && it.languages != followed) {
+                it
+            } else {
+                it.copy(languages = listOf(tag), mode = VoiceLanguageMode.Auto)
+            }
+        }
     }
 
     suspend fun setMode(mode: VoiceLanguageMode) = settings.update { it.copy(mode = mode) }

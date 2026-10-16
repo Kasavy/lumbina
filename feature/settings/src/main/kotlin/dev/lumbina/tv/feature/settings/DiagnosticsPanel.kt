@@ -1,31 +1,52 @@
 package dev.lumbina.tv.feature.settings
 
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Button
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import dev.lumbina.tv.core.designsystem.LocalTheme
+import dev.lumbina.tv.core.designsystem.colorOf
 import dev.lumbina.tv.core.domain.device.FirmwarePart
 import dev.lumbina.tv.core.domain.device.TurnedOn
-import dev.lumbina.tv.core.domain.diagnostics.DiagnosticsSnapshot
+import dev.lumbina.tv.core.domain.theme.ThemeRole
+import dev.lumbina.tv.core.ui.QrCode
+import dev.lumbina.tv.core.ui.TICK
 
-/** What the service, the mic and the speech models are doing, the recent log, and a report to save. */
+/** A page inside diagnostics. */
+private enum class Inner { Report, Log }
+
+/**
+ * How things stand, a row each with a mark: a tick, or an exclamation mark and what is wrong, and
+ * then OK leads to where it is put right. Under them the report and the log, on pages of their own.
+ */
 @Composable
 fun DiagnosticsPanel(
     state: DiagnosticsState?,
     saved: SavedReport,
+    phone: PhoneRemoteState?,
     parts: PartsState,
     onTurnOn: (FirmwarePart) -> Unit,
     openAccess: (() -> Unit)?,
@@ -35,66 +56,179 @@ fun DiagnosticsPanel(
     modifier: Modifier = Modifier,
 ) {
     if (state == null) return
-    SettingsList(modifier, spacing = 2.dp) {
-        facts(state.snapshot)
-        parts(parts, state.snapshot.partsOff, onTurnOn, openAccess)
-        item { Header(stringResource(R.string.diag_permissions)) }
-        item {
-            Grant(
-                R.string.diag_notifications,
-                R.string.diag_notifications_hint,
-                state.notifications,
-                onNotificationAccess,
-            )
+    var inner by rememberSaveable { mutableStateOf<Inner?>(null) }
+    // The row left for an inner page: it takes the focus back.
+    var left by remember { mutableStateOf<Inner?>(null) }
+    val list = rememberLazyListState()
+    val hold = LocalParkFocus.current
+    val back = {
+        left = inner
+        inner = null
+    }
+    when (inner) {
+        Inner.Report -> InnerPage(stringResource(R.string.diag_report), back) {
+            ReportPage(saved, phone, onSaveReport)
         }
-        item { Grant(R.string.diag_usage, R.string.diag_usage_hint, state.usage, onUsageAccess) }
-        item {
-            // Stays enabled while a report is saved (presses are ignored then): a disabled button drops the focus.
-            Button(onClick = onSaveReport, modifier = Modifier.padding(top = 16.dp)) {
-                Text(stringResource(R.string.diag_save_report))
+
+        Inner.Log -> {
+            // An empty log is one row to stand on; a log with lines is turned, not chosen from.
+            val keys = stringResource(R.string.diag_log_keys).takeIf { state.log.isNotEmpty() }
+            InnerPage(stringResource(R.string.diag_log_title), back, keys) { LogPage(state.log) }
+        }
+
+        null -> SettingsList(modifier, spacing = 2.dp, edges = list) {
+            states(state, onNotificationAccess, onUsageAccess)
+            parts(parts, state.snapshot.partsOff, onTurnOn, openAccess)
+            item { GroupLine() }
+            Inner.entries.forEach { page ->
+                item(key = page.name) {
+                    val title = if (page == Inner.Report) R.string.diag_report else R.string.diag_log_title
+                    SettingRow(
+                        onClick = {
+                            hold()
+                            inner = page
+                        },
+                        headlineContent = { Text(stringResource(title)) },
+                        modifier = Modifier.focusedOnReturn(left == page) { left = null },
+                    )
+                }
             }
         }
-        item { Note(stringResource(if (saved.saving) R.string.diag_saving else R.string.diag_report_holds)) }
-        saved.path?.let { path -> item { Note(stringResource(R.string.diag_saved, path)) } }
-        if (saved.failed) item { Note(stringResource(R.string.diag_save_failed)) }
-        item { Header(stringResource(R.string.diag_log)) }
-        items(state.log.asReversed()) { line ->
-            // Focusable so the D-pad can scroll through the log.
+    }
+}
+
+/** The states this device has: the service, the mic and the speech models where there is a mic, the two accesses. */
+private fun LazyListScope.states(state: DiagnosticsState, onNotificationAccess: () -> Unit, onUsageAccess: () -> Unit) {
+    val snapshot = state.snapshot
+    item {
+        val links = LocalSettingsLinks.current
+        StateRow(
+            title = stringResource(R.string.diag_service),
+            problem = stringResource(R.string.diag_service_off).takeIf { !snapshot.serviceRunning },
+            onFix = links.setup,
+        )
+    }
+    // A part of the firmware turned off has a row of its own below, which says so.
+    val micOff = snapshot.partsOff.any { it.serves == FirmwarePart.Feature.RemoteMic }
+    if (snapshot.remoteMic && !micOff) {
+        item { StateRow(stringResource(R.string.diag_remote_mic), problem = null) }
+    }
+    if (snapshot.remoteMic) {
+        item {
+            val links = LocalSettingsLinks.current
+            StateRow(
+                title = stringResource(R.string.diag_models),
+                problem = stringResource(R.string.diag_models_none).takeIf { snapshot.installedModels.isEmpty() },
+                onFix = { links.page(SettingsPage.Voice) },
+            )
+        }
+    }
+    item {
+        val none = stringResource(R.string.diag_no_access).takeIf { !state.notifications }
+        StateRow(stringResource(R.string.diag_notifications), none, onNotificationAccess)
+    }
+    item {
+        val none = stringResource(R.string.diag_no_access).takeIf { !state.usage }
+        StateRow(stringResource(R.string.diag_usage), none, onUsageAccess)
+    }
+}
+
+/**
+ * One state: in order, a tick and its name, and OK does nothing; not in order, an exclamation
+ * mark, what is wrong in the warning color, and OK goes to [onFix].
+ */
+@Composable
+private fun StateRow(title: String, problem: String?, onFix: () -> Unit = {}) {
+    SettingRow(
+        onClick = { if (problem != null) onFix() },
+        leadingContent = {
+            Text(
+                text = if (problem == null) TICK else "!",
+                style = MaterialTheme.typography.titleLarge,
+                color = if (problem == null) MaterialTheme.colorScheme.primary else rowWarning(),
+                modifier = Modifier.width(24.dp),
+            )
+        },
+        headlineContent = { Text(title) },
+        supportingContent = problem?.let { { Text(it, color = rowWarning()) } },
+    )
+}
+
+/** Saving a report for whoever helps: what it holds, where it went, or why it did not. */
+@Composable
+private fun ReportPage(saved: SavedReport, phone: PhoneRemoteState?, onSave: () -> Unit) {
+    SettingsColumn {
+        // Stays pressable while a report is saved (presses are ignored then): a dead row would drop the focus.
+        SettingRow(
+            onClick = onSave,
+            headlineContent = { Text(stringResource(R.string.diag_save_report)) },
+            supportingContent = saved.path?.let { { Text(stringResource(R.string.diag_saved, it)) } },
+        )
+        Note(stringResource(if (saved.saving) R.string.diag_saving else R.string.diag_report_holds))
+        if (saved.failed) {
+            Text(
+                stringResource(R.string.diag_save_failed),
+                color = LocalTheme.current.colorOf(ThemeRole.Warning),
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+        }
+        // A saved report can go to a phone: the phone remote page's server hands it out.
+        if (saved.path != null) {
+            val phoneAddress = phone?.reportAddress
+            if (phoneAddress == null) {
+                // The page off, or on with no network to reach it by.
+                val on = phone?.enabled == true
+                val why = if (on) R.string.diag_report_no_network else R.string.diag_report_phone_off
+                Note(stringResource(why))
+            } else {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 12.dp),
+                ) {
+                    // The words first: the page has one row and does not scroll, and the code must be whole.
+                    Text(stringResource(R.string.diag_report_phone), style = MaterialTheme.typography.bodySmall)
+                    QrCode(phoneAddress, size = 140.dp)
+                }
+            }
+        }
+    }
+}
+
+/** The last lines of Lumbina's log, the newest first. */
+@Composable
+private fun LogPage(log: List<String>) {
+    if (log.isEmpty()) {
+        // Something for the focus to stand on.
+        SettingRow(onClick = {}, headlineContent = { Text(stringResource(R.string.diag_log_empty)) })
+        return
+    }
+    val list = rememberLazyListState()
+    // The page itself has the focus and ▲ ▼ turn it: a focus going line by line, unseen on plain
+    // text, would move nothing until it reached the edge.
+    val turned = Modifier.onPreviewKeyEvent { event ->
+        val by = when (event.key) {
+            Key.DirectionDown -> LOG_STEP
+            Key.DirectionUp -> -LOG_STEP
+            else -> return@onPreviewKeyEvent false
+        }
+        if (event.type == KeyEventType.KeyDown) list.dispatchRawDelta(by * list.layoutInfo.viewportSize.height)
+        true
+    }
+    SettingsList(turned.focusable(), spacing = 2.dp, edges = list) {
+        items(log.asReversed()) { line ->
             Text(
                 text = line,
                 style = MaterialTheme.typography.bodySmall,
                 fontFamily = FontFamily.Monospace,
-                modifier = Modifier.focusable().padding(horizontal = 16.dp, vertical = 2.dp),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
             )
         }
     }
 }
 
-private fun LazyListScope.facts(snapshot: DiagnosticsSnapshot) {
-    item { Header(stringResource(R.string.page_state)) }
-    item {
-        Fact(
-            label = stringResource(R.string.diag_service),
-            value = stringResource(if (snapshot.serviceRunning) R.string.diag_running else R.string.diag_not_running),
-            problem = !snapshot.serviceRunning,
-        )
-    }
-    // The part's own row says it is turned off: "supported" above it would only contradict.
-    if (snapshot.partsOff.none { it.serves == FirmwarePart.Feature.RemoteMic }) {
-        item {
-            val mic = if (snapshot.remoteMic) R.string.diag_supported else R.string.diag_not_supported
-            Fact(label = stringResource(R.string.diag_remote_mic), value = stringResource(mic))
-        }
-    }
-    item {
-        val models = snapshot.installedModels.joinToString().ifEmpty { stringResource(R.string.diag_none) }
-        Fact(
-            label = stringResource(R.string.diag_models),
-            value = models,
-            problem = snapshot.remoteMic && snapshot.installedModels.isEmpty(),
-        )
-    }
-}
+/** Of the page's height: what one press of ▲ or ▼ turns the log by. */
+private const val LOG_STEP = 0.4f
 
 /**
  * The parts of the firmware that are turned off: what is lost with each, and a way to turn it on
@@ -134,7 +268,6 @@ private fun PartRow(row: PartRow, canTurnOn: Boolean, working: Boolean, onTurnOn
         FirmwarePart.Feature.Volume -> if (row.isOff) R.string.diag_part_volume else R.string.diag_part_volume_on
     }
     val offers = row.isOff && canTurnOn
-    var focused by remember { mutableStateOf(false) }
     SettingRow(
         onClick = { if (offers) onTurnOn(row.part) },
         headlineContent = { Text(stringResource(title)) },
@@ -144,27 +277,13 @@ private fun PartRow(row: PartRow, canTurnOn: Boolean, working: Boolean, onTurnOn
 
                 else -> {
                     val hint = if (canTurnOn) R.string.diag_part_off else R.string.diag_part_off_no_adb
-                    Text(stringResource(hint, row.part.packageName), color = problemColor(focused))
+                    Text(stringResource(hint, row.part.packageName), color = rowProblem())
                 }
             }
         },
         trailingContent = {
             // The command takes seconds: the row says it is at work.
             if (offers) Text(stringResource(if (working) R.string.diag_part_turning_on else R.string.diag_part_turn_on))
-        },
-        modifier = Modifier.onFocusChanged { focused = it.hasFocus },
-    )
-}
-
-/** A special access the user allows in the system's settings: what it is for, and a way there until it is allowed. */
-@Composable
-private fun Grant(title: Int, hint: Int, granted: Boolean, onOpen: () -> Unit) {
-    SettingRow(
-        onClick = onOpen,
-        headlineContent = { Text(stringResource(title)) },
-        supportingContent = { Text(stringResource(hint)) },
-        trailingContent = {
-            Text(stringResource(if (granted) R.string.diag_granted else R.string.diag_open_settings))
         },
     )
 }

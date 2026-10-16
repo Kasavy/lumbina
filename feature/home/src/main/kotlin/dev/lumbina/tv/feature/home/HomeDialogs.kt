@@ -4,25 +4,23 @@ import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import dev.lumbina.tv.core.domain.app.App
-import dev.lumbina.tv.core.domain.backdrop.WallpaperItem
 import dev.lumbina.tv.core.domain.home.HomeItem
 import dev.lumbina.tv.core.domain.home.HomeSection
 import dev.lumbina.tv.core.domain.home.TileContent
-import dev.lumbina.tv.core.domain.home.folders
-import dev.lumbina.tv.core.domain.home.sectionOfFolder
-import dev.lumbina.tv.core.ui.AnchoredMenu
-import dev.lumbina.tv.core.ui.Choice
-import dev.lumbina.tv.core.ui.ChoiceDialog
 import dev.lumbina.tv.core.ui.MenuEntry
 import dev.lumbina.tv.core.ui.NameDialog
+import dev.lumbina.tv.core.ui.TICK
 import dev.lumbina.tv.core.ui.TileAnchor
+import dev.lumbina.tv.core.ui.TileMenu
 
 /** Where an app tile was when its menu was opened; decides what the menu offers. */
 sealed interface Place {
@@ -36,21 +34,67 @@ sealed interface Place {
 
 /**
  * The dialog shown over home or all apps, the tile it is about ([tile], marked while the dialog
- * is open) and where that tile is on screen ([at]), so menus and the keyboard open under it.
+ * is open) and where that tile is on screen ([at]), so the keyboard that names it opens under it.
+ * A page one leads to goes over it, and Back comes back to it, as in the settings.
  */
 @Stable
 internal class MenuState {
     val anchor = TileAnchor()
     var dialog by mutableStateOf<HomeDialog?>(null)
+        private set
     var tile by mutableStateOf<Moving?>(null)
         private set
     var at by mutableStateOf<Rect?>(null)
         private set
 
+    /** The pages the shown one was reached from, the nearest last, each with the entry that led on. */
+    private val trail = mutableStateListOf<Pair<HomeDialog, String?>>()
+
+    /** The entry of the shown menu chosen last. */
+    private var chosen: String? = null
+
+    /** On a page come back to: the entry that led on from it, for the focus to go back to. */
+    var cameBackTo by mutableStateOf<String?>(null)
+        private set
+
     fun open(next: HomeDialog, about: Moving? = null) {
         tile = about
         at = anchor.bounds
+        trail.clear()
+        chosen = null
+        cameBackTo = null
         dialog = next
+    }
+
+    /** [entry] of the shown menu was chosen. */
+    fun chose(entry: String) {
+        chosen = entry
+    }
+
+    /** [next] over the one shown, which Back then comes back to; null closes them all. */
+    fun show(next: HomeDialog?) {
+        val now = dialog
+        if (next == null) {
+            trail.clear()
+        } else if (now != null && now != next) {
+            trail += now to chosen
+        }
+        chosen = null
+        cameBackTo = null
+        dialog = next
+    }
+
+    /** Back: to the page the shown one was reached from; from the first, closed. */
+    fun back() {
+        val (page, entry) = trail.removeLastOrNull() ?: (null to null)
+        chosen = null
+        cameBackTo = entry
+        dialog = page
+    }
+
+    /** What [shown] was for is done: everything closes, unless it has led on to another page. */
+    fun done(shown: HomeDialog) {
+        if (dialog == shown) show(null)
     }
 }
 
@@ -67,8 +111,11 @@ sealed interface HomeDialog {
 
     data class NameAndBanner(val app: App) : HomeDialog
 
-    /** The rarer actions: app info, uninstall. */
-    data class More(val app: App) : HomeDialog
+    /** The menu of the shortcut to all apps. */
+    data object ShortcutActions : HomeDialog
+
+    /** The apps to tick for one section, opened by its "+" tile. */
+    data class PickApps(val sectionId: String) : HomeDialog
 
     data class Banner(val app: App) : HomeDialog
 
@@ -87,27 +134,30 @@ sealed interface HomeDialog {
     data class RenameFolder(val folderId: String, val name: String) : Naming
 }
 
-/** [anchor]: see [MenuState.at]. */
+/** [anchor]: see [MenuState.at]; for the dialogs that name the tile. */
 @Composable
 internal fun HomeDialogs(
     dialog: HomeDialog,
     state: HomeUiState,
     commands: HomeCommands,
-    show: (HomeDialog?) -> Unit,
+    menu: MenuState,
     startMoving: (Moving) -> Unit,
     anchor: Rect? = null,
 ) {
-    val dismiss = { show(null) }
+    val show = menu::show
+    val back = menu::back
+    // An entry chosen: done, unless it led on to a page of its own.
+    val done = { menu.done(dialog) }
     when (dialog) {
-        is HomeDialog.AppActions -> AppMenu(dialog, state, commands, show, startMoving, anchor)
+        is HomeDialog.AppActions -> AppMenu(dialog, state, commands, menu, startMoving)
 
-        is HomeDialog.FolderActions -> FolderMenu(dialog, commands, show, startMoving, anchor)
+        is HomeDialog.FolderActions -> FolderMenu(dialog, commands, menu, startMoving)
 
-        is HomeDialog.OpenFolder -> OpenFolder(dialog, state, commands, show)
+        is HomeDialog.OpenFolder -> OpenFolder(dialog, state, commands, menu)
 
-        is HomeDialog.WhereToShow -> WhereToShow(dialog, state, commands, show, anchor)
+        is HomeDialog.WhereToShow -> WhereToShow(dialog, state, commands, menu)
 
-        is HomeDialog.NameAndBanner -> AnchoredMenu(
+        is HomeDialog.NameAndBanner -> TileMenu(
             title = dialog.app.label,
             entries = listOfNotNull(
                 MenuEntry(stringResource(R.string.menu_rename)) { show(HomeDialog.RenameApp(dialog.app)) },
@@ -118,34 +168,57 @@ internal fun HomeDialogs(
                 },
                 MenuEntry(stringResource(R.string.menu_banner)) { show(HomeDialog.Banner(dialog.app)) },
             ),
-            anchor = anchor,
-            onDismiss = dismiss,
+            onDismiss = done,
+            onBack = back,
+            focused = menu.cameBackTo,
+            onChoose = menu::chose,
         )
 
-        is HomeDialog.More -> MoreMenu(dialog.app, commands, anchor, dismiss)
+        is HomeDialog.Naming -> NamingDialog(dialog, state, commands, anchor, back)
 
-        is HomeDialog.Naming -> NamingDialog(dialog, commands, anchor, dismiss)
+        is HomeDialog.Banner ->
+            BannerPicker(dialog.app, state.appearance.customBanners[dialog.app.id.flatten()], commands, back)
 
-        is HomeDialog.Banner -> BannerDialog(dialog.app, state, commands, dismiss)
+        is HomeDialog.PickApps -> PickApps(dialog, state, commands, back)
+
+        HomeDialog.ShortcutActions -> TileMenu(
+            title = stringResource(R.string.home_all_apps),
+            entries = listOf(
+                MenuEntry(stringResource(R.string.menu_move), "◀ ▶") {
+                    startMoving(Moving(HomeSection.FAVORITES, HomeItem.AllApps.key))
+                },
+                MenuEntry(stringResource(R.string.menu_out_of_favorites)) { commands.removeShortcut() },
+            ),
+            onDismiss = done,
+            onBack = back,
+            subtitle = stringResource(R.string.shortcut_hint),
+        )
     }
 }
 
 /**
- * Holding OK on an app: move (in a row), where it is shown, name and banner, hide, and the rare
- * rest under "More…". OK on the tile opens the app, so the menu doesn't offer that.
+ * Holding OK on an app. What changes the screen comes first, with the focus on it: move (in a row),
+ * into or out of the favorites, out of this category, where it is shown, name and banner, hide.
+ * Then the app itself: open, its details, uninstall. Opening is not first: OK on the tile does that.
  */
 @Composable
 private fun AppMenu(
     dialog: HomeDialog.AppActions,
     state: HomeUiState,
     commands: HomeCommands,
-    show: (HomeDialog?) -> Unit,
+    menu: MenuState,
     startMoving: (Moving) -> Unit,
-    anchor: Rect?,
 ) {
+    val show = menu::show
     val app = dialog.app
     val place = dialog.place
     val shownIn = placesOf(app, state)
+    val hidden = app in state.content.hidden
+    // In the row itself: an app inside a folder there is taken out through "Where to show".
+    val inFavorites = state.layout.favorites.items.any { it is HomeItem.AppItem && it.app == app.id }
+    val category = (place as? Place.InSection)?.let {
+        state.layout.section(it.sectionId)
+    }?.takeUnless { it.isFavorites }
     val entries = buildList {
         if (place is Place.InSection) {
             add(
@@ -154,24 +227,65 @@ private fun AppMenu(
                 },
             )
         }
-        add(
-            MenuEntry(stringResource(R.string.menu_where), shownIn.ifEmpty { null }) {
-                show(HomeDialog.WhereToShow(app, place))
-            },
-        )
+        if (inFavorites) {
+            add(
+                MenuEntry(stringResource(R.string.menu_out_of_favorites)) {
+                    commands.takeOut(HomeSection.FAVORITES, app)
+                },
+            )
+        } else if (!hidden) {
+            add(MenuEntry(stringResource(R.string.menu_to_favorites)) { commands.addTo(HomeSection.FAVORITES, app) })
+        }
+        category?.let { section ->
+            add(MenuEntry(stringResource(R.string.menu_out_of, section.name)) { commands.takeOut(section.id, app) })
+        }
+        if (!hidden) {
+            add(
+                MenuEntry(stringResource(R.string.menu_where), shownIn.ifEmpty { null }) {
+                    show(HomeDialog.WhereToShow(app, place))
+                },
+            )
+        }
         add(MenuEntry(stringResource(R.string.menu_name_banner)) { show(HomeDialog.NameAndBanner(app)) })
-        if (app in state.content.hidden) {
+        if (hidden) {
             add(MenuEntry(stringResource(R.string.menu_unhide)) { commands.unhide(app) })
         } else {
             add(MenuEntry(stringResource(R.string.menu_hide)) { commands.hide(app) })
         }
+        addAll(ownActions(app, commands))
+    }
+    TileMenu(
+        title = app.label,
+        entries = entries,
+        onDismiss = { menu.done(dialog) },
+        onBack = menu::back,
+        subtitle = shownIn.ifEmpty { stringResource(R.string.menu_only_all_apps) },
+        focused = menu.cameBackTo,
+        onChoose = menu::chose,
+    )
+}
+
+/** The app's own actions, under their caption: open, its details where the device shows them, uninstall. */
+@Composable
+private fun ownActions(app: App, commands: HomeCommands): List<MenuEntry> {
+    val context = LocalContext.current
+    val unavailable = { Toast.makeText(context, R.string.home_action_unavailable, Toast.LENGTH_SHORT).show() }
+    val appGroup = stringResource(R.string.menu_group_app)
+    return buildList {
+        add(MenuEntry(stringResource(R.string.menu_open), group = appGroup) { commands.open(app) })
+        if (commands.hasDetails) {
+            add(
+                MenuEntry(stringResource(R.string.menu_details), group = appGroup) {
+                    if (!commands.showDetails(app)) unavailable()
+                },
+            )
+        }
         add(
-            MenuEntry(stringResource(R.string.menu_more), stringResource(R.string.menu_more_hint)) {
-                show(HomeDialog.More(app))
+            MenuEntry(stringResource(R.string.menu_uninstall), group = appGroup) {
+                if (!commands.uninstall(app)) unavailable()
             },
         )
     }
-    AnchoredMenu(title = app.label, entries = entries, anchor = anchor, onDismiss = { show(null) })
 }
 
 /** The sections and folders [app] is in, by name: "Favorites, Films". */
@@ -190,71 +304,68 @@ private fun placesOf(app: App, state: HomeUiState): String {
 }
 
 /**
- * Where [HomeDialog.WhereToShow.app] is shown, ticked: every section and folder. Choosing one puts
- * the app there or takes it out; the list stays open. New folders go in the row the menu came from.
+ * Where [HomeDialog.WhereToShow.app] is shown, ticked: every row, and under each its folders and
+ * "New folder…", which are always there so that ticking a row doesn't shift the list under the
+ * focus. Choosing one puts the app there or takes it out; the list stays open.
  */
 @Composable
-private fun WhereToShow(
-    dialog: HomeDialog.WhereToShow,
-    state: HomeUiState,
-    commands: HomeCommands,
-    show: (HomeDialog?) -> Unit,
-    anchor: Rect?,
-) {
+private fun WhereToShow(dialog: HomeDialog.WhereToShow, state: HomeUiState, commands: HomeCommands, menu: MenuState) {
+    val show = menu::show
     val app = dialog.app
-    val folderSection = when (val place = dialog.place) {
-        is Place.InSection -> place.sectionId
-        is Place.InFolder -> state.layout.sectionOfFolder(place.folderId)?.id
-        Place.All -> null
-    } ?: HomeSection.FAVORITES
     val entries = buildList {
         state.layout.sections.forEach { section ->
-            val inIt = app.id in section.apps
+            // In the row itself; inside one of its folders is the folder's own tick.
+            val inIt = section.items.any { it is HomeItem.AppItem && it.app == app.id }
             add(
-                MenuEntry(section.title(), if (inIt) "✓" else null) {
+                MenuEntry(section.title(), if (inIt) TICK else null, staysOpen = true) {
                     if (inIt) commands.removeFrom(section.id, app) else commands.addTo(section.id, app)
-                    show(dialog)
                 },
             )
-        }
-        state.layout.folders.forEach { folder ->
-            val inIt = app.id in folder.apps
+            section.items.filterIsInstance<HomeItem.Folder>().forEach { folder ->
+                val inFolder = app.id in folder.apps
+                val name = stringResource(R.string.where_folder, folder.name)
+                add(
+                    MenuEntry(name, if (inFolder) TICK else null, nested = true, staysOpen = true) {
+                        if (inFolder) {
+                            commands.removeFromFolder(folder.id, app)
+                        } else {
+                            commands.addToFolder(folder.id, app)
+                        }
+                    },
+                )
+            }
             add(
-                MenuEntry(stringResource(R.string.where_folder, folder.name), if (inIt) "✓" else null) {
-                    if (inIt) commands.removeFromFolder(folder.id, app) else commands.addToFolder(folder.id, app)
-                    show(dialog)
+                MenuEntry(stringResource(R.string.pick_new_folder), nested = true) {
+                    show(HomeDialog.NewFolder(app, section.id))
                 },
             )
         }
-        add(MenuEntry(stringResource(R.string.pick_new_folder)) { show(HomeDialog.NewFolder(app, folderSection)) })
         add(MenuEntry(stringResource(R.string.pick_new_category)) { show(HomeDialog.NewCategory(app)) })
     }
-    AnchoredMenu(
-        title = stringResource(R.string.where_title, app.label),
+    TileMenu(
+        title = stringResource(R.string.where_heading),
         entries = entries,
-        anchor = anchor,
-        onDismiss = { show(null) },
+        onDismiss = { menu.done(dialog) },
+        onBack = menu::back,
+        subtitle = stringResource(R.string.where_hint),
+        focused = menu.cameBackTo,
+        onChoose = menu::chose,
+        path = listOf(app.label),
     )
-}
-
-@Composable
-private fun MoreMenu(app: App, commands: HomeCommands, anchor: Rect?, dismiss: () -> Unit) {
-    val context = LocalContext.current
-    val unavailable = { Toast.makeText(context, R.string.home_action_unavailable, Toast.LENGTH_SHORT).show() }
-    val entries = buildList {
-        if (commands.hasDetails) {
-            add(MenuEntry(stringResource(R.string.menu_details)) { if (!commands.showDetails(app)) unavailable() })
-        }
-        add(MenuEntry(stringResource(R.string.menu_uninstall)) { if (!commands.uninstall(app)) unavailable() })
-    }
-    AnchoredMenu(title = app.label, entries = entries, anchor = anchor, onDismiss = dismiss)
 }
 
 /** Naming a new category or folder, or renaming an app or folder. Blank names are ignored, except for apps. */
 @Composable
-private fun NamingDialog(dialog: HomeDialog.Naming, commands: HomeCommands, anchor: Rect?, dismiss: () -> Unit) {
+private fun NamingDialog(
+    dialog: HomeDialog.Naming,
+    state: HomeUiState,
+    commands: HomeCommands,
+    anchor: Rect?,
+    dismiss: () -> Unit,
+) {
     when (dialog) {
-        is HomeDialog.NewCategory -> Name(
+        is HomeDialog.NewCategory -> PresetOrName(
+            taken = state.layout.categories.map { it.name },
             title = stringResource(R.string.name_category),
             initial = stringResource(R.string.default_category_name),
             onSave = { name -> if (name.isNotBlank()) commands.addToNewCategory(name.trim(), dialog.app) },
@@ -262,7 +373,8 @@ private fun NamingDialog(dialog: HomeDialog.Naming, commands: HomeCommands, anch
             anchor = anchor,
         )
 
-        is HomeDialog.NewFolder -> Name(
+        is HomeDialog.NewFolder -> PresetOrName(
+            taken = state.layout.sections.flatMap { it.items }.filterIsInstance<HomeItem.Folder>().map { it.name },
             title = stringResource(R.string.name_folder),
             initial = stringResource(R.string.default_folder_name),
             onSave = { name ->
@@ -295,8 +407,35 @@ private fun NamingDialog(dialog: HomeDialog.Naming, commands: HomeCommands, anch
             onSave = { name -> if (name.isNotBlank()) commands.renameFolder(dialog.folderId, name.trim()) },
             onDismiss = dismiss,
             anchor = anchor,
+            needsText = true,
         )
     }
+}
+
+/**
+ * A name for something new: first the ready ones not taken yet, one press each, and "My own…",
+ * which leads to the keyboard. With every ready name taken, the keyboard at once.
+ */
+@Composable
+private fun PresetOrName(
+    taken: List<String>,
+    title: String,
+    initial: String,
+    onSave: (String) -> Unit,
+    onDismiss: () -> Unit,
+    anchor: Rect?,
+) {
+    val free = stringArrayResource(R.array.ready_names).filter { name ->
+        taken.none { it.equals(name, ignoreCase = true) }
+    }
+    var typing by remember { mutableStateOf(free.isEmpty()) }
+    if (typing) {
+        Name(title, initial, onSave, onDismiss, anchor, needsText = true)
+        return
+    }
+    val entries = free.map { name -> MenuEntry(name) { onSave(name) } } +
+        MenuEntry(stringResource(R.string.name_own), staysOpen = true) { typing = true }
+    TileMenu(title = title, entries = entries, onDismiss = onDismiss)
 }
 
 @Composable
@@ -307,6 +446,7 @@ private fun Name(
     onDismiss: () -> Unit,
     anchor: Rect?,
     hint: String? = null,
+    needsText: Boolean = false,
 ) = NameDialog(
     title = title,
     initial = initial,
@@ -316,24 +456,8 @@ private fun Name(
     onDismiss = onDismiss,
     anchor = anchor,
     hint = hint,
+    needsText = needsText,
 )
 
 @Composable
 private fun HomeSection.title(): String = if (isFavorites) stringResource(R.string.home_favorites) else name
-
-/** The user's pictures to choose the app's banner from, and the way back to its own. */
-@Composable
-private fun BannerDialog(app: App, state: HomeUiState, commands: HomeCommands, dismiss: () -> Unit) {
-    val pictures = produceState<List<WallpaperItem>?>(null) { value = commands.bannerChoices() }.value ?: return
-    val custom = state.appearance.customBanners[app.id.flatten()]
-    val choices = pictures.map { picture ->
-        Choice(picture.title.orEmpty()) { commands.setBanner(app, picture.uri) }
-    } + listOfNotNull(
-        custom?.let { Choice(stringResource(R.string.banner_restore)) { commands.setBanner(app, null) } },
-    )
-    ChoiceDialog(
-        title = stringResource(if (pictures.isEmpty()) R.string.banner_none else R.string.banner_title, app.label),
-        choices = choices.ifEmpty { listOf(Choice(stringResource(R.string.banner_how)) {}) },
-        onDismiss = dismiss,
-    )
-}

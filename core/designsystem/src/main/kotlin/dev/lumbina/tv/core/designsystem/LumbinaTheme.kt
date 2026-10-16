@@ -1,54 +1,84 @@
 package dev.lumbina.tv.core.designsystem
 
+import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.tv.material3.ColorScheme
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Typography
 import androidx.tv.material3.darkColorScheme
+import androidx.tv.material3.lightColorScheme
 import dev.lumbina.tv.core.domain.home.Accent
 import dev.lumbina.tv.core.domain.home.TextScale
+import dev.lumbina.tv.core.domain.theme.ThemeBase
+import dev.lumbina.tv.core.domain.theme.ThemeRole
+import dev.lumbina.tv.core.domain.theme.ThemeSpec
+import dev.lumbina.tv.core.domain.theme.Themes
 
-/** Lumbina's fixed dark palette, shared by the theme and backgrounds drawn outside it. */
+/** The dark theme's base colors, for backgrounds drawn outside [LumbinaTheme]. */
 object LumbinaColors {
-    val Background = Color(0xFF0E1014)
-    val Surface = Color(0xFF15181E)
-    val OnSurface = Color(0xFFE8E9EC)
-    val OnAccent = Color(0xFF1B1300)
+    val Background = Themes.Dark.colorOf(ThemeRole.Background)
 }
 
-private fun colors(accent: Accent) = darkColorScheme(
-    primary = accent.color,
-    onPrimary = LumbinaColors.OnAccent,
-    background = LumbinaColors.Background,
-    onBackground = LumbinaColors.OnSurface,
-    surface = LumbinaColors.Surface,
-    onSurface = LumbinaColors.OnSurface,
-)
+/**
+ * The theme in use, for the roles Material has no slot for (warning, the veil over wallpaper).
+ * A local because it is one app-wide choice every screen reads, set once at the root.
+ */
+@Suppress("CompositionLocalAllowlist")
+val LocalTheme = staticCompositionLocalOf { Themes.Dark }
 
-/** The accent's color: light enough for dark text on it, bright enough to mark focus from across the room. */
-val Accent.color: Color
-    get() = when (this) {
-        Accent.Amber -> Color(0xFFFFB547)
-        Accent.Sky -> Color(0xFF7CC4FF)
-        Accent.Mint -> Color(0xFF6FE3B4)
-        Accent.Rose -> Color(0xFFFF8FA8)
-        Accent.Violet -> Color(0xFFC3A6FF)
-    }
+fun ThemeSpec.colorOf(role: ThemeRole): Color = Color(color(role))
 
+/**
+ * Material's slots filled from [theme]'s roles; [accent], when the user chose one, takes the place
+ * of the theme's own highlight, with dark text on it: the accents are all light colors. The dark
+ * theme leaves the slots it never set at the library's values, so that it looks as it always did;
+ * the others set every slot they have a role for.
+ */
+private fun colors(theme: ThemeSpec, accent: Accent?): ColorScheme {
+    val base = if (theme.base == ThemeBase.Dark) darkColorScheme() else lightColorScheme()
+    val scheme = base.copy(
+        primary = accent?.color ?: theme.colorOf(ThemeRole.Accent),
+        onPrimary = (if (accent == null) theme else Themes.Dark).colorOf(ThemeRole.OnAccent),
+        background = theme.colorOf(ThemeRole.Background),
+        onBackground = theme.colorOf(ThemeRole.Text),
+        surface = theme.colorOf(ThemeRole.Panel),
+        onSurface = theme.colorOf(ThemeRole.Text),
+    )
+    if (theme.id == Themes.Dark.id) return scheme
+    return scheme.copy(
+        surfaceVariant = theme.colorOf(ThemeRole.PanelRaised),
+        onSurfaceVariant = theme.colorOf(ThemeRole.TextSecondary),
+        border = theme.colorOf(ThemeRole.Line),
+        error = theme.colorOf(ThemeRole.Error),
+    )
+}
+
+/** The accent's color. */
+val Accent.color: Color get() = Color(argb)
+
+/** [accent]: the user's own highlight color; null follows [theme]. */
 @Composable
 fun LumbinaTheme(
-    accent: Accent = Accent.Amber,
+    accent: Accent? = null,
     textScale: TextScale = TextScale.Normal,
+    theme: ThemeSpec = Themes.Dark,
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = remember(accent) { colors(accent) }
+    val colorScheme = remember(theme, accent) { colors(theme, accent) }
     val typography = remember(textScale) {
         val base = Typography()
         if (textScale == TextScale.Large) base.scaled(LARGE_TEXT) else base
     }
-    MaterialTheme(colorScheme = colorScheme, typography = typography, content = content)
+    // A remote does not drag lists past their ends, so the overscroll effect is never seen; it costs
+    // every row work on every frame all the same.
+    CompositionLocalProvider(LocalTheme provides theme, LocalOverscrollFactory provides null) {
+        MaterialTheme(colorScheme = colorScheme, typography = typography, content = content)
+    }
 }
 
 private fun Typography.scaled(factor: Float) = Typography(

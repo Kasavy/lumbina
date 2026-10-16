@@ -6,16 +6,19 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.lumbina.tv.core.domain.backdrop.CurrentWallpaper
 import dev.lumbina.tv.core.domain.backdrop.WallpaperItem
 import dev.lumbina.tv.core.domain.backdrop.WallpaperSettingsRepository
-import dev.lumbina.tv.core.domain.backdrop.isNightHour
+import dev.lumbina.tv.core.domain.backdrop.nightFraction
 import dev.lumbina.tv.core.domain.home.HomeAppearanceRepository
 import dev.lumbina.tv.core.domain.home.HomeBackground
+import dev.lumbina.tv.core.domain.weather.WeatherSettingsRepository
 import dev.lumbina.tv.core.ui.WhileUiSubscribed
-import java.util.Calendar
+import java.time.ZonedDateTime
 import javax.inject.Inject
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 /** [nightDim]: extra darkness for the evening and night (0 by day or when switched off). */
@@ -30,26 +33,32 @@ class WallpaperViewModel @Inject constructor(
     wallpaper: CurrentWallpaper,
     settings: WallpaperSettingsRepository,
     appearance: HomeAppearanceRepository,
+    weather: WeatherSettingsRepository,
 ) : ViewModel() {
 
-    private val hours = flow {
+    private val minutes = flow {
         while (true) {
-            emit(Calendar.getInstance().get(Calendar.HOUR_OF_DAY))
+            emit(ZonedDateTime.now())
             delay(CHECK_MILLIS)
         }
     }
 
+    // From sunset to sunrise where the device is (the weather's place), coming and going smoothly.
+    private val night = combine(minutes, weather.settings.map { it.known }.distinctUntilChanged()) { now, place ->
+        nightFraction(now, place)
+    }.distinctUntilChanged()
+
     val state: StateFlow<WallpaperUi> = combine(
         wallpaper.items(),
         settings.settings,
-        hours,
+        night,
         appearance.settings,
-    ) { item, choice, hour, look ->
-        WallpaperUi(item, if (choice.dimAtNight && isNightHour(hour)) NIGHT_DIM else 0f, look.background)
+    ) { item, choice, night, look ->
+        WallpaperUi(item, if (choice.dimAtNight) NIGHT_DIM * night else 0f, look.background)
     }.stateIn(viewModelScope, WhileUiSubscribed, WallpaperUi())
 
     private companion object {
-        const val CHECK_MILLIS = 5 * 60_000L
+        const val CHECK_MILLIS = 60_000L
         const val NIGHT_DIM = 0.25f
     }
 }

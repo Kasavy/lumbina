@@ -31,14 +31,17 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.withIndex
 import kotlinx.coroutines.launch
 
 /**
- * [weather]: null while unknown or switched off. [sleepMinutesLeft]: minutes until the sleep
+ * [weather]: null while unknown or switched off; [weatherAwaited]: it is on and still unknown, so
+ * its place is kept for it. [sleepMinutesLeft]: minutes until the sleep
  * timer turns the device off, null with no timer. [search]: null hides the search button.
  */
 data class TopBarState(
     val weather: ShownWeather? = null,
+    val weatherAwaited: Boolean = false,
     val sleepMinutesLeft: Int? = null,
     val search: SearchTarget? = null,
     val showDate: Boolean = true,
@@ -83,36 +86,40 @@ class TopBarViewModel @Inject constructor(
     /** The UI's language: the place by IP is named in it. */
     private val language = MutableStateFlow(Locale.getDefault().language)
 
-    val state: StateFlow<TopBarState> = combine(
-        language.flatMapLatest(weather::reports),
+    /**
+     * Null until the settings are read: the capsule is drawn from them all at once, not a button
+     * and a slot at a time as each arrives. The weather comes numbered: its place is kept only
+     * until the first answer, and with no network it is not kept empty for good.
+     */
+    val state: StateFlow<TopBarState?> = combine(
+        language.flatMapLatest { weather.reports(it).withIndex() },
         weatherSettings.settings,
         sleepMinutesLeft,
         searchTarget,
         appearance.settings,
-    ) { report, weatherChoice, minutes, search, look ->
+    ) { (answers, report), weatherChoice, minutes, search, look ->
         TopBarState(
             weather = shownWeather(report, weatherChoice),
+            weatherAwaited = weatherChoice.show && report == null && answers == 0,
             sleepMinutesLeft = minutes,
             search = search,
             showDate = look.showDate,
             clockFormat = look.clockFormat,
         )
-    }.stateIn(viewModelScope, WhileUiSubscribed, TopBarState())
+    }.stateIn<TopBarState?>(viewModelScope, WhileUiSubscribed, null)
 
     /** The language the top bar is shown in. */
     fun onLanguage(tag: String) {
         language.value = tag
     }
 
-    /** Looks for [query] where the user chose to search. */
-    fun search(query: String) {
-        viewModelScope.launch { search.search(query) }
+    /** Looks for [query] where the user chose to search; [onFailed] when nothing opened. */
+    fun search(query: String, onFailed: () -> Unit) {
+        viewModelScope.launch { if (!search.search(query)) onFailed() }
     }
 
-    /** Opens the device's own search. */
-    fun openSystemSearch() {
-        search.openSystem()
-    }
+    /** Opens the device's own search; false when it did not open. */
+    fun openSystemSearch(): Boolean = search.openSystem()
 
     /** Turns the device off in [minutes]; null cancels the timer. */
     fun setSleepTimer(minutes: Int?) {

@@ -1,6 +1,7 @@
 package dev.lumbina.tv.platform.accessibility
 
 import android.os.SystemClock
+import android.view.KeyEvent
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.domain.speech.EndOfSpeech
 import dev.lumbina.tv.core.domain.speech.RunVoiceSession
@@ -10,13 +11,14 @@ import dev.lumbina.tv.core.domain.speech.VoiceLanguageMode
 import dev.lumbina.tv.core.domain.speech.VoiceLanguageSetting
 import dev.lumbina.tv.core.domain.speech.logText
 import dev.lumbina.tv.core.domain.voice.HandleUtterance
-import dev.lumbina.tv.core.domain.voice.UtteranceOutcome
+import dev.lumbina.tv.platform.accessibility.VoiceOverlay.Mark
 import java.io.IOException
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -36,15 +38,27 @@ internal class VoiceController(
     private val strings: Strings,
     private val log: LumbinaLog,
 ) {
+    private val answers = VoiceAnswers(scope, overlay, strings, log)
+
     /** The same recognition, with the capture's drain suited to each way of ending. */
     class Sessions(val pushToTalk: RunVoiceSession, val handsFree: RunVoiceSession)
 
     /** Overlay texts, from resources. */
     class Strings(
         val listening: String,
+        /** The button is let go and the phrase is being worked out. */
+        val recognizing: String = "",
+        /** The button was pressed again before that was done. */
+        val stillRecognizing: String = "",
+        /** The recognizer is not there to hear. */
+        val notStarted: String = "",
+        /** What OK does on a notice that names a place: opens it. Null where nothing leads there. */
+        val go: (Place) -> VoiceOverlay.Action? = { null },
         /** The user's own words, set apart from what Lumbina says. */
         val heard: (String) -> String,
         val notHeard: String,
+        /** Nobody spoke. */
+        val silence: String = "",
         /** No sound came from the mic at all. */
         val noSound: String,
         /** Why no sound came, when the device can tell (the mic turned off in the firmware), and where to mend it. */
@@ -58,13 +72,26 @@ internal class VoiceController(
         val closed: (String) -> String,
         val appNotFound: (String) -> String,
         val notOpened: (String) -> String,
-        val ambiguous: (List<String>) -> String,
+        /** The question over a few apps to choose from, and what is said when there are too many to offer. */
+        val which: String = "",
+        val tooMany: String = "",
+        val nothingToClose: String = "",
+        val cantClose: String = "",
+        val noTimer: String = "",
+        /** Asked to switch the language where there is one: said with its name. */
+        val oneLanguage: (String?) -> String = { "" },
         val searched: (String) -> String,
         val sleep: (Int?) -> String,
         val notDone: String,
     )
 
+    /** Where a notice sends the user: OK opens it while the notice shows. */
+    enum class Place { Diagnostics, Voice, Phone, Access, Widgets, Home }
+
     @Volatile private var held = false
+
+    /** The button is let go: what is heard from now on is not shown, the plate says it is being worked out. */
+    @Volatile private var working = false
 
     @Volatile private var cancelled = false
     private var job: Job? = null
@@ -72,18 +99,25 @@ internal class VoiceController(
     /** Whether the latest press started the running session (so a tap may cancel it). */
     private var latestPressStartedSession = false
 
-    fun start() = start(endpoint = null)
-
     /** Listens until [stop], and with an [endpoint] at most until it hears the speech end. */
-    private fun start(endpoint: EndOfSpeech?) {
+    fun start(endpoint: EndOfSpeech? = null) {
         if (job?.isActive == true) {
             latestPressStartedSession = false // still finishing the previous utterance; leave it alone
+            // Said, or the press would seem lost; then back to what the plate was saying.
+            if (!cancelled) {
+                overlay.show(strings.stillRecognizing, Mark.Working)
+                scope.launch {
+                    delay(STILL_MILLIS)
+                    if (working && job?.isActive == true && !cancelled) overlay.show(strings.recognizing, Mark.Working)
+                }
+            }
             return
         }
         latestPressStartedSession = true
         held = true
+        working = false
         cancelled = false
-        overlay.show(strings.listening)
+        overlay.show(strings.listening, Mark.Listening)
         val events = if (endpoint == null) {
             sessions.pushToTalk { held }
         } else {
@@ -98,20 +132,29 @@ internal class VoiceController(
                 throw e // a CancellationException is an IllegalStateException; don't report it
             } catch (e: SpeechUnavailable) {
                 log.log(TAG, "failed: $e")
-                if (!cancelled) strings.unavailable(e).let { overlay.flash(it, toRead(it)) }
+                if (!cancelled) answers.notice(strings.unavailable(e), placeOf(e.reason))
             } catch (e: IOException) {
-                fail(e) // mic source unreachable or closed, or the recognizer failed
+                // The mic source unreachable or closed, or the recognizer failed: which one is not known here.
+                fail(e, strings.failed, null)
             } catch (e: IllegalStateException) {
-                fail(e) // speech engine not ready
+                fail(e, strings.notStarted, Place.Voice) // speech engine not ready
             } finally {
                 held = false // ended by itself (silence, the limit): the next tap starts anew
+                working = false
             }
         }
     }
 
     fun stop() {
         held = false
+        if (job?.isActive == true && !cancelled && !working) {
+            working = true
+            overlay.show(strings.recognizing, Mark.Working)
+        }
     }
+
+    /** A notice with something OK does has the OK while it shows; true if taken. */
+    fun onKey(event: KeyEvent): Boolean = overlay.onKey(event)
 
     /** The press was a tap, not speech: drop its result quietly. */
     fun cancel() {
@@ -140,22 +183,29 @@ internal class VoiceController(
     }
 
     fun cycleLanguage() {
+        val before = language.languages()
         val mode = language.cycle()
         log.log(TAG, "language mode: $mode")
-        overlay.flash(strings.languageMode(mode), FLASH_MILLIS)
+        // With one language there is nothing to switch to: said, with the way to where more are added.
+        val text = if (before.size < 2) strings.oneLanguage(before.firstOrNull()) else strings.languageMode(mode)
+        overlay.flash(text, VoiceAnswers.toRead(text), action = strings.go(Place.Voice).takeIf { before.size < 2 })
     }
 
-    private fun fail(e: Exception) {
+    private fun fail(e: Exception, text: String, place: Place?) {
         log.log(TAG, "failed: $e")
-        if (!cancelled) overlay.flash(strings.failed, FLASH_MILLIS)
+        if (!cancelled) answers.notice(text.ifEmpty { strings.failed }, place)
     }
 
     private suspend fun onEvent(event: VoiceEvent) {
         if (cancelled) return
         when (event) {
-            is VoiceEvent.Partial -> overlay.show(
-                if (event.text.isEmpty()) strings.listening else strings.heard(event.text),
-            )
+            // Once the button is let go the plate says the phrase is being worked out, not what is heard.
+            is VoiceEvent.Partial -> if (!working) {
+                overlay.show(
+                    if (event.text.isEmpty()) strings.listening else strings.heard(event.text),
+                    Mark.Listening,
+                )
+            }
 
             is VoiceEvent.Final -> onResult(event)
         }
@@ -175,50 +225,32 @@ internal class VoiceController(
             // No sound at all points at the mic rather than at how it was said.
             val off = if (stats.loudestDb == null) strings.micOff() else null
             when {
-                // Says what to do, like the other notices of that kind: on screen for as long.
-                off != null -> overlay.flash(off, UNAVAILABLE_MILLIS)
-
-                stats.loudestDb == null -> overlay.flash(strings.noSound, FLASH_MILLIS)
-
-                else -> overlay.flash(strings.notHeard, FLASH_MILLIS)
+                off != null -> answers.notice(off, Place.Diagnostics)
+                stats.loudestDb == null -> answers.notice(strings.noSound)
+                !stats.voiceHeard -> answers.notice(strings.silence)
+                else -> answers.notice(strings.notHeard)
             }
             return
         }
-        overlay.flash(strings.heard(text), RESULT_MILLIS)
-        val outcome = handle(text)
-        log.log(TAG, "→ $outcome")
-        feedback(outcome)?.let { overlay.flash(it, toRead(it, atLeast = RESULT_MILLIS)) }
-    }
-
-    /** What to show after the utterance was handled; null keeps the recognized text on screen. */
-    private fun feedback(outcome: UtteranceOutcome): String? = when (outcome) {
-        is UtteranceOutcome.Typed, is UtteranceOutcome.Done -> null
-        is UtteranceOutcome.NotDelivered -> strings.noField(outcome.text)
-        UtteranceOutcome.SearchFailed -> strings.searchFailed
-        is UtteranceOutcome.Opened -> strings.opened(outcome.app)
-        is UtteranceOutcome.Closed -> strings.closed(outcome.app)
-        is UtteranceOutcome.AppNotFound -> strings.appNotFound(outcome.query)
-        is UtteranceOutcome.NotOpened -> strings.notOpened(outcome.app)
-        is UtteranceOutcome.Ambiguous -> strings.ambiguous(outcome.apps)
-        is UtteranceOutcome.Searched -> strings.searched(outcome.query)
-        is UtteranceOutcome.SleepSet -> strings.sleep(outcome.minutes)
-        is UtteranceOutcome.Failed -> strings.notDone
+        strings.heard(text).let { overlay.flash(it, VoiceAnswers.toRead(it), Mark.Done) }
+        answers.report(handle(text))
     }
 
     private companion object {
         const val TAG = "voice"
-        const val FLASH_MILLIS = 1_500L
-        const val RESULT_MILLIS = 2_500L
 
-        /** Longer: these say what to do. */
-        const val UNAVAILABLE_MILLIS = 4_000L
-
-        /** A notice with something to do stays long enough to be read: by its length, at a TV's reading pace. */
-        const val MILLIS_PER_CHAR = 60L
-
-        fun toRead(text: String, atLeast: Long = UNAVAILABLE_MILLIS): Long = maxOf(
-            atLeast,
-            text.length * MILLIS_PER_CHAR,
-        )
+        /** How long "still recognizing" answers a press before the plate says again what it did. */
+        const val STILL_MILLIS = 1_000L
     }
+}
+
+private fun placeOf(reason: SpeechUnavailable.Reason): VoiceController.Place? = when (reason) {
+    // A key is pasted from the phone's page: the remote can't type one.
+    SpeechUnavailable.Reason.NoKey, SpeechUnavailable.Reason.KeyRefused -> VoiceController.Place.Phone
+
+    SpeechUnavailable.Reason.Region -> VoiceController.Place.Voice
+
+    SpeechUnavailable.Reason.MicNotGiven -> VoiceController.Place.Access
+
+    else -> null
 }

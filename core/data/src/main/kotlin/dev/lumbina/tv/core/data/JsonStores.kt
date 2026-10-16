@@ -44,16 +44,16 @@ internal data class StoredWeatherSettings(
     val place: StoredPlace? = null,
     val show: Boolean = true,
     val fahrenheit: Boolean = false,
+    val found: StoredPlace? = null,
 )
 
-internal fun StoredWeatherSettings.toDomain() =
-    WeatherSettings(place?.let { Place(it.name, it.latitude, it.longitude, it.region) }, show, fahrenheit)
+internal fun StoredWeatherSettings.toDomain() = WeatherSettings(place?.toDomain(), show, fahrenheit, found?.toDomain())
 
-internal fun WeatherSettings.toStored() = StoredWeatherSettings(
-    place?.let { StoredPlace(it.name, it.latitude, it.longitude, it.region) },
-    show,
-    fahrenheit,
-)
+internal fun WeatherSettings.toStored() = StoredWeatherSettings(place?.toStored(), show, fahrenheit, found?.toStored())
+
+private fun StoredPlace.toDomain() = Place(name, latitude, longitude, region)
+
+private fun Place.toStored() = StoredPlace(name, latitude, longitude, region)
 
 /** On disk: -1 minutes means switched off; null stays "never chosen", i.e. the default. */
 @Serializable

@@ -29,20 +29,27 @@ internal class AdbConnection private constructor(
 
     /**
      * Runs [command] in `exec:` (its input and output are raw bytes) with [input] as its input, and
-     * returns everything it printed. The command ends the stream when it has read what it needs.
+     * returns everything it printed. The device ends the stream when the command exits, so the
+     * command must read only as much as it is sent.
      */
-    fun exec(command: String, input: ByteArray, timeoutMillis: Int): String = run("exec:$command", input, timeoutMillis)
+    fun exec(command: String, input: ByteArray, timeoutMillis: Int): String =
+        exec(command, input.inputStream(), timeoutMillis)
+
+    /** As the other [exec], reading [input] a piece at a time: a package need not fit in memory whole. */
+    fun exec(command: String, input: InputStream, timeoutMillis: Int): String =
+        run("exec:$command", input, timeoutMillis)
 
     /**
      * Opens [service] and talks to it until the device closes the stream. The device allows one
      * message of ours at a time: each piece of [input] goes after its answer to the one before.
      */
-    private fun run(service: String, input: ByteArray?, timeoutMillis: Int): String {
+    private fun run(service: String, input: InputStream?, timeoutMillis: Int): String {
         socket.soTimeout = timeoutMillis
         val localId = nextLocalId++
         send(AdbMessage(AdbMessage.OPEN, localId, 0, "$service\u0000".toByteArray()))
         val out = ByteArrayOutputStream()
-        var sent = 0
+        val buffer = ByteArray(maxData)
+        var ended = input == null
         while (true) {
             val message = AdbMessage.read(input = this.input)
             when (message.command) {
@@ -56,10 +63,13 @@ internal class AdbConnection private constructor(
                     return out.toString(Charsets.UTF_8.name())
                 }
 
-                AdbMessage.OKAY -> if (input != null && sent < input.size) {
-                    val piece = input.copyOfRange(sent, minOf(sent + maxData, input.size))
-                    sent += piece.size
-                    send(AdbMessage(AdbMessage.WRTE, localId, message.arg0, piece))
+                AdbMessage.OKAY -> if (!ended) {
+                    val read = checkNotNull(input).readFully(buffer)
+                    if (read <= 0) {
+                        ended = true
+                    } else {
+                        send(AdbMessage(AdbMessage.WRTE, localId, message.arg0, buffer.copyOf(read)))
+                    }
                 }
 
                 else -> throw IOException("unexpected $message")
@@ -139,4 +149,15 @@ internal class AdbConnection private constructor(
             return null
         }
     }
+}
+
+/** Fills [buffer] as far as the stream goes; the count read, 0 at its end. (readNBytes is API 33.) */
+private fun InputStream.readFully(buffer: ByteArray): Int {
+    var total = 0
+    while (total < buffer.size) {
+        val read = read(buffer, total, buffer.size - total)
+        if (read < 0) break
+        total += read
+    }
+    return total
 }

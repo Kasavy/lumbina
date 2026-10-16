@@ -10,7 +10,7 @@ apks=("$ROOT"/app/build/outputs/apk/foss/"$type"/*.apk)
 # A build for Hisense needs the process name prefix ("Build" in the README).
 if "$ADB" shell pm list packages com.jamdeo.tv.vod | grep -q jamdeo &&
   ! grep -qs '^lumbina.processPrefix=' "$ROOT/local.properties" && [ -z "${LUMBINA_PROCESS_PREFIX:-}" ]; then
-  echo "warning: this build has no process name prefix, see "Build" in the README" >&2
+  echo "warning: this build has no process name prefix, see 'Build' in the README" >&2
 fi
 "$ADB" install -r "$(host_path "${apks[0]}")"
 "$ADB" shell am start -n "$PKG/.MainActivity"

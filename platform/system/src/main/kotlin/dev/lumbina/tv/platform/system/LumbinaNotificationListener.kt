@@ -108,8 +108,9 @@ internal object NotificationStore {
                 ?: extras.getCharSequence(Notification.EXTRA_TEXT)
             )
             ?.toString()?.takeIf { it.isNotBlank() }
-        val notice = Notice(sbn.key, sbn.packageName, label(sbn.packageName), title, text, sbn.postTime)
-        return Entry(notice, notification.contentIntent)
+        val opens = notification.contentIntent
+        val notice = Notice(sbn.key, sbn.packageName, label(sbn.packageName), title, text, sbn.postTime, opens != null)
+        return Entry(notice, opens)
     }
 }
 

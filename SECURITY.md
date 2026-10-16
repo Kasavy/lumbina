@@ -4,10 +4,14 @@ Lumbina asks for a lot. Here is what it does with each thing.
 
 ## Accessibility service
 
-Reads the remote's key presses to take over Home and the mic button and to notice idle time for
-the screensaver and auto-sleep. Knows which app is on screen: for recent apps, and to tell its
-own screens from another app's. Performs system actions: Back, arrows from the phone remote,
-standby. Shows the quick menu, recent apps and the voice overlay.
+Reads the remote's key presses to take over Home, the mic button, Menu on Lumbina's own screens
+and any button you gave something to do, and to notice idle time for the screensaver and
+auto-sleep. A button nothing is set on goes on to the device untouched. Knows which app is on
+screen: for recent apps, and to tell its own screens from another app's. Performs system actions:
+Back, arrows from the phone remote, standby; and what you set on a button: opening an app or a
+screen of Lumbina's, the player's keys, turning the screen off. Shows the quick menu, recent apps
+and the voice overlay. Opens Lumbina when the device turns on, if you asked for that, and right
+after Lumbina is updated, if the update left the home screen in front.
 
 It reads the screen only right after you use voice input, to find the text field or on-screen
 keyboard to type into. Screen content is never stored or sent anywhere.
@@ -26,8 +30,8 @@ Lumbina for speech, or an app Lumbina passes the mic to is recording.
 It is recognized on the device (Vosk) and not saved. If you choose a cloud service in the voice
 settings (OpenAI or Yandex SpeechKit), each phrase goes to that service with your API key and
 nothing else. If you choose another app on the device to recognize, each phrase goes to that app,
-and what it does with it is the app's own matter. Recognized phrases are written to Lumbina's log on the device. The log leaves the
-device only in a diagnostics report you save yourself.
+and what it does with it is the app's own matter. Recognized phrases are written to Lumbina's log on
+the device. The log leaves the device only in a diagnostics report you save yourself.
 
 API keys are pasted on the phone remote page, stored on the TV encrypted with an Android Keystore
 key, never shown and never logged.
@@ -56,7 +60,9 @@ the device's adb on the loopback address and:
 - stops an app you close from "Recent apps";
 - installs Lumbina TV Provider, the companion app it carries, if the device has no TV provider;
 - turns a system app of the firmware back on when you choose "Turn on" on the diagnostics page;
+- installs a new version of Lumbina you asked it to download, without the system's question;
 - asks the shell about the device when you save a diagnostics report;
+- holds OK for the phone remote, which the accessibility service can't do;
 - starts a helper.
 
 The helper runs as the adb shell from Lumbina's own APK. Android's microphone input is silent on
@@ -64,8 +70,9 @@ the projector, so apps that record the microphone themselves hear nothing. The h
 an audio policy that feeds the remote's audio into the recordings of the apps you allowed. When
 an app on screen starts to record for the first time, Lumbina asks whether to let it hear the
 remote. The app you chose to recognize speech is not asked about: choosing it is the answer, and
-it gets only the phrases of voice input. The answers can be changed in the settings, on the Access page. The helper lives only as
-long as its connection to Lumbina, and only the shell user can connect.
+it gets only the phrases of voice input. The answers can be changed in the settings, on the Access
+page. The helper lives only as long as its connection to Lumbina, and only the shell user can
+connect.
 
 Revoke debugging authorizations in the developer options and all of this is gone.
 
@@ -83,14 +90,28 @@ Revoke debugging authorizations in the developer options and all of this is gone
   service is on.
 - `REQUEST_DELETE_PACKAGES`: opens the system's uninstall dialog when you remove an app from the
   home screen. The system asks you, Lumbina removes nothing by itself.
+- `REQUEST_INSTALL_PACKAGES`: Lumbina updates itself when you ask on the "About Lumbina" page. It
+  downloads the new version from its releases on GitHub over https and checks it against the
+  checksum published beside it; a release without one is not installed. It also checks that the
+  package is Lumbina's own and no older than the installed one. Where Lumbina has its own
+  debugging connection, it installs the package over it without the system's question (see the
+  list above): the package is copied to `/data/local/tmp` for the install and removed after it.
+  Otherwise, or when that fails, it hands the package to the system's installer, which asks you.
+  The system installs it only if it is signed with the same key as the installed Lumbina. Nothing
+  is checked or downloaded by itself. A build for a store would leave this permission out.
 - `INTERNET` and `ACCESS_NETWORK_STATE`: the requests listed under Network, and the connection
   icon on the home screen.
 
 ## Phone remote
 
 Off by default. While it's on, an HTTP server on port 8765 of the local network serves the remote
-page. Commands are accepted only with the access key from the QR code. A new key locks out phones
-that had the old one. It's plain HTTP, so use it on a network you trust.
+page. The page itself is given to anyone; commands are accepted only with the access key from the
+QR code. With the same key in its address, the server also gives the last diagnostics report you
+saved (the settings show a code for it), once: it is deleted as it goes. That file holds the
+log's tail, recognized phrases included. A new key locks out phones that had the old one. The code
+is shown in the settings and the quick menu; showing it on the screensaver is a separate switch, off
+by default, since then everyone in the room can read the key. It's plain HTTP, so use it on a
+network you trust.
 
 ## Network
 
@@ -101,7 +122,9 @@ Lumbina itself contacts only:
 - weather: `api.open-meteo.com`, `api.met.no`, city search `geocoding-api.open-meteo.com`,
   city by IP (unless you chose a city) `ipwho.is` and `get.geojs.io`;
 - photos for wallpaper and screensaver: `picsum.photos`, `www.bing.com`;
-- artwork URLs that apps publish in their channels.
+- artwork URLs that apps publish in their channels;
+- a new version of Lumbina, only when you ask for the check: `api.github.com` and the release's
+  files on `github.com`.
 
 Wallpaper plugins you install make their own requests. No analytics, no telemetry, no ads.
 

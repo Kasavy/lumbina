@@ -8,6 +8,7 @@ import android.os.PowerManager
 import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import dev.lumbina.tv.core.common.LumbinaLog
+import dev.lumbina.tv.core.domain.MILLIS_PER_SECOND
 import dev.lumbina.tv.core.domain.access.AccessSettingsRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
@@ -19,7 +20,9 @@ import kotlinx.coroutines.launch
  * is a boot (the firmware starts its own home screen, whatever app has the home role) or a wake
  * the service didn't see, having been killed on standby and brought back. For a while after
  * either, the firmware may bring its home screen up again over Lumbina; it gets Lumbina over it
- * again, a limited number of times. Main thread.
+ * again, a limited number of times. Lumbina just updated is opened again too, whatever the setting,
+ * when a home screen is what the update left in front: the update stopped Lumbina, most likely
+ * on screen as it updated itself (not over another app or the installer's own question). Main thread.
  */
 internal class PowerOnWatcher(
     private val context: Context,
@@ -71,15 +74,34 @@ internal class PowerOnWatcher(
         // time it comes on is a wake, though this process never saw it go off.
         screenWentOff = !interactive
         // Asking who is in front waits for that app's answer: only where the answer decides something.
-        val front = if (interactive && isHomeScreen != null) frontPackage() else null
+        val updated = interactive && justUpdated()
+        val front = if (interactive && (isHomeScreen != null || updated)) frontPackage() else null
         val sinceBoot = SystemClock.elapsedRealtime() / MILLIS_PER_SECOND
         val state = if (interactive) "screen on, ${front ?: "front not asked"}" else "screen off"
         log.log(TAG, "connected ${sinceBoot}s after boot: $state")
         noteUntil = SystemClock.elapsedRealtime() + NOTE_MILLIS
-        if (front != null && isHomeScreen?.invoke(front, null) == true) {
-            powerOn("connected over the firmware's home screen")
+        when {
+            updated && front != null && front in homeScreens() -> {
+                log.log(TAG, "connected just after an update: opening Lumbina")
+                open()
+            }
+
+            front != null && isHomeScreen?.invoke(front, null) == true ->
+                powerOn("connected over the firmware's home screen")
         }
     }
+
+    /** The apps that can be the home screen: the firmware's, any other launcher. */
+    private fun homeScreens(): Set<String> = runCatching {
+        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        context.packageManager.queryIntentActivities(home, 0).map { it.activityInfo.packageName }.toSet()
+    }.getOrDefault(emptySet()) - context.packageName
+
+    /** Lumbina was installed moments ago: the service connecting now is likely the new version's first. */
+    private fun justUpdated(): Boolean = runCatching {
+        val updated = context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
+        System.currentTimeMillis() - updated in 0..JUST_UPDATED_MILLIS
+    }.getOrDefault(false)
 
     /**
      * A window ([className] of [packageName]) came to the front: the firmware's home screen, soon after a
@@ -144,6 +166,6 @@ internal class PowerOnWatcher(
         const val COVERS = 2
         const val COVER_GAP_MILLIS = 1_000L
         const val NOTE_MILLIS = 60_000L
-        const val MILLIS_PER_SECOND = 1_000
+        const val JUST_UPDATED_MILLIS = 60_000L
     }
 }

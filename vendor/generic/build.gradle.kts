@@ -5,6 +5,5 @@ plugins {
 
 dependencies {
     implementation(projects.core.domain)
-    implementation(projects.core.common)
     testImplementation(projects.core.testing)
 }

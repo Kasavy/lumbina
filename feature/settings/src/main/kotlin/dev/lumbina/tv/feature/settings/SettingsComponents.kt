@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -114,12 +116,11 @@ internal fun Note(text: String, modifier: Modifier = Modifier) {
 /** A label with its value below; focusable only so the D-pad can scroll the page. */
 @Composable
 internal fun Fact(label: String, value: String, modifier: Modifier = Modifier, problem: Boolean = false) {
-    var focused by remember { mutableStateOf(false) }
     SettingRow(
         onClick = {},
         headlineContent = { Text(label) },
-        supportingContent = { Text(value, color = if (problem) problemColor(focused) else Color.Unspecified) },
-        modifier = modifier.onFocusChanged { focused = it.hasFocus },
+        supportingContent = { Text(value, color = if (problem) rowProblem() else Color.Unspecified) },
+        modifier = modifier,
     )
 }
 
@@ -181,24 +182,30 @@ private const val HALF = 0.5f
 @Composable
 internal fun ChoiceRow(title: String, options: List<Choice>, modifier: Modifier = Modifier, hint: String? = null) {
     var choosing by remember { mutableStateOf(false) }
-    SettingRow(
-        onClick = { choosing = true },
-        headlineContent = { Text(title) },
-        supportingContent = hint?.let { { Text(it) } },
-        trailingContent = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = options.firstOrNull { it.chosen }?.title.orEmpty(),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.widthIn(max = CHOSEN_WIDTH),
-                )
-                Icon(painterResource(R.drawable.ic_expand_more), contentDescription = null, Modifier.size(20.dp))
-            }
-        },
-        modifier = modifier,
-    )
-    if (choosing) ChoiceDialog(title = title, choices = options, onDismiss = { choosing = false })
+    // One child of the list with its dialog: the dialog by itself would be one more, and a list's
+    // spacing would open a gap for it under the row while it shows.
+    Box(modifier) {
+        SettingRow(
+            onClick = { choosing = true },
+            headlineContent = { Text(title) },
+            supportingContent = hint?.let { { Text(it) } },
+            trailingContent = {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = options.firstOrNull { it.chosen }?.title.orEmpty(),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = CHOSEN_WIDTH),
+                    )
+                    Icon(painterResource(R.drawable.ic_expand_more), contentDescription = null, Modifier.size(20.dp))
+                }
+            },
+        )
+        if (choosing) ChoiceDialog(title = title, choices = options, onDismiss = { choosing = false })
+    }
 }
 
 /** A row's trailing part: [content], and before it "hold OK" with [holdIcon] while the row is [focused]. */
@@ -215,8 +222,12 @@ internal fun TrailingWithHold(focused: Boolean, holdIcon: Int?, content: @Compos
  * under its last row.
  */
 @Composable
-internal fun SettingsList(modifier: Modifier = Modifier, spacing: Dp = 4.dp, content: LazyListScope.() -> Unit) {
-    val edges = rememberLazyListState()
+internal fun SettingsList(
+    modifier: Modifier = Modifier,
+    spacing: Dp = 4.dp,
+    edges: LazyListState = rememberLazyListState(),
+    content: LazyListScope.() -> Unit,
+) {
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(spacing),
         contentPadding = PaddingValues(bottom = PAGE_END),

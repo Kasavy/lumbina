@@ -11,20 +11,28 @@ import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import dev.lumbina.tv.core.designsystem.LumbinaColors
+import dev.lumbina.tv.core.designsystem.colorOf
 import dev.lumbina.tv.core.domain.home.HomeBackground
+import dev.lumbina.tv.core.domain.theme.ThemeRole
+import dev.lumbina.tv.core.domain.theme.ThemeSpec
+import dev.lumbina.tv.core.domain.theme.Themes
 import kotlin.random.Random
 
-/** Dark gradients that keep banners and text readable. */
-fun HomeBackground.brush(): Brush = Brush.verticalGradient(colors())
+/** The gradient as [theme] has it: quiet, so that banners and text stay readable on it. */
+fun HomeBackground.brush(theme: ThemeSpec): Brush = Brush.verticalGradient(colors(theme))
 
-/** The gradient's colors, top to bottom, evenly spaced. */
-fun HomeBackground.colors(): List<Color> = when (this) {
-    HomeBackground.Night -> Night
-    HomeBackground.Dusk -> Dusk
-    HomeBackground.Ocean -> Ocean
-    HomeBackground.Forest -> Forest
-    HomeBackground.Plum -> Plum
+/**
+ * The gradient's colors in [theme], top to bottom, evenly spaced: its tint at the top, the theme's
+ * own background at the bottom. The light theme has pale ones, the black theme deeper ones that
+ * end in black; any other, the dark ones.
+ */
+fun HomeBackground.colors(theme: ThemeSpec): List<Color> {
+    val tones = when (theme.id) {
+        Themes.Light.id -> LightTones
+        Themes.Black.id -> BlackTones
+        else -> DarkTones
+    }
+    return tones.getValue(this) + theme.colorOf(ThemeRole.Background)
 }
 
 /**
@@ -95,8 +103,6 @@ private const val OPAQUE = 0xFF shl 24
 private const val RED_SHIFT = 16
 private const val GREEN_SHIFT = 8
 
-private val Base = LumbinaColors.Background
-
 /** The deep tones of the home gradients, for backgrounds that drift between them. */
 val GradientTones: List<Color> get() = listOf(OceanTop, PlumTop, ForestTop)
 
@@ -110,8 +116,29 @@ private val ForestMiddle = Color(0xFF0F2219)
 private val PlumTop = Color(0xFF3C1846)
 private val PlumMiddle = Color(0xFF221028)
 
-private val Night = listOf(NightTop, Base)
-private val Dusk = listOf(DuskTop, DuskMiddle, Base)
-private val Ocean = listOf(OceanTop, OceanMiddle, Base)
-private val Forest = listOf(ForestTop, ForestMiddle, Base)
-private val Plum = listOf(PlumTop, PlumMiddle, Base)
+// Each gradient's tones above the theme's background, top first.
+private val DarkTones = mapOf(
+    HomeBackground.Night to listOf(NightTop),
+    HomeBackground.Dusk to listOf(DuskTop, DuskMiddle),
+    HomeBackground.Ocean to listOf(OceanTop, OceanMiddle),
+    HomeBackground.Forest to listOf(ForestTop, ForestMiddle),
+    HomeBackground.Plum to listOf(PlumTop, PlumMiddle),
+)
+
+// Pale tints of the same hues, light enough for the light theme's dark text.
+private val LightTones = mapOf(
+    HomeBackground.Night to listOf(Color(0xFFD5DBE3)),
+    HomeBackground.Dusk to listOf(Color(0xFFEBD3E0), Color(0xFFE4DEEA)),
+    HomeBackground.Ocean to listOf(Color(0xFFC8DEEB), Color(0xFFDBE7EE)),
+    HomeBackground.Forest to listOf(Color(0xFFCDE2D4), Color(0xFFDEEAE1)),
+    HomeBackground.Plum to listOf(Color(0xFFE1CDEA), Color(0xFFEADFEE)),
+)
+
+// The dark ones deeper, ending in black, for the black theme.
+private val BlackTones = mapOf(
+    HomeBackground.Night to listOf(Color(0xFF0B0E13)),
+    HomeBackground.Dusk to listOf(Color(0xFF26142A), Color(0xFF110F1C)),
+    HomeBackground.Ocean to listOf(Color(0xFF07202F), Color(0xFF060F17)),
+    HomeBackground.Forest to listOf(Color(0xFF0B2419), Color(0xFF07140E)),
+    HomeBackground.Plum to listOf(Color(0xFF28102F), Color(0xFF130816)),
+)

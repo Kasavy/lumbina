@@ -22,9 +22,11 @@ import dev.lumbina.tv.core.domain.health.SecureSettings
 import dev.lumbina.tv.core.domain.locale.AppLanguage
 import dev.lumbina.tv.core.domain.phone.LocalAddress
 import dev.lumbina.tv.core.domain.remote.HomeScreens
+import dev.lumbina.tv.core.domain.remote.KeyCapture
 import dev.lumbina.tv.core.domain.remote.LumbinaHome
 import dev.lumbina.tv.core.domain.speech.SpeechApps
 import dev.lumbina.tv.core.domain.status.ConnectivityStatus
+import dev.lumbina.tv.core.domain.status.DeviceScreens
 import dev.lumbina.tv.core.domain.status.MediaSessions
 import dev.lumbina.tv.core.domain.status.NotificationFeed
 import dev.lumbina.tv.core.domain.text.SystemSearch
@@ -41,6 +43,8 @@ internal interface SystemModule {
     @Binds fun packageStates(impl: AndroidPackageStates): PackageStates
 
     @Binds fun homeScreens(impl: AndroidHomeScreens): HomeScreens
+
+    @Binds fun keyCapture(impl: AndroidKeyCapture): KeyCapture
 
     @Binds fun secureSettings(impl: AndroidSecureSettings): SecureSettings
 
@@ -73,6 +77,8 @@ internal interface SystemModule {
     @Binds fun systemSearch(impl: AndroidSystemSearch): SystemSearch
 
     @Binds fun connectivity(impl: AndroidConnectivityStatus): ConnectivityStatus
+
+    @Binds fun deviceScreens(impl: AndroidDeviceScreens): DeviceScreens
 
     @Binds fun notifications(impl: AndroidNotificationFeed): NotificationFeed
 

@@ -7,6 +7,7 @@ import dev.lumbina.tv.core.domain.access.AccessSettings
 import dev.lumbina.tv.core.domain.access.AccessSettingsRepository
 import dev.lumbina.tv.core.domain.access.AdbState
 import dev.lumbina.tv.core.domain.access.LocalAccess
+import dev.lumbina.tv.core.domain.access.SetupResult
 import dev.lumbina.tv.core.domain.access.SetupScreens
 import dev.lumbina.tv.core.domain.access.UsageAccess
 import dev.lumbina.tv.core.domain.access.withMicApp
@@ -35,6 +36,8 @@ data class AccessState(
     val usageGranted: Boolean,
     val settings: AccessSettings,
     val connecting: Boolean = false,
+    /** What the last press of "Connect" came to, while it has not connected: said, or the press seems lost. */
+    val tried: SetupResult? = null,
     /** The apps asked about so far; null where the device needs no such thing. */
     val micApps: List<MicApp>? = null,
 )
@@ -53,8 +56,6 @@ interface AccessCommands {
     fun grantUsageStats()
 
     fun toggleCloseFromRecents()
-
-    fun setOpenOnPowerOn(open: Boolean)
 
     fun toggleMicApp(app: MicApp)
 
@@ -77,6 +78,7 @@ class AccessViewModel @Inject constructor(
 
     private val refresh = Channel<Unit>(Channel.CONFLATED)
     private val connecting = MutableStateFlow(false)
+    private val tried = MutableStateFlow<SetupResult?>(null)
 
     /** Debugging and grants change from outside, with no callback: re-read now and then or after a change. */
     private val device = flow {
@@ -93,12 +95,12 @@ class AccessViewModel @Inject constructor(
     private val labels = installed.observe().map { apps -> apps.associate { it.id.packageName to it.label } }
 
     val state: StateFlow<AccessState?> =
-        combine(device, settings.settings, connecting, labels) { device, set, busy, names ->
+        combine(device, settings.settings, connecting, labels, tried) { device, set, busy, names, tried ->
             val micApps = set.micApps
                 .map { (app, allowed) -> MicApp(app, names[app] ?: app, allowed) }
                 .sortedBy { it.label }
                 .takeIf { micInjection }
-            AccessState(device.adb, device.keepsService, device.usageGranted, set, busy, micApps)
+            AccessState(device.adb, device.keepsService, device.usageGranted, set, busy, tried, micApps)
         }.stateIn(viewModelScope, WhileUiSubscribed, null)
 
     override fun openDeveloperSettings() {
@@ -108,9 +110,10 @@ class AccessViewModel @Inject constructor(
     override fun connect() {
         if (connecting.value) return
         connecting.value = true
+        tried.value = null
         viewModelScope.launch {
             try {
-                access.connectAndSetUp()
+                tried.value = access.connectAndSetUp().takeUnless { it == SetupResult.Done }
             } finally {
                 connecting.value = false
                 refresh.trySend(Unit)
@@ -135,10 +138,6 @@ class AccessViewModel @Inject constructor(
 
     override fun toggleCloseFromRecents() {
         viewModelScope.launch { settings.update { it.copy(closeFromRecents = !it.closeFromRecents) } }
-    }
-
-    override fun setOpenOnPowerOn(open: Boolean) {
-        viewModelScope.launch { settings.update { it.copy(openOnPowerOn = open) } }
     }
 
     override fun toggleMicApp(app: MicApp) {

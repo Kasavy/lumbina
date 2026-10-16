@@ -3,10 +3,12 @@ package dev.lumbina.tv.core.domain.voice
 import dev.lumbina.tv.core.domain.app.App
 import dev.lumbina.tv.core.domain.app.AppLauncher
 import dev.lumbina.tv.core.domain.sleep.SleepSettingsRepository
+import dev.lumbina.tv.core.domain.sleep.timerMinutesLeft
 import dev.lumbina.tv.core.domain.sleep.withTimer
 import dev.lumbina.tv.core.domain.text.DeliverText
 import dev.lumbina.tv.core.domain.text.Delivery
 import dev.lumbina.tv.core.domain.text.YouTubeSearch
+import kotlinx.coroutines.flow.first
 
 /** What the device does for voice commands beyond starting apps. Each returns false if it can't. */
 interface DeviceControls {
@@ -46,7 +48,19 @@ sealed interface UtteranceOutcome {
     /** The app was found, but it would not start. */
     data class NotOpened(val app: String) : UtteranceOutcome
 
-    data class Ambiguous(val apps: List<String>) : UtteranceOutcome
+    /** Several apps fit the name: the user chooses, and [pick] does with the chosen one what was asked. */
+    class Ambiguous(val apps: List<App>, val pick: suspend (App) -> UtteranceOutcome) : UtteranceOutcome {
+        override fun toString() = "Ambiguous(${apps.map { it.label }})"
+    }
+
+    /** "Close" with no app in front. */
+    data object NothingToClose : UtteranceOutcome
+
+    /** The app named is not in front and was not stopped: as a rule for want of Lumbina's connection to debugging. */
+    data object CantClose : UtteranceOutcome
+
+    /** "Cancel the timer" with no sleep timer running. */
+    data object NoTimer : UtteranceOutcome
 
     data class Searched(val query: String) : UtteranceOutcome
 
@@ -99,7 +113,7 @@ class HandleUtterance(
     private suspend fun withApp(query: String, act: suspend (App) -> UtteranceOutcome): UtteranceOutcome =
         when (val match = matcher.match(query, apps())) {
             is AppMatch.Found -> act(match.app)
-            is AppMatch.Ambiguous -> UtteranceOutcome.Ambiguous(match.apps.map { it.label })
+            is AppMatch.Ambiguous -> UtteranceOutcome.Ambiguous(match.apps, act)
             AppMatch.None -> UtteranceOutcome.AppNotFound(query)
         }
 
@@ -109,10 +123,18 @@ class HandleUtterance(
     /** The app named, or the one in front. */
     private suspend fun close(command: VoiceCommand.Close): UtteranceOutcome {
         val front = device.appInFront()
-        val query = command.query ?: return done(command, front != null && stop(front, front))
+        val query = command.query
+        if (query == null) {
+            if (front == null) return UtteranceOutcome.NothingToClose
+            stop(front, front)
+            // Said by its name where it has one in the list of apps.
+            val label = apps().firstOrNull { it.id.packageName == front }?.label
+            return label?.let(UtteranceOutcome::Closed) ?: UtteranceOutcome.Done(command)
+        }
         return withApp(query) { app ->
-            val closed = stop(app.id.packageName, front)
-            if (closed) UtteranceOutcome.Closed(app.label) else UtteranceOutcome.Failed(command)
+            // Asked again: with several apps to choose from, the choice comes seconds later.
+            val closed = stop(app.id.packageName, device.appInFront())
+            if (closed) UtteranceOutcome.Closed(app.label) else UtteranceOutcome.CantClose
         }
     }
 
@@ -137,6 +159,7 @@ class HandleUtterance(
             }
         }
         val at = now()
+        if (minutes == null && sleep.settings.first().timerMinutesLeft(at) == null) return UtteranceOutcome.NoTimer
         sleep.update { it.withTimer(minutes, at) }
         return UtteranceOutcome.SleepSet(minutes)
     }

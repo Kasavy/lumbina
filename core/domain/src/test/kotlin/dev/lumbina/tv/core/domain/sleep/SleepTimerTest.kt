@@ -21,4 +21,12 @@ class SleepTimerTest {
     fun `after the longest the timer goes off`() {
         assertNull(nextSleepTimer(120))
     }
+
+    @Test
+    fun `a step back takes the next shorter length, and off before the shortest`() {
+        assertEquals(15, previousSleepTimer(25))
+        assertEquals(90, previousSleepTimer(120))
+        assertNull(previousSleepTimer(15))
+        assertNull(previousSleepTimer(7))
+    }
 }

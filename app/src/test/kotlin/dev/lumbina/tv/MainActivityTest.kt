@@ -15,10 +15,10 @@ class MainActivityTest {
     val compose = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun showsSetupCardWhileTheServiceIsNotRunning() {
+    fun showsTheSetupWhileTheServiceIsNotRunning() {
         // Robolectric has no bound accessibility service and no WRITE_SECURE_SETTINGS grant.
         // The device's language, not an English text the test would depend on.
-        val title = compose.activity.getString(OnboardingR.string.setup_one_step)
+        val title = compose.activity.getString(OnboardingR.string.wizard_start)
         compose.waitUntil(timeoutMillis = 5_000) {
             compose.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
         }

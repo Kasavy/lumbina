@@ -10,7 +10,9 @@ import dev.lumbina.tv.core.domain.backdrop.PhotoFolder
 import dev.lumbina.tv.core.domain.backdrop.WallpaperSettingsRepository
 import dev.lumbina.tv.core.domain.device.DeviceProfile
 import dev.lumbina.tv.core.domain.device.FirmwareParts
+import dev.lumbina.tv.core.domain.home.HomeAppearanceRepository
 import dev.lumbina.tv.core.domain.home.HomeLayoutRepository
+import dev.lumbina.tv.core.domain.phone.LocalAddress
 import dev.lumbina.tv.core.domain.phone.PhoneRemoteSettingsRepository
 import dev.lumbina.tv.core.domain.remote.LumbinaHome
 import dev.lumbina.tv.core.domain.remote.OtherHome
@@ -20,6 +22,7 @@ import dev.lumbina.tv.core.domain.speech.SpeechEngineChoice
 import dev.lumbina.tv.core.domain.speech.SpeechKeys
 import dev.lumbina.tv.core.domain.speech.SpeechSetups
 import dev.lumbina.tv.core.domain.speech.VoiceSettingsRepository
+import dev.lumbina.tv.core.domain.status.DeviceScreens
 import dev.lumbina.tv.core.domain.text.Search
 import dev.lumbina.tv.core.domain.text.YouTube
 import dev.lumbina.tv.core.domain.text.YouTubeSearch
@@ -33,6 +36,8 @@ internal object RemoteDeps {
         val firmware: FirmwareParts,
         val lumbinaHome: LumbinaHome,
         val log: LumbinaLog,
+        val screens: DeviceScreens,
+        val address: LocalAddress,
     )
 
     class Apps @Inject constructor(
@@ -62,5 +67,6 @@ internal object RemoteDeps {
         val phoneRemote: PhoneRemoteSettingsRepository,
         val photoFolder: PhotoFolder,
         val wallpaper: WallpaperSettingsRepository,
+        val appearance: HomeAppearanceRepository,
     )
 }

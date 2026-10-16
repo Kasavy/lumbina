@@ -1,6 +1,9 @@
 package dev.lumbina.tv.feature.home
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
@@ -14,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
@@ -23,38 +27,49 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Card
-import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.FilterChip
 import androidx.tv.material3.Icon
+import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.lumbina.tv.core.domain.channels.ChannelRow
 import dev.lumbina.tv.core.domain.home.HomeRow
-import dev.lumbina.tv.core.domain.home.TileSize
-import dev.lumbina.tv.core.ui.focusGlow
-import dev.lumbina.tv.core.ui.highlightBorder
+import dev.lumbina.tv.core.ui.BANNER_ASPECT
+import dev.lumbina.tv.core.ui.EdgeScrolling
+import dev.lumbina.tv.core.ui.NameOnTile
+import dev.lumbina.tv.core.ui.PillShape
+import dev.lumbina.tv.core.ui.TileCard
+import dev.lumbina.tv.core.ui.TileName
+import dev.lumbina.tv.core.ui.line
+import dev.lumbina.tv.core.ui.onTile
 import dev.lumbina.tv.core.ui.opensOnRest
-import dev.lumbina.tv.core.ui.programTileExtent
 import dev.lumbina.tv.core.ui.rememberOpenOnRest
 
 /**
@@ -75,100 +90,239 @@ internal fun Modifier.bleed(): Modifier = layout { measurable, constraints ->
 /** Room above and below a row's tiles for the focused one to grow. */
 internal val ROW_MARGIN = 12.dp
 
-/** A home row of tiles, [bleed]ing to the screen's edges and keeping focus within the row. */
+/**
+ * A home row of tiles, [bleed]ing to the screen's edges and keeping focus within the row. Coming
+ * back from the row above or below, focus goes to the tile it left, as it does on Google TV: the
+ * nearest tile would creep the row back to its start.
+ */
 @Composable
 internal fun HomeRow(
     modifier: Modifier = Modifier,
     state: LazyListState = rememberLazyListState(),
     content: LazyListScope.() -> Unit,
 ) {
-    LazyRow(
-        state = state,
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
-        contentPadding = PaddingValues(horizontal = GRID_SIDE, vertical = ROW_MARGIN),
-        modifier = modifier.bleed().stayInRow(),
-        content = content,
-    )
-}
-
-/** The last tile of Favorites: the way to every app. */
-@Composable
-internal fun AllAppsTile(count: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = modifier) {
-        Card(
-            onClick = onClick,
-            colors = CardDefaults.colors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = TILE_ALPHA),
-            ),
-            border = highlightBorder(),
-            glow = focusGlow(),
-            modifier = Modifier.fillMaxWidth().aspectRatio(BANNER_ASPECT),
-        ) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                Icon(painterResource(R.drawable.ic_apps), contentDescription = null, modifier = Modifier.size(36.dp))
-                Text(stringResource(R.string.home_all_apps), style = MaterialTheme.typography.titleMedium)
-            }
-        }
-        Text(
-            text = pluralStringResource(R.plurals.home_apps_count, count, count),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 4.dp),
+    EdgeScrolling(GRID_SIDE) {
+        LazyRow(
+            state = state,
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            contentPadding = PaddingValues(horizontal = GRID_SIDE, vertical = ROW_MARGIN),
+            modifier = modifier.bleed().focusRestorer().stayInRow(),
+            content = content,
         )
     }
 }
 
 /**
- * All the channels apps publish as one block: a tab per channel ("App · channel") and the chosen
- * channel's programs below. Moving onto a tab shows it.
+ * A row of tiles on its glass backing (the row's "backing" setting, on by default for Favorites).
+ * More tiles than fit scroll inside the backing.
+ * Focus comes back to the tile it left, as in [HomeRow].
+ */
+@Composable
+internal fun PlateRow(
+    modifier: Modifier = Modifier,
+    state: LazyListState = rememberLazyListState(),
+    content: LazyListScope.() -> Unit,
+) {
+    EdgeScrolling(PLATE_INSET) {
+        LazyRow(
+            state = state,
+            horizontalArrangement = Arrangement.spacedBy(GRID_SPACING),
+            contentPadding = PaddingValues(PLATE_INSET),
+            modifier = modifier.fillMaxWidth().glassBacking().focusRestorer().stayInRow(),
+            content = content,
+        )
+    }
+}
+
+/** Something laid out in lines (a grid of tiles) on the same glass backing as [PlateRow]. */
+@Composable
+internal fun Plate(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Box(modifier.fillMaxWidth().glassBacking().padding(PLATE_INSET)) { content() }
+}
+
+/**
+ * Tinted glass: the theme's panel, thin enough for the picture to show, with a light edge; tinted
+ * so it still stands out on a bright photo.
+ */
+@Composable
+private fun Modifier.glassBacking(): Modifier {
+    val glass = MaterialTheme.colorScheme.surface
+    val edge = MaterialTheme.colorScheme.onSurface
+    val shape = RoundedCornerShape(PLATE_CORNER)
+    return background(glass.copy(alpha = PLATE_ALPHA), shape).border(1.dp, edge.copy(alpha = PLATE_EDGE_ALPHA), shape)
+}
+
+/**
+ * The room between the backing's edge and its tiles: enough for the focused tile to grow. Tiles on
+ * a backing are narrower by it at either side, so a row still shows as many as its size says.
+ */
+internal val PLATE_INSET = 16.dp
+private val PLATE_CORNER = 24.dp
+private const val PLATE_ALPHA = 0.4f
+private const val PLATE_EDGE_ALPHA = 0.22f
+
+/**
+ * The tile that opens the "All apps" screen: in Favorites, where the user moves it or takes it out
+ * ([onLongClick]), and at the end of "Apps" ([label] "See all"). Its [label] is on it, under its
+ * icon; where the row's names are shown ([name]), it stands where every tile's name does, in the
+ * same type: under the tile, or at its bottom. [highlighted] while it is moved or its menu is open.
+ */
+@Composable
+internal fun AllAppsTile(
+    onClick: () -> Unit,
+    label: String,
+    name: TileName,
+    modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
+    highlighted: Boolean = false,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val onTile = !name.under && name.shown(focused)
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = modifier) {
+        TileCard(
+            onClick = onClick,
+            onLongClick = onLongClick,
+            highlighted = highlighted,
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = TILE_ALPHA),
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(BANNER_ASPECT)
+                .onFocusChanged { focused = it.isFocused },
+        ) {
+            if (onTile) {
+                // As any tile's name: at its bottom, the icon alone above it.
+                Icon(
+                    painterResource(R.drawable.ic_apps),
+                    contentDescription = null,
+                    modifier = Modifier.align(Alignment.Center).offset(y = (-12).dp).size(36.dp),
+                )
+                NameOnTile(label)
+            } else {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    Icon(painterResource(R.drawable.ic_apps), contentDescription = null, Modifier.size(36.dp))
+                    if (!name.under) FittedLabel(label)
+                }
+            }
+        }
+        if (name.under) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 4.dp).drawWithContent {
+                    if (name.shown(focused)) drawContent()
+                },
+            )
+        }
+    }
+}
+
+/**
+ * One line that shrinks to the tile: "Все приложения" is wider than it, more so with large text.
+ * Cut with "…" only if even the smallest size does not fit.
+ */
+@Composable
+private fun FittedLabel(text: String) {
+    val type = MaterialTheme.typography
+    BasicText(
+        text = text,
+        style = type.titleMedium.copy(color = LocalContentColor.current, textAlign = TextAlign.Center).onTile(),
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis,
+        autoSize = TextAutoSize.StepBased(
+            minFontSize = type.labelSmall.fontSize,
+            maxFontSize = type.titleMedium.fontSize,
+        ),
+        modifier = Modifier.padding(horizontal = 4.dp),
+    )
+}
+
+/**
+ * All the channels apps publish as one block: its [title] (none when switched off), a tab per
+ * channel ("App · channel") and the chosen channel's programs below, looking as [look] says.
+ * Moving onto a tab shows it.
  */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 internal fun Recommendations(
     rows: List<ChannelRow>,
-    size: TileSize,
+    look: RowLookUi,
     actions: HomeActions,
+    title: String?,
     modifier: Modifier = Modifier,
 ) {
+    val size = look.size
     var selectedKey by rememberSaveable { mutableStateOf<String?>(null) }
     val selected = rows.firstOrNull { it.key == selectedKey } ?: rows.first()
     // A tab opens once the focus rests on it, so coming up from the programs must land on the open one.
     val selectedTab = remember { FocusRequester() }
+    // The tabs start to the right of the heading, so nothing stands over the first programs: ▲
+    // from those would pass the tabs by, to the row above.
+    val tabs = remember { FocusRequester() }
     val resting = rememberOpenOnRest<String> { selectedKey = it }
+    val focus = LocalHomeFocus.current
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            SectionTitle(stringResource(R.string.home_recommendations))
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                contentPadding = PaddingValues(ROW_MARGIN),
-                modifier = Modifier.stayInRow().focusRestorer(selectedTab),
-            ) {
-                items(rows, key = { it.key }) { row ->
-                    FilterChip(
-                        selected = row.key == selected.key,
-                        onClick = { resting.now(row.key) },
-                        modifier = Modifier
-                            .then(if (row.key == selected.key) Modifier.focusRequester(selectedTab) else Modifier)
-                            .opensOnRest(resting, row.key, isOpen = row.key == selected.key, leave = Key.DirectionDown),
-                    ) { Text(if (row.isMix) stringResource(R.string.home_recommendations_mix) else row.title()) }
+            if (title != null) SectionTitle(title)
+            EdgeScrolling(ROW_MARGIN) {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(ROW_MARGIN),
+                    modifier = Modifier.focusRequester(tabs).stayInRow().focusRestorer(selectedTab),
+                ) {
+                    items(rows, key = { it.key }) { row ->
+                        FilterChip(
+                            selected = row.key == selected.key,
+                            onClick = { resting.now(row.key) },
+                            modifier = Modifier
+                                .homeFocus(focus, FocusKey(HomeRow.Recommendations.key, "$TAB_PREFIX${row.key}"))
+                                .then(if (row.key == selected.key) Modifier.focusRequester(selectedTab) else Modifier)
+                                .opensOnRest(
+                                    resting,
+                                    row.key,
+                                    isOpen = row.key == selected.key,
+                                    leave = Key.DirectionDown,
+                                ),
+                        ) { Text(if (row.isMix) stringResource(R.string.home_recommendations_mix) else row.title()) }
+                    }
                 }
             }
         }
-        // As tall as its tallest tab whichever is open: a tab of posters is taller than one of banners,
-        // and the page must not jump when the focus goes from one to the other.
-        val height = programRowHeight(selected.programs, size)
-        val tallest = rows.maxOf { programRowHeight(it.programs, size) }
-        ProgramRow(
-            rowKey = HomeRow.Recommendations.key,
-            programs = selected.programs,
-            height = height,
-            actions = actions,
-            modifier = Modifier.padding(bottom = programTileExtent(tallest) - programTileExtent(height)),
-        )
+        // As tall as the open tab: posters stand taller than banners. Switching, the cards grow or
+        // shrink to the new height and the new tab's programs fade in, so what is below moves in one
+        // smooth go instead of jumping.
+        val height by animateDpAsState(programRowHeight(selected.programs, size), tween(TAB_SWITCH_MS))
+        val shown = remember { Animatable(1f) }
+        var lastKey by remember { mutableStateOf(selected.key) }
+        val switching = selected.key != lastKey
+        LaunchedEffect(selected.key) {
+            if (selected.key == lastKey) return@LaunchedEffect
+            lastKey = selected.key
+            shown.snapTo(0f)
+            shown.animateTo(1f, tween(TAB_SWITCH_MS))
+        }
+        // Each tab is scrolled by itself (one scrolled far must not open the next in the middle of its
+        // own list), and keeps its place while the block is off the screen.
+        val scrolls = rememberSaveableStateHolder()
+        scrolls.SaveableStateProvider(selected.key) {
+            ProgramRow(
+                rowKey = HomeRow.Recommendations.key,
+                programs = selected.programs,
+                height = height,
+                actions = actions,
+                // Unseen until the fade starts, not shown whole for the frame before it.
+                modifier = Modifier.graphicsLayer { alpha = if (switching) 0f else shown.value },
+                above = tabs,
+                state = rememberLazyListState(),
+                look = look,
+            )
+        }
     }
 }
 
@@ -190,7 +344,7 @@ internal fun HoldOkHint(visible: Boolean, modifier: Modifier = Modifier) {
             modifier = Modifier
                 .background(
                     MaterialTheme.colorScheme.surface.copy(alpha = HINT_ALPHA),
-                    RoundedCornerShape(percent = PILL),
+                    PillShape,
                 )
                 .padding(start = 12.dp, end = 24.dp, top = 10.dp, bottom = 10.dp),
         ) {
@@ -212,11 +366,13 @@ internal fun HoldOkHint(visible: Boolean, modifier: Modifier = Modifier) {
     }
 }
 
-private fun ChannelRow.title(): String = "$app · $channel"
+/** "App · channel": a channel's tab, or its row's heading. */
+internal fun ChannelRow.title(): String = line(app, channel)
 
 private const val HINT_ALPHA = 0.94f
 
-/** Corner radius in percent that makes a pill. */
-internal const val PILL = 50
-private const val BANNER_ASPECT = 16f / 9f
+/** How much of the backdrop the "All apps" tile lets through: none quite, a little of a photo. */
 private const val TILE_ALPHA = 0.85f
+
+/** How long switching tabs of recommendations takes: the height and the fade of the new programs. */
+private const val TAB_SWITCH_MS = 220

@@ -8,7 +8,8 @@ internal class NavRequest(val settingsPage: String?, val onScreen: Boolean = fal
     /**
      * Home goes to its first tile: when asked to ([toStart]), or when Home was pressed with home
      * itself on screen ([onScreen] and [onHome]). Otherwise it goes back to the element it was
-     * left on: back from an app, from settings or all apps.
+     * left on: back from an app or from settings. Pressed on the "All apps" screen, Home closes it
+     * and goes to the first tile, as from home itself.
      */
     fun sendsHomeToStart(onHome: Boolean): Boolean = toStart || (onScreen && onHome)
 }

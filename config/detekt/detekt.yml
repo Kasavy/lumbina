@@ -21,6 +21,9 @@ style:
     excludeGuardClauses: true
   UnusedPrivateProperty:
     allowedNames: '_|ignored|expected|serialVersionUID'
+  UnusedImport:
+    # ktlint's own rule does not run in Spotless's step: unused imports piled up unnoticed.
+    active: true
 
 naming:
   FunctionNaming:

@@ -15,18 +15,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEvent
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Border
 import androidx.tv.material3.ListItem
@@ -34,7 +30,13 @@ import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.ProvideTextStyle
+import dev.lumbina.tv.core.designsystem.LocalTheme
+import dev.lumbina.tv.core.designsystem.colorOf
+import dev.lumbina.tv.core.domain.theme.ThemeRole
+import dev.lumbina.tv.core.ui.DIMMED_ALPHA
 import dev.lumbina.tv.core.ui.LAYERS_ARE_CHEAP
+import dev.lumbina.tv.core.ui.OkPress
+import dev.lumbina.tv.core.ui.okPress
 
 /**
  * A row of the settings: a headline with what is before, under and after it. OK runs [onClick],
@@ -43,7 +45,7 @@ import dev.lumbina.tv.core.ui.LAYERS_ARE_CHEAP
  *
  * Where layers are cheap ([LAYERS_ARE_CHEAP]) it is tv-material's `ListItem`, which grows a little
  * on focus and so takes a layer per row. Elsewhere it is [LightRow], which has none and shows
- * focus by its background alone: a page of rows is built noticeably faster on a Mi Box 4.
+ * focus by its background alone: a layer is a View there, slow to make for every row of a page.
  */
 @Suppress("LongParameterList") // one slot per part of the row, as ListItem has
 @Composable
@@ -61,22 +63,26 @@ internal fun SettingRow(
     dimmed: Boolean = false,
 ) {
     if (LAYERS_ARE_CHEAP) {
-        ListItem(
-            selected = selected,
-            enabled = enabled,
-            onClick = onClick,
-            onLongClick = onLongClick,
-            leadingContent = leadingContent?.let { content -> { content() } },
-            headlineContent = headlineContent,
-            supportingContent = supportingContent,
-            trailingContent = trailingContent,
-            border = if (outline != null) {
-                ListItemDefaults.border(focusedBorder = Border(BorderStroke(OUTLINE_WIDTH, outline)))
-            } else {
-                ListItemDefaults.border()
-            },
-            modifier = if (dimmed) modifier.alpha(DIMMED_ALPHA) else modifier,
-        )
+        val interactions = remember { MutableInteractionSource() }
+        CompositionLocalProvider(LocalRowFocused provides interactions.collectIsFocusedAsState()) {
+            ListItem(
+                selected = selected,
+                enabled = enabled,
+                onClick = onClick,
+                onLongClick = onLongClick,
+                leadingContent = leadingContent?.let { content -> { content() } },
+                headlineContent = headlineContent,
+                supportingContent = supportingContent,
+                trailingContent = trailingContent,
+                interactionSource = interactions,
+                border = if (outline != null) {
+                    ListItemDefaults.border(focusedBorder = Border(BorderStroke(OUTLINE_WIDTH, outline)))
+                } else {
+                    ListItemDefaults.border()
+                },
+                modifier = if (dimmed) modifier.alpha(DIMMED_ALPHA) else modifier,
+            )
+        }
     } else {
         LightRow(
             onClick = onClick,
@@ -117,7 +123,8 @@ private fun LightRow(
     dimmed: Boolean = false,
 ) {
     val interactions = remember { MutableInteractionSource() }
-    val focused by interactions.collectIsFocusedAsState()
+    val focusedState = interactions.collectIsFocusedAsState()
+    val focused by focusedState
     val colors = MaterialTheme.colorScheme
     val container = when {
         focused -> colors.inverseSurface
@@ -135,9 +142,9 @@ private fun LightRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
-            // OK is taken here, before the click below sees it: that one clicks on the key going
-            // down and knows no long press; it is there for a pointer and for accessibility.
-            .onPreviewKeyEvent { ok.handle(it, onClick.takeIf { enabled }, onLongClick.takeIf { enabled }) }
+            // OK is taken here, before the click below sees it (see OkPress); that one is there for
+            // a pointer and for accessibility. Focusable apart from it: a disabled row is focused too.
+            .okPress(ok, onClick.takeIf { enabled }, onLongClick.takeIf { enabled })
             .focusable(interactionSource = interactions)
             .combinedClickable(
                 interactionSource = interactions,
@@ -150,7 +157,7 @@ private fun LightRow(
             .then(if (focused && outline != null) Modifier.border(OUTLINE_WIDTH, outline, SHAPE) else Modifier)
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        CompositionLocalProvider(LocalContentColor provides content) {
+        CompositionLocalProvider(LocalContentColor provides content, LocalRowFocused provides focusedState) {
             leadingContent?.invoke()
             Column(Modifier.weight(1f)) {
                 ProvideTextStyle(MaterialTheme.typography.titleMedium, headlineContent)
@@ -161,43 +168,32 @@ private fun LightRow(
     }
 }
 
-/** One press of OK on a row: a click when released, unless it was held long enough to be a long click. */
-private class OkPress {
-    private var down = false
-    private var held = false
-
-    fun handle(event: KeyEvent, onClick: (() -> Unit)?, onLongClick: (() -> Unit)?): Boolean {
-        if (event.key != Key.DirectionCenter && event.key != Key.Enter && event.key != Key.NumPadEnter) return false
-        when (event.type) {
-            KeyEventType.KeyDown -> {
-                val first = event.nativeKeyEvent.repeatCount == 0
-                val long = down && !held && event.nativeKeyEvent.isLongPress
-                if (first) {
-                    down = true
-                    held = false
-                } else if (long && onLongClick != null) {
-                    held = true
-                    onLongClick()
-                }
-            }
-
-            // Only a press that began on this row: OK held while the focus arrived isn't a click here.
-            KeyEventType.KeyUp -> {
-                if (down && !held) onClick?.invoke()
-                down = false
-            }
-        }
-        return true
-    }
-}
-
 private val SHAPE = RoundedCornerShape(8.dp)
 private const val SELECTED_ALPHA = 0.4f
-private const val DIMMED_ALPHA = 0.4f
 
 /**
- * The color for a row's text that names a problem: the error color, except while the row is
- * [focused], when its light background makes that color pale; then the row's own.
+ * Whether the [SettingRow] around is focused: its text sits on the light background then. A local
+ * because the text that needs it is given to the row as a slot and can't be told otherwise. It
+ * holds the state itself, which stays the same object: a change of focus recomposes only the
+ * text that reads it, not every slot of the row.
+ */
+@Suppress("CompositionLocalAllowlist")
+internal val LocalRowFocused = staticCompositionLocalOf<State<Boolean>> { NotInRow }
+
+private object NotInRow : State<Boolean> {
+    override val value = false
+}
+
+/**
+ * The warning color, for a row's text that names something to fix. On a focused row the color
+ * would be pale on the light background; the row's own text color is used there.
  */
 @Composable
-internal fun problemColor(focused: Boolean): Color = if (focused) Color.Unspecified else MaterialTheme.colorScheme.error
+internal fun rowWarning(): Color = rowColor(LocalTheme.current.colorOf(ThemeRole.Warning))
+
+/** As [rowWarning], in the error color: for a row's text that names a problem, not a step to take. */
+@Composable
+internal fun rowProblem(): Color = rowColor(MaterialTheme.colorScheme.error)
+
+@Composable
+private fun rowColor(color: Color): Color = if (LocalRowFocused.current.value) Color.Unspecified else color

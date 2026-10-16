@@ -1,31 +1,46 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="theme-color" content="#0e1014">
 <title>Lumbina</title>
 <style>
-  :root { --bg: #0e1014; --card: #1b1f27; --key: #2a303b; --accent: #ffb74d; --text: #eceff4; --dim: #9aa3b2; }
+  /* Colors as the launcher's dark theme (core/domain Themes.Dark): background, text, secondary text, accent. */
+  :root { --bg: #0e1014; --card: #1b1f27; --key: #2a303b; --accent: #ffb547; --text: #e8e9ec; --dim: #aeb4be;
+          --good: #6fd6a8; --warn: #ffcc66; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body { margin: 0; background: var(--bg); color: var(--text); font: 16px system-ui, sans-serif;
          padding: env(safe-area-inset-top) 12px 24px; user-select: none; -webkit-user-select: none; }
-  h1 { font-size: 18px; font-weight: 600; margin: 14px 4px; display: flex; justify-content: space-between; }
-  #status { color: var(--dim); font-weight: 400; font-size: 14px; }
+  h1 { font-size: 18px; font-weight: 600; margin: 14px 4px; display: flex; justify-content: space-between;
+       align-items: center; gap: 12px; }
+  #name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #status { color: var(--dim); font-weight: 400; font-size: 14px; display: flex; align-items: center; gap: 6px;
+            flex: 0 0 auto; }
+  #dot { width: 9px; height: 9px; border-radius: 50%; background: var(--dim); }
+  #dot.on { background: var(--good); }
+  #dot.off { background: var(--warn); }
   section { background: var(--card); border-radius: 18px; padding: 14px; margin-bottom: 12px; }
   .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .row { display: flex; gap: 10px; margin-top: 10px; }
   .row > * { flex: 1; }
   button { background: var(--key); color: var(--text); border: 0; border-radius: 14px; font-size: 20px;
-           padding: 16px 0; touch-action: manipulation;
-           -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-  button:active { background: var(--accent); color: #000; }
+           padding: 16px 0; touch-action: manipulation; display: flex; align-items: center; justify-content: center;
+           -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; transition: background .08s; }
+  /* Pressed, by the page's own word: iPhones have no vibration, and :active lets go too soon. */
+  button.down { background: var(--accent); color: #000; }
   button.ok { background: var(--accent); color: #000; font-weight: 700; }
+  button.ok.down { filter: brightness(.8); }
+  button.lost { background: var(--warn); color: #000; }
+  button svg { width: 26px; height: 26px; fill: currentColor; pointer-events: none; }
   .blank { visibility: hidden; }
-  #pad { height: 42vh; border-radius: 14px; background: #232833; display: flex; align-items: center;
-         justify-content: center; color: var(--dim); text-align: center; touch-action: none; font-size: 14px; }
-  input[type=text], input[type=url], input[type=password] { width: 100%; background: #0e1014; color: var(--text); border: 1px solid #333a46;
-         border-radius: 12px; padding: 14px; font-size: 16px; user-select: text; -webkit-user-select: text; }
+  #pad, #padInstead { height: 42vh; border-radius: 14px; background: #232833; display: flex; align-items: center;
+         justify-content: center; color: var(--dim); text-align: center; touch-action: none; font-size: 14px;
+         white-space: pre-line; padding: 0 16px; }
+  #padInstead { height: 30vh; }
+  input[type=text], input[type=url], input[type=password] { width: 100%; background: #0e1014; color: var(--text);
+         border: 1px solid #333a46; border-radius: 12px; padding: 14px; font-size: 16px; user-select: text;
+         -webkit-user-select: text; }
   .field { display: flex; gap: 10px; }
   .field button { flex: 0 0 auto; padding: 0 18px; font-size: 16px; }
   label { color: var(--dim); font-size: 14px; display: flex; align-items: center; gap: 8px; margin-top: 10px; }
@@ -33,11 +48,16 @@
   .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
   .tabs button { font-size: 15px; padding: 10px 0; flex: 1; }
   .tabs button.on { background: var(--accent); color: #000; }
-  .hidden { display: none; }
+  summary { color: var(--dim); font-size: 14px; padding: 2px 0; }
+  details[open] summary { margin-bottom: 10px; }
+  .hidden { display: none !important; }
+  #gone { position: fixed; inset: 0; background: var(--bg); padding: 28vh 28px 0; text-align: center; }
+  #gone h2 { font-size: 22px; margin: 0 0 14px; }
+  #gone p { color: var(--dim); line-height: 1.5; margin: 0; }
 </style>
 </head>
 <body>
-<h1><span>Lumbina</span><span id="status"></span></h1>
+<h1><span id="name">Lumbina</span><span id="status"><span id="dot"></span><span id="state"></span></span></h1>
 
 <div class="tabs">
   <button data-tab="remote" class="on" data-t="remote"></button>
@@ -47,217 +67,332 @@
 
 <div id="tab-remote">
   <section>
-    <div class="grid">
-      <span class="blank"></span><button data-key="up">▲</button><span class="blank"></span>
-      <button data-key="left">◀</button><button data-key="ok" class="ok">OK</button><button data-key="right">▶</button>
-      <span class="blank"></span><button data-key="down">▼</button><span class="blank"></span>
+    <div id="dpad" class="grid">
+      <span class="blank"></span><button data-key="up" data-repeat>▲</button><span class="blank"></span>
+      <button data-key="left" data-repeat>◀</button><button data-key="ok" class="ok">OK</button><button data-key="right" data-repeat>▶</button>
+      <span class="blank"></span><button data-key="down" data-repeat>▼</button><span class="blank"></span>
+    </div>
+    <div id="noArrows" class="hidden">
+      <div class="hint" style="margin:0 0 10px" data-t="noArrows"></div>
+      <div id="padInstead" data-pad data-t="padHint"></div>
     </div>
     <div class="row">
-      <button data-key="back">↩</button><button data-key="home">⌂</button>
+      <button data-key="back" data-icon="back"></button><button data-key="home" data-icon="home"></button>
     </div>
   </section>
   <section>
+    <div class="field"><input id="text" type="text" autocomplete="off"><button id="sendText" data-t="send"></button></div>
+    <div class="hint" id="textHint"></div>
+  </section>
+  <section>
     <div class="row" style="margin-top:0">
-      <button data-key="previous">⏮</button><button data-key="pause">⏸</button>
-      <button data-key="play">▶</button><button data-key="next">⏭</button>
+      <button data-key="previous" data-icon="previous"></button><button data-key="playpause" data-icon="playpause"></button>
+      <button data-key="next" data-icon="next"></button>
     </div>
     <div class="row">
-      <button data-key="voldown">🔉</button><button data-key="mute">🔇</button><button data-key="volup">🔊</button>
+      <button data-key="voldown" data-icon="voldown" data-repeat></button><button data-key="mute" data-icon="mute"></button>
+      <button data-key="volup" data-icon="volup" data-repeat></button>
     </div>
   </section>
 </div>
 
 <div id="tab-pad" class="hidden">
   <section>
-    <div id="pad" data-t="padHint"></div>
+    <div id="pad" data-pad data-t="padHint"></div>
     <div class="row">
-      <button data-key="back">↩</button><button id="longclick" data-t="hold"></button><button data-key="home">⌂</button>
+      <button data-key="back" data-icon="back"></button><button id="longclick" data-t="hold" style="font-size:16px"></button>
+      <button data-key="home" data-icon="home"></button>
     </div>
   </section>
 </div>
 
 <div id="tab-more" class="hidden">
   <section>
-    <div class="field"><input id="text" type="text" autocomplete="off"><button id="sendText" data-t="send"></button></div>
-    <div class="hint" data-t="textHint"></div>
-  </section>
-  <section>
     <div class="field"><input id="link" type="url" autocomplete="off" placeholder="https://"><button id="sendLink" data-t="open"></button></div>
-    <div class="hint" data-t="linkHint"></div>
+    <div class="hint" id="linkHint"></div>
   </section>
   <section>
     <input id="file" type="file" accept="image/*,video/*" class="hidden">
-    <button id="pick" style="width:100%" data-t="upload"></button>
+    <button id="pick" style="width:100%;font-size:16px" data-t="upload"></button>
     <label><input id="asWallpaper" type="checkbox" checked><span data-t="asWallpaper"></span></label>
     <div class="hint" id="uploadStatus"></div>
   </section>
-  <section>
-    <div class="hint" data-t="keysTitle"></div>
-    <div class="field"><input id="openaiKey" type="password" autocomplete="off" placeholder="OpenAI"><button id="saveOpenai" data-t="save"></button></div>
-    <div class="field" style="margin-top:10px"><input id="yandexKey" type="password" autocomplete="off" placeholder="Yandex SpeechKit"><button id="saveYandex" data-t="save"></button></div>
-    <div class="hint" data-t="keysHint"></div>
-    <div class="hint" id="keysStatus"></div>
+  <section id="keys" class="hidden">
+    <details>
+      <summary data-t="keysTitle"></summary>
+      <div class="field"><input id="openaiKey" type="password" autocomplete="off" placeholder="OpenAI"><button id="saveOpenai" data-t="save"></button></div>
+      <div class="field" style="margin-top:10px"><input id="yandexKey" type="password" autocomplete="off" placeholder="Yandex SpeechKit"><button id="saveYandex" data-t="save"></button></div>
+      <div class="hint" data-t="keysHint"></div>
+      <div class="hint" id="keysStatus"></div>
+    </details>
   </section>
 </div>
+
+<div id="gone" class="hidden"><h2 data-t="goneTitle"></h2><p data-t="goneText"></p></div>
 
 <script>
 (function () {
   var ru = (navigator.language || '').toLowerCase().indexOf('ru') === 0;
+  document.documentElement.lang = ru ? 'ru' : 'en';
   var T = ru ? {
     remote: 'Пульт', touchpad: 'Тачпад', more: 'Ещё', hold: 'Удержать',
-    padHint: 'Водите пальцем — курсор на экране.\nКасание — нажать, два пальца — прокрутка.',
-    send: 'Ввести', textHint: 'Текст попадёт в поле ввода на экране (поиск и т. п.).',
-    open: 'Открыть', linkHint: 'Ссылки YouTube откроются в приложении, выбранном для YouTube.',
+    padHint: 'Водите пальцем, курсор на экране.\nКасание: нажать. Два пальца: прокрутка.',
+    send: 'Ввести', textHint: 'Попадёт в поле ввода на экране устройства', typed: 'Введено',
+    noField: 'На экране нет поля ввода',
+    open: 'Открыть', linkHint: 'Ссылки YouTube откроются в приложении, выбранном для YouTube',
+    opened: 'Открыто', notOpened: 'Не удалось открыть ссылку',
     upload: 'Отправить фото или видео', asWallpaper: 'Сразу поставить на обои',
-    ok: 'подключено', noKey: 'откройте ссылку из QR-кода заново', offline: 'нет связи',
-    sending: 'Отправка… ', saved: 'Сохранено', failed: 'Не получилось',
-    noArrows: 'стрелки на этом ТВ не работают — используйте тачпад',
-    keysTitle: 'Облачное распознавание речи: ключи API', save: 'Сохранить',
-    keysHint: 'Ключ хранится на ТВ зашифрованным и сюда не возвращается. Сервис выбирается в настройках Lumbina, в разделе «Голосовой ввод». Чтобы удалить ключ, сохраните пустое поле.',
-    keySaved: 'Ключ сохранён', keyRemoved: 'Ключ удалён'
+    online: 'на связи', offline: 'нет связи',
+    sending: 'Отправка, ', saved: 'Сохранено', notSent: 'Не удалось отправить', failed: 'Не получилось',
+    noArrows: 'Стрелки на этом устройстве не работают',
+    keysTitle: 'Ключи сервисов распознавания', save: 'Сохранить',
+    keysHint: 'Ключ хранится на устройстве зашифрованным и сюда не возвращается. Сервис выбирается в настройках Lumbina, в разделе «Голосовой ввод». Чтобы удалить ключ, сохраните пустое поле.',
+    keySaved: 'Ключ сохранён', keyRemoved: 'Ключ удалён',
+    goneTitle: 'Ссылка больше не работает',
+    goneText: 'Откройте Lumbina на устройстве: настройки, раздел «Пульт на телефоне», и наведите камеру на код.'
   } : {
     remote: 'Remote', touchpad: 'Touchpad', more: 'More', hold: 'Hold',
-    padHint: 'Move your finger to move the pointer.\nTap to click, two fingers to scroll.',
-    send: 'Type', textHint: 'The text goes into the text field on the screen (search etc.).',
-    open: 'Open', linkHint: 'YouTube links open in the app chosen for YouTube.',
+    padHint: 'Move your finger to move the pointer.\nTap to click. Two fingers to scroll.',
+    send: 'Type', textHint: 'Goes into the text field on the device’s screen', typed: 'Typed',
+    noField: 'There is no text field on the screen',
+    open: 'Open', linkHint: 'YouTube links open in the app chosen for YouTube',
+    opened: 'Opened', notOpened: 'Couldn’t open the link',
     upload: 'Send a photo or video', asWallpaper: 'Use as wallpaper right away',
-    ok: 'connected', noKey: 'open the link from the QR code again', offline: 'no connection',
-    sending: 'Sending… ', saved: 'Saved', failed: 'Did not work',
-    noArrows: 'arrows don\'t work on this TV — use the touchpad',
-    keysTitle: 'Cloud speech recognition: API keys', save: 'Save',
-    keysHint: 'The key is kept on the TV encrypted and never shown back here. Choose the service in Lumbina’s settings, under “Voice input”. To remove a key, save an empty field.',
-    keySaved: 'Key saved', keyRemoved: 'Key removed'
+    online: 'connected', offline: 'no connection',
+    sending: 'Sending, ', saved: 'Saved', notSent: 'Couldn’t send', failed: 'Did not work',
+    noArrows: 'Arrows don’t work on this device',
+    keysTitle: 'Speech service keys', save: 'Save',
+    keysHint: 'The key is kept on the device encrypted and never shown back here. Choose the service in Lumbina’s settings, under “Voice input”. To remove a key, save an empty field.',
+    keySaved: 'Key saved', keyRemoved: 'Key removed',
+    goneTitle: 'This link no longer works',
+    goneText: 'Open Lumbina on the device: settings, “Phone remote”, and point the camera at the code.'
+  };
+  // Lumbina's own signs, the same on every phone: emoji differ from one to the next.
+  var ICONS = {
+    back: 'M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z',
+    home: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z',
+    previous: 'M6 6h2v12H6zm3.5 6l8.5 6V6z',
+    next: 'M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z',
+    playpause: 'M4 6v12l8-6zM14 6h3v12h-3zM19 6h3v12h-3z',
+    voldown: 'M18.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z',
+    volup: 'M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z',
+    mute: 'M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z'
   };
   document.querySelectorAll('[data-t]').forEach(function (el) { el.textContent = T[el.dataset.t]; });
-  var status = document.getElementById('status');
+  document.querySelectorAll('[data-icon]').forEach(function (el) {
+    el.innerHTML = '<svg viewBox="0 0 24 24"><path d="' + ICONS[el.dataset.icon] + '"/></svg>';
+  });
+  function $(id) { return document.getElementById(id); }
+  var dot = $('dot'), state = $('state');
 
   var params = new URLSearchParams(location.search);
   var key = params.get('k') || localStorage.getItem('lumbinaKey') || '';
   if (params.get('k')) localStorage.setItem('lumbinaKey', key);
 
+  function connected(on) {
+    dot.className = on ? 'on' : 'off';
+    state.textContent = on ? T.online : T.offline;
+  }
+  // Every call says whether the device answered; a key the device no longer takes ends the page.
   function call(command, query, body) {
     var url = '/api/' + command + (query ? '?' + query : '');
     return fetch(url, { method: 'POST', body: body, headers: { 'X-Key': key } })
       .then(function (r) {
-        status.textContent = r.status === 403 ? T.noKey : T.ok;
+        if (r.status === 403) { $('gone').classList.remove('hidden'); return { ok: false, gone: true }; }
+        connected(true);
         return r.ok ? r.json() : { ok: false };
       })
-      .catch(function () { status.textContent = T.offline; return { ok: false }; });
+      .catch(function () { connected(false); return { ok: false, lost: true }; });
   }
+
+  // What this device can do: asked once, and the page shows nothing that would do nothing.
+  call('info').then(function (info) {
+    if (info.name) { $('name').textContent = info.name; document.title = info.name; }
+    if (info.mic) $('keys').classList.remove('hidden');
+    if (info.ok && info.arrows === false) {
+      $('dpad').classList.add('hidden');
+      $('noArrows').classList.remove('hidden');
+      document.querySelector('[data-tab="pad"]').classList.add('hidden');
+    }
+    holdOk = !!info.holdOk;
+  });
+  var holdOk = false;
+  // "Connected" must not hang there after the device is turned off.
+  var pinging = false;
+  setInterval(function () {
+    if (document.hidden || pinging) return;
+    pinging = true;
+    call('ping').then(function () { pinging = false; });
+  }, 5000);
 
   document.querySelectorAll('.tabs button').forEach(function (tab) {
     tab.addEventListener('click', function () {
       document.querySelectorAll('.tabs button').forEach(function (b) { b.classList.toggle('on', b === tab); });
       ['remote', 'pad', 'more'].forEach(function (name) {
-        document.getElementById('tab-' + name).classList.toggle('hidden', name !== tab.dataset.tab);
+        $('tab-' + name).classList.toggle('hidden', name !== tab.dataset.tab);
       });
     });
   });
 
-  // Home as on the remote: a tap opens Lumbina, two taps the recent apps, holding it the quick menu.
-  var HOLD_MS = 500, DOUBLE_MS = 300;
+  function buzz(ms) { if (navigator.vibrate) navigator.vibrate(ms); }
+  // A press that did not reach the device blinks in the warning's color.
+  function press(button, name) {
+    return call('key', 'b=' + name).then(function (r) {
+      if (r.lost && button) {
+        button.classList.add('lost');
+        setTimeout(function () { button.classList.remove('lost'); }, 400);
+      }
+      return r;
+    });
+  }
+
+  var HOLD_MS = 500, DOUBLE_MS = 300, REPEAT_AFTER_MS = 400, REPEAT_MS = 150;
+  // Home as on the remote: a tap, two taps and a hold are three things.
   document.querySelectorAll('[data-key="home"]').forEach(function (b) {
     var holdTimer = null, tapTimer = null, held = false;
-    function press(key) {
-      if (navigator.vibrate) navigator.vibrate(key === 'home' ? 10 : 30);
-      call('key', 'b=' + key);
+    b.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    b.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      b.classList.add('down');
+      held = false;
+      holdTimer = setTimeout(function () { held = true; holdTimer = null; buzz(30); press(b, 'homelong'); }, HOLD_MS);
+    });
+    function release(e) {
+      e.preventDefault();
+      b.classList.remove('down');
+      if (!holdTimer) return; // held already (or never pressed): nothing more on release
+      clearTimeout(holdTimer); holdTimer = null;
+      if (held) return;
+      if (tapTimer) { clearTimeout(tapTimer); tapTimer = null; buzz(30); press(b, 'homedouble'); return; }
+      tapTimer = setTimeout(function () { tapTimer = null; buzz(10); press(b, 'home'); }, DOUBLE_MS);
+    }
+    b.addEventListener('pointerup', release);
+    b.addEventListener('pointercancel', function () {
+      b.classList.remove('down');
+      if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+    });
+  });
+
+  // The other buttons: pressed on the way down. Arrows and volume repeat while held; OK held is a
+  // hold of OK on the remote, where the device lets Lumbina do that.
+  document.querySelectorAll('[data-key]:not([data-key="home"])').forEach(function (b) {
+    var name = b.dataset.key, repeats = b.hasAttribute('data-repeat'), timer = null, interval = null, held = false;
+    function stop() {
+      clearTimeout(timer); timer = null; interval = null;
+      b.classList.remove('down');
     }
     b.addEventListener('contextmenu', function (e) { e.preventDefault(); });
     b.addEventListener('pointerdown', function (e) {
       e.preventDefault();
+      b.classList.add('down');
       held = false;
-      holdTimer = setTimeout(function () { held = true; holdTimer = null; press('homelong'); }, HOLD_MS);
+      if (name === 'ok' && holdOk) {
+        timer = setTimeout(function () { held = true; timer = null; buzz(30); press(b, 'oklong'); }, HOLD_MS);
+        return;
+      }
+      buzz(10);
+      press(b, name);
+      // One after another: the next press goes once the device has answered the last, never several at once.
+      function again() { press(b, name).then(function () { if (interval) timer = setTimeout(again, REPEAT_MS); }); }
+      if (repeats) timer = setTimeout(function () { interval = true; again(); }, REPEAT_AFTER_MS);
     });
-    function release(e) {
+    b.addEventListener('pointerup', function (e) {
       e.preventDefault();
-      if (!holdTimer) return; // held already (or never pressed): nothing more on release
-      clearTimeout(holdTimer); holdTimer = null;
-      if (held) return;
-      if (tapTimer) { clearTimeout(tapTimer); tapTimer = null; press('homedouble'); return; }
-      tapTimer = setTimeout(function () { tapTimer = null; press('home'); }, DOUBLE_MS);
-    }
-    b.addEventListener('pointerup', release);
-    b.addEventListener('pointercancel', function () { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } });
-  });
-
-  document.querySelectorAll('[data-key]:not([data-key="home"])').forEach(function (b) {
-    b.addEventListener('click', function () {
-      if (navigator.vibrate) navigator.vibrate(10);
-      call('key', 'b=' + b.dataset.key).then(function (r) {
-        // The TV says when its Android can't take arrows; the touchpad works everywhere.
-        if (r.error === 'sdk') status.textContent = T.noArrows;
-      });
+      var short = name === 'ok' && holdOk && !held;
+      stop();
+      if (short) { buzz(10); press(b, name); }
     });
+    b.addEventListener('pointercancel', stop);
+    b.addEventListener('pointerleave', stop);
   });
 
-  // Touchpad: moves are summed and sent at most every 40 ms; a short touch without movement clicks.
-  var pad = document.getElementById('pad'), dx = 0, dy = 0, last = null, moved = 0, fingers = 0, started = 0, timer = null;
-  function flush() {
-    timer = null;
-    if (fingers >= 2) { if (dy) call('scroll', 'dy=' + Math.round(dy)); }
-    else if (dx || dy) call('move', 'dx=' + Math.round(dx) + '&dy=' + Math.round(dy));
-    dx = 0; dy = 0;
-  }
-  pad.addEventListener('touchstart', function (e) {
-    e.preventDefault();
-    fingers = e.touches.length; last = e.touches[0]; moved = 0; started = Date.now();
-  }, { passive: false });
-  pad.addEventListener('touchmove', function (e) {
-    e.preventDefault();
-    var t = e.touches[0];
-    if (last) { dx += t.clientX - last.clientX; dy += t.clientY - last.clientY; moved += Math.abs(t.clientX - last.clientX) + Math.abs(t.clientY - last.clientY); }
-    last = t;
-    if (!timer) timer = setTimeout(flush, 40);
-  }, { passive: false });
-  pad.addEventListener('touchend', function (e) {
-    e.preventDefault();
-    if (e.touches.length === 0) {
-      if (moved < 8 && fingers === 1 && Date.now() - started < 400) call('click');
-      last = null;
+  // Touchpad, by a finger or a mouse: moves are summed and sent at most every 40 ms; a short
+  // touch without movement clicks; two fingers, or the wheel, scroll.
+  document.querySelectorAll('[data-pad]').forEach(function (pad) {
+    var dx = 0, dy = 0, last = null, moved = 0, fingers = 0, started = 0, timer = null;
+    function flush() {
+      timer = null;
+      if (fingers >= 2) { if (dy) call('scroll', 'dy=' + Math.round(dy)); }
+      else if (dx || dy) call('move', 'dx=' + Math.round(dx) + '&dy=' + Math.round(dy));
+      dx = 0; dy = 0;
     }
-  }, { passive: false });
-  document.getElementById('longclick').addEventListener('click', function () { call('longclick'); });
+    function moveTo(point) {
+      if (last) { dx += point.clientX - last.clientX; dy += point.clientY - last.clientY; moved += Math.abs(point.clientX - last.clientX) + Math.abs(point.clientY - last.clientY); }
+      last = point;
+      if (!timer) timer = setTimeout(flush, 40);
+    }
+    pad.addEventListener('touchstart', function (e) {
+      e.preventDefault();
+      fingers = e.touches.length; last = e.touches[0]; moved = 0; started = Date.now();
+    }, { passive: false });
+    pad.addEventListener('touchmove', function (e) { e.preventDefault(); moveTo(e.touches[0]); }, { passive: false });
+    pad.addEventListener('touchend', function (e) {
+      e.preventDefault();
+      if (e.touches.length === 0) {
+        if (moved < 8 && fingers === 1 && Date.now() - started < 400) call('click');
+        last = null;
+      }
+    }, { passive: false });
+    var mouse = false;
+    pad.addEventListener('mousedown', function (e) { mouse = true; fingers = 1; last = e; moved = 0; started = Date.now(); });
+    pad.addEventListener('mousemove', function (e) { if (mouse) moveTo(e); });
+    window.addEventListener('mouseup', function () {
+      if (!mouse) return;
+      mouse = false;
+      if (moved < 8 && Date.now() - started < 400) call('click');
+      last = null;
+    });
+    pad.addEventListener('wheel', function (e) { e.preventDefault(); call('scroll', 'dy=' + Math.round(-e.deltaY)); }, { passive: false });
+  });
+  $('longclick').addEventListener('click', function () { call('longclick'); });
 
-  function sendField(id, command) {
-    var input = document.getElementById(id);
+  // A line under a field says what came of it, for two seconds, then what the field is for again.
+  function sendField(id, command, hintId, usual, done, failed) {
+    var input = $(id), hint = $(hintId);
     if (!input.value.trim()) return;
-    call(command, '', input.value).then(function (r) { if (r.ok) input.value = ''; });
+    call(command, '', input.value).then(function (r) {
+      if (r.ok) input.value = '';
+      hint.textContent = r.ok ? done : failed;
+      setTimeout(function () { hint.textContent = usual; }, 2000);
+    });
   }
-  document.getElementById('sendText').addEventListener('click', function () { sendField('text', 'text'); });
-  document.getElementById('text').addEventListener('keydown', function (e) { if (e.key === 'Enter') sendField('text', 'text'); });
-  document.getElementById('sendLink').addEventListener('click', function () { sendField('link', 'link'); });
+  $('textHint').textContent = T.textHint;
+  $('linkHint').textContent = T.linkHint;
+  function sendText() { sendField('text', 'text', 'textHint', T.textHint, T.typed, T.noField); }
+  function sendLink() { sendField('link', 'link', 'linkHint', T.linkHint, T.opened, T.notOpened); }
+  $('sendText').addEventListener('click', sendText);
+  $('text').addEventListener('keydown', function (e) { if (e.key === 'Enter') sendText(); });
+  $('sendLink').addEventListener('click', sendLink);
+  $('link').addEventListener('keydown', function (e) { if (e.key === 'Enter') sendLink(); });
 
   function saveKey(id, provider) {
-    var input = document.getElementById(id), keysStatus = document.getElementById('keysStatus');
+    var input = $(id), keysStatus = $('keysStatus');
     var removing = !input.value.trim();
     call('speechkey', 'p=' + provider, input.value).then(function (r) {
       keysStatus.textContent = r.ok ? (removing ? T.keyRemoved : T.keySaved) : T.failed;
       if (r.ok) input.value = '';
     });
   }
-  document.getElementById('saveOpenai').addEventListener('click', function () { saveKey('openaiKey', 'openai'); });
-  document.getElementById('saveYandex').addEventListener('click', function () { saveKey('yandexKey', 'yandex'); });
-  document.getElementById('link').addEventListener('keydown', function (e) { if (e.key === 'Enter') sendField('link', 'link'); });
+  $('saveOpenai').addEventListener('click', function () { saveKey('openaiKey', 'openai'); });
+  $('saveYandex').addEventListener('click', function () { saveKey('yandexKey', 'yandex'); });
 
-  var file = document.getElementById('file'), uploadStatus = document.getElementById('uploadStatus');
-  document.getElementById('pick').addEventListener('click', function () { file.click(); });
+  var file = $('file'), uploadStatus = $('uploadStatus');
+  $('pick').addEventListener('click', function () { file.click(); });
   file.addEventListener('change', function () {
     var f = file.files[0];
     if (!f) return;
-    var wallpaper = document.getElementById('asWallpaper').checked ? '1' : '0';
+    var wallpaper = $('asWallpaper').checked ? '1' : '0';
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/upload?wallpaper=' + wallpaper + '&name=' + encodeURIComponent(f.name));
     xhr.setRequestHeader('X-Key', key);
     xhr.upload.onprogress = function (e) { if (e.lengthComputable) uploadStatus.textContent = T.sending + Math.round(e.loaded * 100 / e.total) + '%'; };
     xhr.onload = function () {
       var ok = false; try { ok = JSON.parse(xhr.responseText).ok; } catch (ignored) {}
-      uploadStatus.textContent = ok ? T.saved : T.failed; file.value = '';
+      uploadStatus.textContent = ok ? T.saved : T.notSent; file.value = '';
     };
-    xhr.onerror = function () { uploadStatus.textContent = T.failed; };
+    xhr.onerror = function () { uploadStatus.textContent = T.notSent; };
     xhr.send(f);
   });
-
-  call('ping');
 })();
 </script>
 </body>

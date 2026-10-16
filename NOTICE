@@ -56,16 +56,14 @@ Speech models (Vosk small models, e.g. vosk-model-small-ru, vosk-model-small-en-
 bundled; they are downloaded at runtime from alphacephei.com (or a mirror) under their own
 licenses.
 
-Screenshots (docs/screenshots). The stills in "continue watching" are from the Blender
-Foundation's open movies, taken from Wikimedia Commons:
-- Tears of Steel: (CC) Blender Foundation, mango.blender.org, CC BY 3.0
-- Spring: (CC) Blender Foundation, cloud.blender.org/spring, CC BY 4.0
-- Caminandes: Llamigos: (CC) Blender Foundation, caminandes.com, CC BY 4.0
-- Elephants Dream: (CC) Blender Foundation, orange.blender.org, CC BY 2.5
-- Charge: (CC) Blender Foundation, studio.blender.org, CC BY 4.0
-The wallpaper and the screensaver show the fallback photos listed above. The app tiles show
-the names and banners of those apps, which belong to their owners and are shown as a launcher
-shows them; Lumbina is not affiliated with any of them.
+Screenshots (docs/screenshots). The posters, stills and titles in the rows are published by the
+apps installed on the device (through the Android TV provider): "continue watching" and the
+"Кино" row by a small demo app with posters and stills from The Movie Database (TMDB), the other
+rows by the apps they are named after. They belong to their rights holders. The wallpaper on the
+home screen is Bing's photo of the day and belongs to its author; the screensaver shows a
+fallback photo listed above. The app tiles show the names and banners of those apps, which
+belong to their owners. All of them are shown as a launcher shows them; Lumbina is not
+affiliated with any of them, nor with TMDB.
 
 Data shown by Lumbina:
 

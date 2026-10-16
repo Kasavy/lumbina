@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.SystemClock
+import android.view.KeyEvent
 import androidx.core.content.ContextCompat
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.domain.text.DeliverText
@@ -27,9 +28,11 @@ import kotlinx.coroutines.launch
  *   → drives the quick menu.
  * - `adb shell am broadcast -a dev.lumbina.tv.debug.SLEEP_IN --ei seconds 70` → a short sleep timer.
  * - `adb shell am broadcast -a dev.lumbina.tv.debug.SAY --es text "открой кинопоиск"` → as if spoken:
- *   a command or typed text.
+ *   a command or typed text, answered on the voice plate.
  * - `adb shell am broadcast -a dev.lumbina.tv.debug.MIC --es key down|up|tap` → the remote's mic key,
  *   so what its microphone gives is heard.
+ * - `adb shell am broadcast -a dev.lumbina.tv.debug.KEY --ei code 82 --es key down|up` → a button of
+ *   the remote, by its Android key code, as the service would see it.
  * - `adb shell am broadcast -a dev.lumbina.tv.debug.HEAR` → recognizes `files/hear.wav` in the app's
  *   external storage (16 kHz mono 16-bit, pushed with adb) and handles it as if spoken.
  */
@@ -38,6 +41,8 @@ internal class DebugCommands(
     private val scope: CoroutineScope,
     private val deliver: () -> DeliverText,
     private val say: () -> HandleUtterance,
+    /** Shows what came of a said phrase as the voice plate would, and takes the plate's keys. */
+    private val answers: VoiceAnswers,
     private val hear: suspend (File) -> String?,
     private val switcher: (String) -> Unit,
     private val quickMenu: (String) -> Unit,
@@ -46,6 +51,15 @@ internal class DebugCommands(
 ) {
     /** Presses the remote's mic key; set once the key's handling is built. */
     var mic: (String) -> Unit = {}
+
+    /**
+     * Presses a button of the remote as the service would see it (keys sent over adb go past the
+     * service): a key code, and "down" or "up". Set once the keys' handling is built.
+     */
+    var key: (Int, String) -> Unit = { _, _ -> }
+
+    /** The keys of the plate a said phrase left on screen; true if taken. */
+    fun onKey(event: KeyEvent): Boolean = answers.onKey(event)
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -57,7 +71,9 @@ internal class DebugCommands(
 
                 ACTION_SAY -> scope.launch {
                     val text = intent.getStringExtra("text").orEmpty()
-                    log.log(TAG, "say \"$text\" → ${say()(text)}")
+                    val outcome = say()(text)
+                    log.log(TAG, "say \"$text\" → $outcome")
+                    answers.report(outcome)
                 }
 
                 ACTION_HEAR -> scope.launch {
@@ -69,6 +85,8 @@ internal class DebugCommands(
                 }
 
                 ACTION_MIC -> mic(intent.getStringExtra("key").orEmpty())
+
+                ACTION_KEY -> key(intent.getIntExtra("code", 0), intent.getStringExtra("key").orEmpty())
 
                 ACTION_SWITCHER -> switcher(intent.getStringExtra("key").orEmpty())
 
@@ -98,6 +116,7 @@ internal class DebugCommands(
             addAction(ACTION_SAY)
             addAction(ACTION_HEAR)
             addAction(ACTION_MIC)
+            addAction(ACTION_KEY)
         }
         ContextCompat.registerReceiver(
             service,
@@ -123,6 +142,7 @@ internal class DebugCommands(
         const val ACTION_SAY = "dev.lumbina.tv.debug.SAY"
         const val ACTION_HEAR = "dev.lumbina.tv.debug.HEAR"
         const val ACTION_MIC = "dev.lumbina.tv.debug.MIC"
+        const val ACTION_KEY = "dev.lumbina.tv.debug.KEY"
         const val DEFAULT_SLEEP_SECONDS = 70
     }
 }

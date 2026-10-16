@@ -10,6 +10,7 @@ import androidx.annotation.RequiresApi
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.domain.diagnostics.ReportExporter
+import dev.lumbina.tv.core.domain.phone.PhoneRemoteSettings
 import java.io.File
 import java.io.IOException
 import javax.inject.Inject
@@ -28,11 +29,21 @@ internal class AndroidReportExporter @Inject constructor(
 ) : ReportExporter {
 
     override fun save(fileName: String, text: String): String? = try {
+        forPhone(text)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) toDownloads(fileName, text) else toAppFolder(fileName, text)
     } catch (e: IOException) {
         failed(e)
     } catch (@Suppress("TooGenericExceptionCaught") e: RuntimeException) {
         failed(e)
+    }
+
+    /**
+     * The last report, also where the phone remote page's server (another process of Lumbina's)
+     * can read it and hand it to a phone. Not being able to keep it is no failure of the saving.
+     */
+    private fun forPhone(text: String) {
+        runCatching { File(context.filesDir, PhoneRemoteSettings.REPORT_FILE).writeText(text) }
+            .onFailure { log.log(TAG, "report not kept for the phone: $it") }
     }
 
     private fun failed(e: Exception): String? {

@@ -1,5 +1,6 @@
 package dev.lumbina.tv.core.domain.diagnostics
 
+import dev.lumbina.tv.core.domain.MILLIS_PER_SECOND
 import dev.lumbina.tv.core.domain.access.AdbState
 import dev.lumbina.tv.core.domain.access.LocalAdb
 import dev.lumbina.tv.core.domain.device.DeviceAnswer
@@ -57,7 +58,6 @@ class AskDevice(
 
     private companion object {
         const val ANSWER_LINES = 60
-        const val MILLIS_PER_SECOND = 1_000
 
         /** How the system holds its TV provider: there, hidden or turned off for the user. */
         const val SYSTEM_TV_PROVIDER =

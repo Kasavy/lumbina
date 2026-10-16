@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.view.KeyEvent
 import androidx.core.content.ContextCompat
 import dev.lumbina.tv.core.common.LumbinaActions
 import dev.lumbina.tv.core.common.LumbinaLog
@@ -92,6 +93,9 @@ internal class RemoteVoice(
     fun release() {
         controller?.stop()
     }
+
+    /** A notice of voice input's that OK acts on has the OK while it shows; true if taken. */
+    fun onKey(event: KeyEvent): Boolean = controller?.onKey(event) == true
 
     /** What [listen] started was not meant: drops it quietly. */
     fun cancel() {

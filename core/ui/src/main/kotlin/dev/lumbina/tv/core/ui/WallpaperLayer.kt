@@ -45,13 +45,16 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
+import dev.lumbina.tv.core.designsystem.LocalTheme
+import dev.lumbina.tv.core.designsystem.colorOf
 import dev.lumbina.tv.core.domain.backdrop.WallpaperItem
 import dev.lumbina.tv.core.domain.backdrop.WallpaperKind
+import dev.lumbina.tv.core.domain.theme.ThemeRole
 import kotlinx.coroutines.delay
 
 /**
  * The home screen's wallpaper: [fallback] (a gradient) until and unless there is an [item];
- * pictures and videos cross-fade and get a dark veil so tiles and text stay readable, [nightDim]
+ * pictures and videos cross-fade and get the theme's veil so tiles and text stay readable, [nightDim]
  * darker still at night. A video holds still while [busy] (the user is moving around): on TV
  * chips, composing a playing video under a scrolling screen costs whole frames. The item's credit,
  * if it has one, is written small in the bottom corner for a while after the item appears, unless
@@ -84,17 +87,15 @@ fun WallpaperLayer(
             }
         }
         if (item != null) {
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color.Black.copy(alpha = TOP_VEIL + nightDim),
-                            Color.Black.copy(alpha = MIDDLE_VEIL + nightDim),
-                            Color.Black.copy(alpha = BOTTOM_VEIL + nightDim),
-                        ),
-                    ),
-                ),
+            // The theme's veil: thin at the top, where the picture is looked at, dense down where
+            // the rows of tiles and their names are read. Night's own darkening lies over it.
+            val theme = LocalTheme.current
+            val veil = theme.colorOf(ThemeRole.Veil)
+            val gradient = Brush.verticalGradient(
+                listOf(veil.copy(alpha = theme.veilTop), veil.copy(alpha = theme.veilBottom)),
             )
+            Box(Modifier.fillMaxSize().background(gradient))
+            if (nightDim > 0f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = nightDim)))
         }
         Credit(item, credit, Modifier.align(Alignment.BottomEnd).padding(horizontal = 48.dp, vertical = 16.dp))
     }
@@ -209,9 +210,6 @@ private fun colorOf(value: String): Color =
     runCatching { Color(android.graphics.Color.parseColor(value)) }.getOrDefault(Color.Black)
 
 private const val CROSSFADE_MILLIS = 1_200
-private const val TOP_VEIL = 0.55f
-private const val MIDDLE_VEIL = 0.3f
-private const val BOTTOM_VEIL = 0.6f
 
 /**
  * A photo's credit as it is written: what it shows on one line and whose it is on the next, where

@@ -38,13 +38,12 @@ class HomeLayoutTest {
     }
 
     @Test
-    fun `categories are added, renamed, styled, moved and removed behind favorites`() {
+    fun `categories are added, renamed, styled and removed behind favorites`() {
         val layout = HomeLayout().addCategory("films", "Films").addCategory("kids", "Kids")
             .renameSection("kids", "Children").setStyle("films", SectionStyle.Grid)
         assertEquals(listOf(FAVORITES, "films", "kids"), layout.sections.map { it.id })
         assertEquals("Children", layout.section("kids")!!.name)
         assertEquals(SectionStyle.Grid, layout.section("films")!!.style)
-        assertEquals(listOf(FAVORITES, "kids", "films"), layout.moveCategory("kids", -3).sections.map { it.id })
         assertEquals(listOf(FAVORITES, "kids"), layout.removeCategory("films").sections.map { it.id })
         assertEquals(layout, layout.removeCategory(FAVORITES))
         val films = layout.section("films")!!
@@ -152,5 +151,19 @@ class HomeLayoutTest {
     fun `adding an app to the folder it is already in changes nothing`() {
         val layout = HomeLayout().add(FAVORITES, a).createFolder(FAVORITES, "f1", "F", a)
         assertEquals(layout, layout.addToFolder("f1", a))
+    }
+
+    @Test
+    fun `the all-apps shortcut is a tile of favorites that moves, goes and comes back`() {
+        val a = AppId("pkg.a", "A")
+        val layout = HomeLayout().add(HomeSection.FAVORITES, a).withAllAppsShortcut(true)
+        assertEquals(listOf(HomeItem.AppItem(a), HomeItem.AllApps), layout.favorites.items)
+        val moved = layout.moveItem(HomeSection.FAVORITES, HomeItem.AllApps.key, -1)
+        assertEquals(listOf(HomeItem.AllApps, HomeItem.AppItem(a)), moved.favorites.items)
+        // Hiding an app, or taking it out, leaves the shortcut where it is.
+        assertEquals(listOf(HomeItem.AllApps), moved.hide(a).favorites.items)
+        assertEquals(layout, layout.withAllAppsShortcut(true))
+        assertEquals(listOf<HomeItem>(HomeItem.AppItem(a)), layout.withAllAppsShortcut(false).favorites.items)
+        assertEquals(listOf(a), layout.favorites.apps)
     }
 }

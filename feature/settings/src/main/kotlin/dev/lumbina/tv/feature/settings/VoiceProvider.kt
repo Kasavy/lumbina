@@ -8,6 +8,7 @@ import androidx.tv.material3.Text
 import dev.lumbina.tv.core.domain.speech.SpeechProvider
 import dev.lumbina.tv.core.ui.Choice
 import dev.lumbina.tv.core.ui.ChoiceDialog
+import dev.lumbina.tv.core.ui.line
 
 /** Who recognizes; for a cloud service, what that means for the user. */
 internal fun LazyListScope.providerRows(recognizer: Recognizer, onClick: () -> Unit) {
@@ -77,5 +78,5 @@ private fun providerName(provider: SpeechProvider): String = stringResource(
 @Composable
 private fun providerText(recognizer: Recognizer): String {
     val name = providerName(recognizer.provider)
-    return if (recognizer.missingKey) "$name · ${stringResource(R.string.voice_provider_no_key)}" else name
+    return if (recognizer.missingKey) line(name, stringResource(R.string.voice_provider_no_key)) else name
 }

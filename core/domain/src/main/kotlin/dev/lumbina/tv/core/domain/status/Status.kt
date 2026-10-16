@@ -15,6 +15,18 @@ data class NetworkState(val kind: NetworkKind, val signal: Int? = null, val onli
     }
 }
 
+/** The device's own settings, where Lumbina sends the user for what it can't set itself. */
+interface DeviceScreens {
+    /** Opens the network settings, or the nearest screen the firmware has; false when nothing opens. */
+    fun openNetwork(): Boolean
+
+    /** Whether the firmware has settings of its own to show. */
+    fun hasSettings(): Boolean
+
+    /** Opens the device's settings; false when the firmware has none to show. */
+    fun openSettings(): Boolean
+}
+
 fun interface ConnectivityStatus {
     fun observe(): Flow<NetworkState>
 }
@@ -27,6 +39,8 @@ data class Notice(
     val title: String,
     val text: String?,
     val postedAt: Long,
+    /** False when the notification points to nothing: then it can only be taken off the list. */
+    val canOpen: Boolean = true,
 )
 
 /**

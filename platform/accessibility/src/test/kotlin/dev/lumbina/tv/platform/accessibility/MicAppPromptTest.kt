@@ -25,11 +25,12 @@ class MicAppPromptTest {
         var buttons: List<String> = emptyList()
         override var selected = 0
 
-        override fun show(message: String, buttons: List<String>, fraction: Float?): Boolean {
+        override fun show(message: String, buttons: List<String>, fraction: Float?, hint: String?): Boolean {
             if (!fits) return false
             this.message = message
+            // As the card on the device: the choice stays while the same buttons are shown again.
+            if (buttons != this.buttons) selected = 0
             this.buttons = buttons
-            selected = 0
             return true
         }
 
@@ -47,7 +48,16 @@ class MicAppPromptTest {
     private val card = Card()
     private val settings = FakeSettings(AccessSettings())
     private var front: String? = cinema
-    private val texts = MicAppPrompt.Texts({ "$it?" }, "later", "allow", "never", "done") { "Cinema" }
+    private val texts = MicAppPrompt.Texts(
+        question = { "$it?" },
+        later = "later",
+        allow = "allow",
+        never = "never",
+        allowed = "done",
+        label = { "Cinema" },
+        failed = "failed",
+        neverNote = "won't ask",
+    )
 
     private fun TestScope.prompt() = MicAppPrompt(card, texts, settings, { front }, this) { _, _ -> }
 
@@ -123,6 +133,50 @@ class MicAppPromptTest {
         prompt.press(ok)
         runCurrent()
         assertEquals(mapOf(cinema to false), settings.current.value.micApps)
+        assertEquals("won't ask", card.message)
+        advanceTimeBy(MicAppPrompt.NEVER_MILLIS + 1)
+        assertNull(card.message)
+    }
+
+    @Test
+    fun `allowed, the card waits for the sound and says when it could not be turned on`() = runTest {
+        val prompt = prompt()
+        prompt.started = { false }
+        var opened = false
+        prompt.openAccess = { opened = true }
+        prompt.ask(cinema)
+        runCurrent()
+        prompt.press(right)
+        prompt.press(ok)
+        runCurrent()
+        assertEquals("failed", card.message)
+        assertTrue(prompt.press(ok))
+        assertTrue(opened)
+        assertNull(card.message)
+    }
+
+    @Test
+    fun `the answer's card goes with the app, and the question waits for another card`() = runTest {
+        val prompt = prompt()
+        prompt.ask(cinema)
+        runCurrent()
+        prompt.press(right)
+        prompt.press(ok)
+        runCurrent()
+        front = "tv.other"
+        prompt.onWindowChanged()
+        assertNull(card.message)
+
+        front = cinema
+        settings.current.value = AccessSettings()
+        var busy = true
+        prompt.paused = { busy }
+        prompt.ask(cinema)
+        runCurrent()
+        advanceTimeBy(MicAppPrompt.ASK_MILLIS * 2)
+        assertEquals("Cinema?", card.message)
+        busy = false
+        advanceTimeBy(MicAppPrompt.ASK_MILLIS + 1_000)
         assertNull(card.message)
     }
 

@@ -1,6 +1,7 @@
 package dev.lumbina.tv.platform.accessibility
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
@@ -8,16 +9,24 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.WindowManager
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 
 /**
- * A column of settings at the right edge, over whatever is on screen: ▲ ▼ pick, ◀ ▶ change a
- * value, OK acts, Back closes; it also closes by itself when left alone. [Item.secondary] items
- * come last, smaller, under a line. It never takes focus — the service feeds it the remote's
- * keys — so a video underneath keeps playing.
+ * The side panel at the right edge, over whatever is on screen, looking as the launcher's own
+ * panels do: ▲ ▼ pick, ◀ ▶ change a value, OK acts, Back closes; left alone it closes by itself.
+ * [Item.secondary] items come last, under a line. An item may open a [Page] in place of the list;
+ * Back then returns to the list. It never takes focus — the service feeds it the remote's keys —
+ * so a video underneath keeps playing.
  */
-internal class QuickMenuOverlay(private val context: Context, private val title: String, private val hint: String) {
+internal class QuickMenuOverlay(private val context: Context, private val texts: Texts) {
+
+    /**
+     * The panel's own words: its [title], and what the keys do on a page, where Back goes back to the
+     * list. In the list the keys do what they do everywhere: nothing is said.
+     */
+    class Texts(val title: String, val pageKeys: String)
 
     /** One row: [value] is shown on the right and read again after every change. */
     class Item(
@@ -26,17 +35,30 @@ internal class QuickMenuOverlay(private val context: Context, private val title:
         val onAdjust: ((Int) -> Unit)? = null,
         val closes: Boolean = true,
         val secondary: Boolean = false,
+        /** What OK opens inside the panel; null from it: OK acts as [onOk]. */
+        val page: () -> Page? = { null },
         val onOk: () -> Unit,
     )
 
+    /** A page inside the panel: a picture to point a phone at, and what to read under it. */
+    class Page(val title: String, val image: Bitmap, val lines: List<String>)
+
     private val windowManager = context.getSystemService(WindowManager::class.java)
+    private val views = QuickMenuViews(context)
     private val handler = Handler(Looper.getMainLooper())
     private val hideRunnable = Runnable { hide() }
-    private var root: View? = null
+    private val tick = object : Runnable {
+        override fun run() {
+            refresh()
+            handler.postDelayed(this, TICK_MILLIS)
+        }
+    }
+    private var root: FrameLayout? = null
     private var rows: List<LinearLayout> = emptyList()
     private var values: List<TextView> = emptyList()
     private var items: List<Item> = emptyList()
     private var selected = 0
+    private var page: Page? = null
 
     val isShowing: Boolean get() = root != null
 
@@ -44,19 +66,22 @@ internal class QuickMenuOverlay(private val context: Context, private val title:
         hide()
         this.items = items
         selected = 0
-        val params = overlayParams(context.dp(PANEL_WIDTH_DP), MATCH_PARENT, Gravity.END or Gravity.TOP)
-        root = createView().takeIf { windowManager.addOverlay(it, params) } ?: return
-        select(0)
-        keepOpen()
+        val params = overlayParams(views.windowWidth, MATCH_PARENT, Gravity.END or Gravity.TOP)
+        root = views.frame().takeIf { windowManager.addOverlay(it, params) } ?: return
+        render()
+        // What counts down (the sleep timer's minutes) goes on counting while the menu shows.
+        handler.postDelayed(tick, TICK_MILLIS)
     }
 
     fun hide() {
         handler.removeCallbacks(hideRunnable)
+        handler.removeCallbacks(tick)
         root?.let(windowManager::removeView)
         root = null
         rows = emptyList()
         values = emptyList()
         items = emptyList()
+        page = null
     }
 
     /** Re-reads the values, e.g. after a setting changed. */
@@ -87,101 +112,96 @@ internal class QuickMenuOverlay(private val context: Context, private val title:
     /** False for keys the menu doesn't use. */
     private fun handle(event: KeyEvent, down: Boolean): Boolean {
         when {
-            event.keyCode == KeyEvent.KEYCODE_DPAD_UP -> if (down) select(selected - 1)
-            event.keyCode == KeyEvent.KEYCODE_DPAD_DOWN -> if (down) select(selected + 1)
-            event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT -> if (down) adjust(-1)
-            event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT -> if (down) adjust(1)
+            // From a page back to the list, from the list out.
+            event.isBack && down -> Unit
+
+            event.isBack && page == null -> hide()
+
+            event.isBack -> {
+                page = null
+                render()
+            }
+
+            event.keyCode !in ARROWS && !event.isOk -> return false
+
+            // A page has nothing to pick or press: the arrows and OK just stay with the panel.
+            page != null -> Unit
+
             event.isOk -> if (!down) activate()
-            event.isBack -> if (!down) hide()
-            else -> return false
+
+            down -> move(event.keyCode)
         }
         return true
     }
 
-    private fun adjust(step: Int) {
-        items.getOrNull(selected)?.onAdjust?.invoke(step)
-        refresh()
+    private fun move(key: Int) {
+        when (key) {
+            KeyEvent.KEYCODE_DPAD_UP -> select(selected - 1)
+
+            KeyEvent.KEYCODE_DPAD_DOWN -> select(selected + 1)
+
+            else -> {
+                items.getOrNull(selected)?.onAdjust?.invoke(if (key == KeyEvent.KEYCODE_DPAD_LEFT) -1 else 1)
+                refresh()
+            }
+        }
     }
 
     private fun activate() {
         val item = items.getOrNull(selected) ?: return
+        val opens = item.page()
+        if (opens != null) {
+            page = opens
+            return render()
+        }
         if (item.closes) hide()
         item.onOk()
         if (!item.closes) refresh()
     }
 
+    /**
+     * A page stays longer: it is there to be read from a phone, which takes a while. Not for good:
+     * the phone remote's code on it is not to be left over a video nobody watches.
+     */
     private fun keepOpen() {
         handler.removeCallbacks(hideRunnable)
-        if (isShowing) handler.postDelayed(hideRunnable, AUTO_HIDE_MILLIS)
+        if (isShowing) handler.postDelayed(hideRunnable, if (page == null) AUTO_HIDE_MILLIS else PAGE_HIDE_MILLIS)
     }
 
     private fun select(index: Int) {
         if (rows.isEmpty()) return
         selected = index.coerceIn(0, rows.lastIndex)
-        rows.forEachIndexed { i, row ->
-            val on = i == selected
-            row.background = if (on) context.rounded(OverlayPalette.SELECTED, ROW_CORNER_DP) else null
-            for (child in 0 until row.childCount) {
-                val color = if (on) OverlayPalette.SELECTED_TEXT else OverlayPalette.TEXT
-                (row.getChildAt(child) as? TextView)?.setTextColor(color)
-            }
-        }
+        rows.forEachIndexed { i, row -> views.mark(row, on = i == selected) }
     }
 
-    private fun createView(): View {
-        val rowPad = context.dp(ROW_PADDING_DP)
-        val rowVertical = context.dp(ROW_VERTICAL_DP)
-        val gap = context.dp(GAP_DP)
-        val panel = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_VERTICAL
-            val pad = context.dp(PANEL_PADDING_DP)
-            setPadding(pad, pad, pad, pad)
-            setBackgroundColor(OverlayPalette.PANEL)
+    /** Lays the panel out anew: the list, or the page opened from it. */
+    private fun render() {
+        val frame = root ?: return
+        val shown = page
+        val list = if (shown == null) views.list(items) else null
+        rows = list?.rows.orEmpty()
+        values = list?.values.orEmpty()
+        val panel = if (shown == null) {
+            views.panel(texts.title, above = null, body = list?.view ?: return, keys = null)
+        } else {
+            views.panel(shown.title, above = texts.title, body = views.page(shown), keys = texts.pageKeys)
         }
-        panel.addView(context.label(title, TITLE_SP).apply { setPadding(rowPad, 0, 0, gap) })
-        val made = items.mapIndexed { index, item ->
-            if (item.secondary && items.getOrNull(index - 1)?.secondary == false) panel.addView(divider(gap))
-            val value = context.label("", VALUE_SP).apply { gravity = Gravity.END }
-            val row = LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(rowPad, rowVertical, rowPad, rowVertical)
-                addView(
-                    context.label(item.label, if (item.secondary) SECONDARY_SP else LABEL_SP),
-                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
-                )
-                addView(value)
-            }
-            panel.addView(row)
-            row to value
-        }
-        rows = made.map { it.first }
-        values = made.map { it.second }
+        frame.removeAllViews()
+        frame.addView(panel, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         refresh()
-        panel.addView(context.label(hint, HINT_SP).apply { setPadding(rowPad, gap * 2, 0, 0) })
-        return panel
-    }
-
-    private fun divider(gap: Int) = View(context).apply {
-        setBackgroundColor(OverlayPalette.DIVIDER)
-        layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, context.dp(1)).apply {
-            setMargins(context.dp(ROW_PADDING_DP), gap, context.dp(ROW_PADDING_DP), gap)
-        }
+        select(selected)
+        keepOpen()
     }
 
     private companion object {
         const val AUTO_HIDE_MILLIS = 15_000L
-        const val PANEL_WIDTH_DP = 420
-        const val PANEL_PADDING_DP = 28
-        const val ROW_PADDING_DP = 18
-        const val ROW_VERTICAL_DP = 12
-        const val ROW_CORNER_DP = 12
-        const val GAP_DP = 12
-        const val TITLE_SP = 24f
-        const val LABEL_SP = 18f
-        const val SECONDARY_SP = 16f
-        const val VALUE_SP = 16f
-        const val HINT_SP = 13f
+        const val PAGE_HIDE_MILLIS = 180_000L
+        const val TICK_MILLIS = 5_000L
+        val ARROWS = setOf(
+            KeyEvent.KEYCODE_DPAD_UP,
+            KeyEvent.KEYCODE_DPAD_DOWN,
+            KeyEvent.KEYCODE_DPAD_LEFT,
+            KeyEvent.KEYCODE_DPAD_RIGHT,
+        )
     }
 }

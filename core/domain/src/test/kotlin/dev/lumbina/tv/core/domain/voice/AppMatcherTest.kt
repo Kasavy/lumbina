@@ -101,4 +101,18 @@ class AppMatcherTest {
         assertEquals(skeleton("youtube"), skeleton("ютуб"))
         assertEquals(skeleton("VK Video"), skeleton("вк видео"))
     }
+
+    @Test
+    fun `a whole name said beats a longer name that starts with it`() {
+        val youtube = app("YouTube", "com.google.android.youtube.tv")
+        val music = app("YouTube Music", "com.google.android.youtube.tvmusic")
+        assertEquals(AppMatch.Found(youtube), AppMatcher().match("youtube", listOf(music, youtube)))
+        assertEquals(AppMatch.Found(music), AppMatcher().match("youtube music", listOf(music, youtube)))
+        // Two apps of that whole name: the choice is between them, the longer name is out of it.
+        val phone = app("YouTube", "com.google.android.youtube")
+        assertEquals(
+            AppMatch.Ambiguous(listOf(youtube, phone)),
+            AppMatcher().match("youtube", listOf(music, youtube, phone)),
+        )
+    }
 }

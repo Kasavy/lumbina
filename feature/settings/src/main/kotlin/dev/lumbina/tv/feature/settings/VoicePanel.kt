@@ -21,6 +21,7 @@ import dev.lumbina.tv.core.domain.speech.VoiceLanguagesState
 import dev.lumbina.tv.core.ui.Choice
 import dev.lumbina.tv.core.ui.ChoiceDialog
 import dev.lumbina.tv.core.ui.ConfirmDialog
+import dev.lumbina.tv.core.ui.line
 import java.text.Collator
 import java.util.Locale
 
@@ -153,7 +154,7 @@ private fun AddLanguageDialog(
         hint = stringResource(R.string.voice_add_hint),
         choices = sorted.mapIndexed { i, language ->
             val local = localName(language.language)
-            val detail = if (local == nativeName(language.language)) sizes[i] else "$local · ${sizes[i]}"
+            val detail = if (local == nativeName(language.language)) sizes[i] else line(local, sizes[i])
             Choice(nativeName(language.language), detail) { onAdd(language) }
         },
         onDismiss = onDismiss,
@@ -198,7 +199,7 @@ private fun status(language: VoiceLanguage): String {
         is ModelState.Failed -> stringResource(failureText(model.reason))
     }
     val localName = localName(language.language)
-    return if (localName == nativeName(language.language)) detail else "$localName · $detail"
+    return if (localName == nativeName(language.language)) detail else line(localName, detail)
 }
 
 private fun failureText(reason: ModelState.Reason): Int = when (reason) {

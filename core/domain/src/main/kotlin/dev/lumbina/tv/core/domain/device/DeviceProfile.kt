@@ -71,6 +71,12 @@ interface DeviceProfile {
     /** What a diagnostics report asks about this firmware; null: nothing beyond the common facts. */
     val diagnostics: DeviceDiagnostics? get() = null
 
+    /**
+     * The firmware was made for another market, so the device's language says nothing about who
+     * uses it. There the setup asks Lumbina's language first.
+     */
+    val languageFirst: Boolean get() = false
+
     fun matches(device: DeviceFingerprint): Boolean
 }
 

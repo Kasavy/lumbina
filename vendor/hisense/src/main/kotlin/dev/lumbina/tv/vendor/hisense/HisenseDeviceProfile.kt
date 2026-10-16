@@ -66,6 +66,8 @@ class HisenseDeviceProfile @Inject constructor(hisenseVolume: HisenseVolume) : D
     /** "USB debugging" also opens adb on port 5555 of the network. */
     override val localAdb = true
 
+    override val languageFirst = true
+
     override val firmwareParts = listOf(
         FirmwarePart(PcmShareProtocol.PACKAGE, FirmwarePart.Feature.RemoteMic),
         // Some models give no sound from the remote unless this one is on as well.

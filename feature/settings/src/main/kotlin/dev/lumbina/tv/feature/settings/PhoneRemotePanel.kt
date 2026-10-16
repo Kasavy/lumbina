@@ -2,7 +2,7 @@ package dev.lumbina.tv.feature.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -19,6 +19,7 @@ fun PhoneRemotePanel(
     state: PhoneRemoteState?,
     onToggle: () -> Unit,
     onNewKey: () -> Unit,
+    onToggleScreensaver: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (state == null) return
@@ -34,27 +35,33 @@ fun PhoneRemotePanel(
             if (address == null) {
                 Note(stringResource(R.string.phone_no_network))
             } else {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(24.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(start = 32.dp, top = 12.dp, bottom = 12.dp),
+                // One under another: the panel is too narrow for the code and its text side by side.
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 12.dp),
                 ) {
-                    QrCode(address, size = 200.dp)
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(stringResource(R.string.phone_scan), style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            address,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        Text(
-                            stringResource(R.string.phone_can),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    // The code first: it is what the page is opened for, and must be whole without scrolling.
+                    QrCode(address, size = 150.dp, modifier = Modifier.align(Alignment.CenterHorizontally))
+                    Text(stringResource(R.string.phone_scan), style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        address,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                    )
+                    Text(
+                        stringResource(R.string.phone_can),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
+            SwitchRow(
+                title = stringResource(R.string.phone_on_screensaver),
+                hint = stringResource(R.string.phone_on_screensaver_hint),
+                checked = state.onScreensaver,
+                onClick = onToggleScreensaver,
+            )
             SettingRow(
                 onClick = onNewKey,
                 headlineContent = { Text(stringResource(R.string.phone_new_key)) },

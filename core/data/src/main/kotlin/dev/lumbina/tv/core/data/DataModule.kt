@@ -105,7 +105,7 @@ internal object DataModule {
         context,
         LumbinaDatabase::class.java,
         "lumbina.db",
-    ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+    ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()
 
     @Provides
     @Singleton
@@ -215,6 +215,7 @@ internal object DataModule {
         ),
     )
 
+    /** Multi-process: the service's overlays (quick menu, recent apps, voice) take its theme and accent. */
     @Provides
     @Singleton
     fun homeAppearance(@ApplicationContext context: Context): HomeAppearanceRepository = context.settings(
@@ -222,6 +223,7 @@ internal object DataModule {
         StoredHomeAppearance(),
         StoredHomeAppearance::toDomain,
         HomeAppearance::toStored,
+        multiProcess = true,
     )
 
     /** Settings in the JSON store [name], mapped between their on-disk form [S] and [D]. */

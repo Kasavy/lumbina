@@ -1,16 +1,21 @@
 package dev.lumbina.tv.core.ui
 
 import android.content.ComponentName
+import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
 import android.util.LruCache
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -27,6 +32,8 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -48,9 +55,11 @@ private sealed interface Artwork {
 /**
  * Shows an app's TV banner filling the tile. An app without one gets a banner made from its icon:
  * the icon's own color (darkened, so white text stays readable) behind the icon and the name.
+ * [named]: the tile is to show the name on itself, at its bottom over a shade as on any banner; a
+ * banner made from the icon then shows the icon alone, a little up, so the name is not there twice.
  */
 @Composable
-fun AppArtwork(app: App, modifier: Modifier = Modifier, compact: Boolean = false) {
+fun AppArtwork(app: App, modifier: Modifier = Modifier, compact: Boolean = false, named: Boolean = false) {
     val context = LocalContext.current
     // Keyed on the app so a reused slot never shows the previous app's artwork.
     var loaded by remember(app.id, app.updatedAt) { mutableStateOf(ArtworkCache[app]) }
@@ -64,7 +73,7 @@ fun AppArtwork(app: App, modifier: Modifier = Modifier, compact: Boolean = false
 
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         when (artwork) {
-            is Artwork.Banner -> Image(
+            is Artwork.Banner -> Picture(
                 bitmap = artwork.image,
                 contentDescription = app.label,
                 contentScale = ContentScale.Crop,
@@ -76,10 +85,16 @@ fun AppArtwork(app: App, modifier: Modifier = Modifier, compact: Boolean = false
                 modifier = Modifier.fillMaxSize().background(artwork.color),
             ) {
                 if (compact) {
-                    Image(
+                    Picture(
                         bitmap = artwork.image,
                         contentDescription = app.label,
                         modifier = Modifier.fillMaxSize(COMPACT_ICON),
+                    )
+                } else if (named) {
+                    Picture(
+                        bitmap = artwork.image,
+                        contentDescription = app.label,
+                        modifier = Modifier.fillMaxHeight(NAMED_ICON).aspectRatio(1f).offset(y = (-12).dp),
                     )
                 } else {
                     IconWithLabel(artwork.image, app.label)
@@ -88,20 +103,50 @@ fun AppArtwork(app: App, modifier: Modifier = Modifier, compact: Boolean = false
 
             Artwork.None -> if (!compact) Label(app.label)
         }
+        if (named && artwork !is Artwork.None) NameOnTile(app.label)
     }
 }
 
+/**
+ * The icon with the name beside it; where a word of the name would not fit beside the icon (a
+ * picker's small tiles), the name goes under the icon on one line instead of breaking the word.
+ */
 @Composable
-private fun IconWithLabel(icon: ImageBitmap, label: String) {
+private fun IconWithLabel(icon: ImageBitmap, label: String) = BoxWithConstraints(contentAlignment = Alignment.Center) {
+    val style = MaterialTheme.typography.titleSmall.onTile()
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val room = maxWidth - BESIDE_ICON
+    val wordFits = remember(label, style, room) {
+        val widest = label.split(' ').maxOf { measurer.measure(it, style).size.width }
+        with(density) { widest.toDp() } <= room
+    }
+    if (!wordFits) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(horizontal = 6.dp),
+        ) {
+            Picture(bitmap = icon, contentDescription = null, modifier = Modifier.size(32.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall.onTile(),
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        return@BoxWithConstraints
+    }
     Row(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(horizontal = 12.dp),
     ) {
-        Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(40.dp))
+        Picture(bitmap = icon, contentDescription = null, modifier = Modifier.size(40.dp))
         Text(
             text = label,
-            style = MaterialTheme.typography.titleSmall,
+            style = style,
             color = Color.White,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -113,12 +158,23 @@ private fun IconWithLabel(icon: ImageBitmap, label: String) {
 private fun Label(text: String) {
     Text(
         text = text,
-        style = MaterialTheme.typography.labelLarge,
+        style = MaterialTheme.typography.labelLarge.onTile(),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         textAlign = TextAlign.Center,
         modifier = Modifier.padding(horizontal = 8.dp),
     )
+}
+
+/**
+ * Loads the artwork of [apps] not loaded yet, off the main thread, before their tiles are seen: a
+ * screen of them scrolled into view for the first time otherwise decodes a row of pictures at once,
+ * and a weak box drops frames doing it.
+ */
+suspend fun preloadArtwork(context: Context, apps: List<App>) = withContext(Dispatchers.IO) {
+    apps.filter { ArtworkCache[it] == null }.forEach { app ->
+        ArtworkCache[app] = context.packageManager.loadArtwork(app)
+    }
 }
 
 private fun PackageManager.loadArtwork(app: App): Artwork {
@@ -188,5 +244,9 @@ private const val OPAQUE = 200
 private const val MIN_SATURATION = 0.25f
 private const val MAX_VALUE = 0.45f
 private const val COMPACT_ICON = 0.6f
+private const val NAMED_ICON = 0.45f
+
+/** What the icon takes beside the name: the padding at both sides, the icon and the gap. */
+private val BESIDE_ICON = 12.dp * 2 + 40.dp + 10.dp
 private val NEUTRAL_BANNER = Color(0xFF2A2F3A)
 private const val CACHE_BYTES = 24 * 1024 * 1024

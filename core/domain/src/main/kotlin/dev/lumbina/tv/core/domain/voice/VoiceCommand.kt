@@ -23,7 +23,7 @@ sealed interface VoiceCommand {
 
 enum class VolumeChange { Up, Down, Mute, Unmute }
 
-enum class MediaAction { Play, Pause, Next, Previous }
+enum class MediaAction { Play, Pause, PlayPause, Next, Previous }
 
 /**
  * Recognizes commands in Russian and English speech-to-text output (lowercase words, no

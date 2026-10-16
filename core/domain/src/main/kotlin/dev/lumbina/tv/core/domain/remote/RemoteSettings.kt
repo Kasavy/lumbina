@@ -9,16 +9,58 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
-/** What the remote's Home key does, as the user set it; shared by the settings and the remote's process. */
+/** What the remote's buttons do, as the user set it; shared by the settings and the remote's process. */
 data class RemoteSettings(
+    /** What the user changed in what the buttons do: see [KeyBindingPolicy.defaults]. */
+    val bindings: List<KeyBinding> = emptyList(),
+    /** The buttons the user made Lumbina's on its own screens only; in an app they are the device's. */
+    val lumbinaOnly: Set<RemoteKey> = emptySet(),
+    /** The buttons that are so by themselves, and that the user made Lumbina's everywhere. */
+    val everywhere: Set<RemoteKey> = emptySet(),
+    /** The names the user gave to buttons known only by their codes. */
+    val keyNames: Map<RemoteKey, String> = emptyMap(),
+    /** The other home screen Home's menu leads to; null, or one no longer there: the first found. */
+    val otherHome: AppId? = null,
+) {
     /**
      * A double press on Home shows the recent apps. Off, Home answers at once (it need not wait
      * for a second press), and the recent apps stay in its menu.
      */
-    val doubleHomeRecents: Boolean = true,
-    /** The other home screen Home's menu leads to; null, or one no longer there: the first found. */
-    val otherHome: AppId? = null,
-)
+    val doubleHomeRecents: Boolean
+        get() = bindings.none { it.key == RemoteKey.Home && it.gesture == KeyGesture.DoubleTap && it.action == null }
+
+    /** [gesture] on [key] does [action] from now on; null: as on the device. Setting a default back keeps no entry. */
+    fun withBinding(key: RemoteKey, gesture: KeyGesture, action: RemoteAction?): RemoteSettings {
+        val others = bindings.filterNot { it.key == key && it.gesture == gesture }
+        // "As on the device" where Lumbina does nothing by itself is the usual state too.
+        val isDefault = KeyBindingPolicy.defaultBindings(voiceAvailable = true)[key to gesture] == action
+        return copy(bindings = if (isDefault) others else others + KeyBinding(key, gesture, action))
+    }
+
+    /** The buttons that are Lumbina's only on its own screens, the user's choices over what is so by itself. */
+    val limited: Set<RemoteKey>
+        get() = KeyBindingPolicy.DEFAULT_LUMBINA_ONLY - everywhere + lumbinaOnly - RemoteKey.Home
+
+    fun withLumbinaOnly(key: RemoteKey, only: Boolean): RemoteSettings {
+        val usual = key in KeyBindingPolicy.DEFAULT_LUMBINA_ONLY
+        return copy(
+            lumbinaOnly = if (only && !usual) lumbinaOnly + key else lumbinaOnly - key,
+            everywhere = if (!only && usual) everywhere + key else everywhere - key,
+        )
+    }
+
+    /** The user's own name for [key]; a blank one gives it back the name its code has. */
+    fun withKeyName(key: RemoteKey, name: String): RemoteSettings =
+        copy(keyNames = if (name.isBlank()) keyNames - key else keyNames + (key to name.trim()))
+
+    /** As it was: nothing of the user's on [key], or on any key. */
+    fun withoutBindings(key: RemoteKey? = null): RemoteSettings = copy(
+        bindings = if (key == null) emptyList() else bindings.filterNot { it.key == key },
+        keyNames = if (key == null) emptyMap() else keyNames - key,
+        lumbinaOnly = if (key == null) emptySet() else lumbinaOnly - key,
+        everywhere = if (key == null) emptySet() else everywhere - key,
+    )
+}
 
 typealias RemoteSettingsRepository = SettingsRepository<RemoteSettings>
 

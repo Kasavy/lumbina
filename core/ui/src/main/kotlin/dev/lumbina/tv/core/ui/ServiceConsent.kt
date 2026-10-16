@@ -29,6 +29,8 @@ class ServiceConsent internal constructor() {
  * only where it is true.
  */
 data class ServiceScope(
+    /** The remote has a mic Lumbina hears: the service starts voice input and types what was said. */
+    val remoteMic: Boolean = false,
     /** Lumbina is the system's speech recognizer for other apps. */
     val speechForApps: Boolean = false,
     /** Apps that record the microphone themselves may be given the remote's audio. */
@@ -39,6 +41,7 @@ data class ServiceScope(
 
 /** What the service does on a device of this profile. */
 fun DeviceProfile.serviceScope() = ServiceScope(
+    remoteMic = hasRemoteMic,
     speechForApps = speechForApps,
     feedsMicToApps = feedsMicToApps,
     localAdb = localAdb,
@@ -46,13 +49,17 @@ fun DeviceProfile.serviceScope() = ServiceScope(
 
 /** The consent's paragraphs for [scope], as string resources: what every device is told, then what this one does. */
 internal fun consentParagraphs(scope: ServiceScope): List<Int> = listOfNotNull(
-    R.string.service_consent_why,
-    R.string.service_consent_sees,
-    R.string.service_consent_speech,
+    if (scope.remoteMic) R.string.service_consent_why else R.string.service_consent_why_no_mic,
+    if (scope.remoteMic) R.string.service_consent_sees else R.string.service_consent_sees_no_mic,
+    R.string.service_consent_speech.takeIf { scope.remoteMic },
     R.string.service_consent_for_apps.takeIf { scope.speechForApps },
     R.string.service_consent_mic_apps.takeIf { scope.feedsMicToApps },
     R.string.service_consent_debugging.takeIf { scope.localAdb },
 )
+
+/** What the service sees and does on a device of [scope], a paragraph each: for a page that says it itself. */
+@Composable
+fun serviceConsentText(scope: ServiceScope): List<String> = consentParagraphs(scope).map { stringResource(it) }
 
 @Composable
 fun rememberServiceConsent(): ServiceConsent = remember { ServiceConsent() }

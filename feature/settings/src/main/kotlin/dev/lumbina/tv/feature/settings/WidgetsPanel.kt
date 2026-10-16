@@ -14,6 +14,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
 import dev.lumbina.tv.core.domain.home.ClockFormat
+import dev.lumbina.tv.core.domain.home.HomeAppearance
 import dev.lumbina.tv.core.domain.text.SearchTarget
 import dev.lumbina.tv.core.domain.weather.Place
 import dev.lumbina.tv.core.ui.Choice
@@ -33,21 +34,7 @@ fun WidgetsPanel(
     SettingsColumn(modifier) {
         Note(stringResource(R.string.widgets_note))
 
-        Header(stringResource(R.string.widgets_clock))
-        SwitchRow(
-            title = stringResource(R.string.widgets_show_date),
-            hint = null,
-            checked = look.showDate,
-            onClick = commands::toggleDate,
-        )
-        ChoiceRow(
-            title = stringResource(R.string.widgets_clock_format),
-            options = ClockFormat.entries.map { format ->
-                Choice(stringResource(format.title), chosen = format == look.clockFormat) {
-                    commands.setClockFormat(format)
-                }
-            },
-        )
+        ClockSection(look, commands)
 
         WeatherSection(
             show = state.weather.show,
@@ -64,6 +51,8 @@ fun WidgetsPanel(
             checked = look.showNowPlaying,
             onClick = commands::toggleNowPlaying,
         )
+
+        MutedNotices(state.muted, commands::setMuted)
 
         // With one place to search there is nothing to choose.
         state.search.chosen?.takeIf { state.search.targets.size > 1 }?.let { chosen ->
@@ -157,6 +146,7 @@ private fun WeatherSection(
                 commands.searchCity(it)
             },
             onDismiss = { typingCity = false },
+            needsText = true,
         )
     }
     if (citySearch is CitySearch.Found) PlaceChoices(citySearch.places, commands)
@@ -180,3 +170,43 @@ private val ClockFormat.title: Int
         ClockFormat.H24 -> R.string.widgets_clock_24
         ClockFormat.H12 -> R.string.widgets_clock_12
     }
+
+/**
+ * The apps whose notifications are muted, each with a switch that shows them again; nothing while
+ * none is. Muting is done from the notifications themselves: here it is undone, and an app shown
+ * again keeps its row, with the switch off, until the page is left: the focus stands on it.
+ */
+@Composable
+private fun MutedNotices(muted: List<Pair<String, String>>, onMute: (String, Boolean) -> Unit) {
+    val listed = remember { muted }
+    if (listed.isEmpty()) return
+    Header(stringResource(R.string.widgets_muted, muted.size))
+    listed.forEach { (packageName, name) ->
+        val on = muted.any { it.first == packageName }
+        SwitchRow(
+            title = name,
+            hint = stringResource(R.string.widgets_muted_hint),
+            checked = on,
+            onClick = { onMute(packageName, !on) },
+        )
+    }
+}
+
+@Composable
+private fun ClockSection(look: HomeAppearance, commands: WidgetsCommands) {
+    Header(stringResource(R.string.widgets_clock))
+    SwitchRow(
+        title = stringResource(R.string.widgets_show_date),
+        hint = null,
+        checked = look.showDate,
+        onClick = commands::toggleDate,
+    )
+    ChoiceRow(
+        title = stringResource(R.string.widgets_clock_format),
+        options = ClockFormat.entries.map { format ->
+            Choice(stringResource(format.title), chosen = format == look.clockFormat) {
+                commands.setClockFormat(format)
+            }
+        },
+    )
+}

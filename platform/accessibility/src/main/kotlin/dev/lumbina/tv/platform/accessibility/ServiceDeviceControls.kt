@@ -42,6 +42,7 @@ internal class ServiceDeviceControls(
         val code = when (action) {
             MediaAction.Play -> KeyEvent.KEYCODE_MEDIA_PLAY
             MediaAction.Pause -> KeyEvent.KEYCODE_MEDIA_PAUSE
+            MediaAction.PlayPause -> KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
             MediaAction.Next -> KeyEvent.KEYCODE_MEDIA_NEXT
             MediaAction.Previous -> KeyEvent.KEYCODE_MEDIA_PREVIOUS
         }

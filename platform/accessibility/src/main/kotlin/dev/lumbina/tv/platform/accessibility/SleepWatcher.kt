@@ -10,6 +10,7 @@ import android.view.KeyEvent
 import androidx.core.content.ContextCompat
 import dev.lumbina.tv.core.common.LumbinaActions
 import dev.lumbina.tv.core.common.LumbinaLog
+import dev.lumbina.tv.core.domain.MILLIS_PER_SECOND
 import dev.lumbina.tv.core.domain.sleep.SleepClock
 import dev.lumbina.tv.core.domain.sleep.SleepDecision
 import dev.lumbina.tv.core.domain.sleep.SleepReason
@@ -41,6 +42,12 @@ internal class SleepWatcher(
     private val clock: SleepClock = SleepClock(now = System::currentTimeMillis),
 ) {
     private val overlay = CornerCard(service)
+
+    /** The warning's card: another card of the service stands over it. */
+    val card: CornerCard get() = overlay
+
+    /** Whether the warning shows now: it has every key then. */
+    val warns: Boolean get() = warning != null
     private var settings = SleepSettings()
     private var warning: SleepReason? = null
     private var dismissedBy: Int? = null
@@ -111,6 +118,13 @@ internal class SleepWatcher(
                 warning = null
                 overlay.hide()
                 if (reason == SleepReason.Timer) extendOrStop(timerOff) else log.log(TAG, "auto-sleep called off")
+                // What the press did is said: the card that asked is gone with it.
+                val done = when {
+                    reason != SleepReason.Timer -> null
+                    timerOff -> service.getString(R.string.sleep_timer_cancelled)
+                    else -> service.getString(R.string.sleep_in_minutes, EXTEND_MINUTES)
+                }
+                done?.let { overlay.flash(it, DONE_MILLIS) }
             }
         }
     }
@@ -161,7 +175,7 @@ internal class SleepWatcher(
                 warning = decision.reason
                 val buttons = if (decision.reason == SleepReason.Timer) {
                     listOf(
-                        service.getString(R.string.sleep_extend, EXTEND_MINUTES),
+                        service.resources.getQuantityString(R.plurals.sleep_extend, EXTEND_MINUTES, EXTEND_MINUTES),
                         service.getString(R.string.sleep_timer_off),
                     )
                 } else {
@@ -171,6 +185,11 @@ internal class SleepWatcher(
                     message = service.getString(R.string.sleep_warning, decision.secondsLeft),
                     fraction = decision.secondsLeft.toFloat() / clock.warnSeconds,
                     buttons = buttons,
+                    hint = if (decision.reason == SleepReason.Timer) {
+                        service.resources.getQuantityString(R.plurals.sleep_any_extends, EXTEND_MINUTES, EXTEND_MINUTES)
+                    } else {
+                        service.getString(R.string.sleep_any_cancels)
+                    },
                 )
             }
 
@@ -199,6 +218,7 @@ internal class SleepWatcher(
             if (reason == SleepReason.Timer) repository.update { it.copy(timerEndsAt = null) }
             val done = standby.sleep()
             log.log(TAG, "standby ($reason): ${if (done) "ok" else "not allowed on this device"}")
+            if (!done) overlay.flash(service.getString(R.string.sleep_refused), REFUSED_MILLIS)
         }
     }
 
@@ -207,8 +227,11 @@ internal class SleepWatcher(
 
         /** A safety net: delays don't count deep sleep, and the wall clock can be set. */
         const val MAX_WAIT_MILLIS = 60_000L
-        const val MILLIS_PER_SECOND = 1_000L
         const val EXTEND_MINUTES = 15
+
+        /** How long the card says what a press did, and that the device would not turn off. */
+        const val DONE_MILLIS = 2_500L
+        const val REFUSED_MILLIS = 5_000L
 
         /** The second button of the timer's warning. */
         const val TIMER_OFF = 1

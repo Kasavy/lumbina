@@ -1,8 +1,5 @@
 package dev.lumbina.tv.feature.settings
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
@@ -20,13 +17,15 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Button
-import androidx.tv.material3.OutlinedButton
+import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import dev.lumbina.tv.core.designsystem.LocalTheme
 import dev.lumbina.tv.core.designsystem.color
+import dev.lumbina.tv.core.designsystem.colorOf
 import dev.lumbina.tv.core.domain.access.AdbState
+import dev.lumbina.tv.core.domain.access.SetupResult
 import dev.lumbina.tv.core.domain.home.Accent
-import dev.lumbina.tv.core.ui.Choice
+import dev.lumbina.tv.core.domain.theme.ThemeRole
 import dev.lumbina.tv.core.ui.ConfirmDialog
 import kotlinx.coroutines.flow.first
 
@@ -38,23 +37,34 @@ import kotlinx.coroutines.flow.first
 fun AccessPanel(state: AccessState?, commands: AccessCommands, modifier: Modifier = Modifier) {
     if (state == null) return
     val connected = state.adb == AdbState.Connected
-    val forget = rememberForgetting(state.micApps.orEmpty(), commands)
+    // The page's first row: where the focus goes when the row it stood on is taken away.
+    val top = remember { FocusRequester() }
+    var wasConnected by remember { mutableStateOf(connected) }
+    LaunchedEffect(connected) {
+        // "Connect" and the rows by it go once connected.
+        if (connected && !wasConnected) runCatching { top.requestFocus() }
+        wasConnected = connected
+    }
+    val forget = rememberForgetting(state.micApps.orEmpty(), commands, top)
     SettingsList(modifier) {
         item { Note(stringResource(R.string.access_intro)) }
-        item { ConnectionRow(state, commands) }
+        connection(state, commands, top)
         item { Header(stringResource(R.string.access_uses)) }
         uses(state, connected, commands)
         state.micApps?.let { micApps(it, commands, forget) }
-        item { Header(stringResource(R.string.access_security)) }
-        item { Note(stringResource(R.string.access_security_note)) }
-        // Keyed: the row keeps the focus it is given when a row above it goes ([Forgetting]).
-        item(key = TURN_OFF_ROW) {
-            SettingRow(
-                onClick = commands::openDeveloperSettings,
-                headlineContent = { Text(stringResource(R.string.access_off)) },
-                supportingContent = { Text(stringResource(R.string.access_off_hint)) },
-                modifier = Modifier.focusRequester(forget.below),
-            )
+        // With debugging off there is no access to take back, and nothing for the network to reach.
+        if (state.adb != null && state.adb != AdbState.Off) {
+            item { Header(stringResource(R.string.access_security)) }
+            item { Note(stringResource(R.string.access_security_note)) }
+            // Keyed: the row keeps the focus it is given when a row above it goes ([Forgetting]).
+            item(key = TURN_OFF_ROW) {
+                SettingRow(
+                    onClick = commands::openDeveloperSettings,
+                    headlineContent = { Text(stringResource(R.string.access_off)) },
+                    supportingContent = { Text(stringResource(R.string.access_off_hint)) },
+                    modifier = Modifier.focusRequester(forget.below),
+                )
+            }
         }
     }
     forget.asking?.let { app ->
@@ -89,7 +99,7 @@ private class Forgetting(val below: FocusRequester) {
 }
 
 @Composable
-private fun rememberForgetting(apps: List<MicApp>, commands: AccessCommands): Forgetting {
+private fun rememberForgetting(apps: List<MicApp>, commands: AccessCommands, top: FocusRequester): Forgetting {
     val forget = remember { Forgetting(FocusRequester()) }
     val window = LocalWindowInfo.current
     LaunchedEffect(forget.confirmed) {
@@ -98,7 +108,8 @@ private fun rememberForgetting(apps: List<MicApp>, commands: AccessCommands): Fo
         val next = (apps.getOrNull(at + 1) ?: apps.getOrNull(at - 1))?.let(forget::row) ?: forget.below
         // The dialog is a window of its own: the focus can be moved once this one has it back.
         snapshotFlow { window.isWindowFocused }.first { it }
-        runCatching { next.requestFocus() }
+        // The row below is there only with debugging on: without it, the page's first row.
+        runCatching { next.requestFocus() }.onFailure { runCatching { top.requestFocus() } }
         withFrameNanos { }
         commands.forgetMicApp(app)
         forget.rows.remove(app.packageName)
@@ -107,42 +118,76 @@ private fun rememberForgetting(apps: List<MicApp>, commands: AccessCommands): Fo
     return forget
 }
 
-@Composable
-private fun ConnectionRow(state: AccessState, commands: AccessCommands, modifier: Modifier = Modifier) {
-    if (state.adb == AdbState.Connected) {
+/**
+ * Whether Lumbina is connected to the device's debugging, and the ways to connect while it is
+ * not. The first row is there in every state, the one where that is still being found out
+ * included: it is where the focus stands as the page opens, and a row that gave way to another
+ * as the state came in would send the focus on to a switch below.
+ */
+private fun LazyListScope.connection(state: AccessState, commands: AccessCommands, top: FocusRequester) {
+    val connected = state.adb == AdbState.Connected
+    item(key = "connection") {
+        val now = when {
+            connected -> R.string.access_connected_hint
+            state.adb == null -> R.string.access_checking
+            else -> R.string.access_not_connected
+        }
         SettingRow(
             onClick = {},
             headlineContent = { Text(stringResource(R.string.access_debugging)) },
-            supportingContent = { Text(stringResource(R.string.access_connected_hint)) },
-            trailingContent = { Text(stringResource(R.string.access_connected), color = Accent.Mint.color) },
-            modifier = modifier,
+            supportingContent = { Text(stringResource(now)) },
+            trailingContent = if (connected) {
+                { Text(stringResource(R.string.access_connected), color = Accent.Mint.color) }
+            } else {
+                null
+            },
+            modifier = Modifier.focusRequester(top),
         )
-        return
     }
+    if (!connected && state.adb != null) ways(state, commands)
+}
+
+/** How to connect, while Lumbina is not: what the state asks for first, and what the last try came to. */
+private fun LazyListScope.ways(state: AccessState, commands: AccessCommands) {
+    val debuggingOn = state.adb == AdbState.NotAllowed || state.adb == AdbState.Failed
     val hint = when {
-        state.adb == null -> R.string.access_checking
         state.connecting -> R.string.access_connecting
         state.adb == AdbState.NotAllowed -> R.string.access_not_allowed
         state.adb == AdbState.Failed -> R.string.access_failed
         else -> R.string.access_debugging_off
     }
-    Column(modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Text(stringResource(R.string.access_debugging))
-        Note(stringResource(hint), Modifier.padding(start = 0.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 8.dp)) {
-            val on = state.adb == AdbState.NotAllowed || state.adb == AdbState.Failed
-            if (on) {
-                OutlinedButton(onClick = commands::openDeveloperSettings) {
-                    Text(stringResource(R.string.access_dev_settings))
-                }
-                Button(onClick = commands::connect) { Text(stringResource(R.string.access_connect)) }
-            } else {
-                Button(onClick = commands::openDeveloperSettings) { Text(stringResource(R.string.access_dev_settings)) }
-                OutlinedButton(onClick = commands::connect) { Text(stringResource(R.string.access_connect)) }
-            }
+    item(key = "connection-hint") { Note(stringResource(hint)) }
+    val rows = listOf(
+        "connect" to (R.string.access_connect to commands::connect),
+        "developer" to (R.string.access_dev_settings to commands::openDeveloperSettings),
+    )
+    // What to do next comes first: turn debugging on, or, with it on, connect.
+    (if (debuggingOn) rows else rows.reversed()).forEach { (key, row) ->
+        item(key = key) {
+            SettingRow(onClick = row.second, headlineContent = { Text(stringResource(row.first)) })
         }
     }
+    // "Connect" was pressed and it did not: why, in the warning's color, or the press seems lost.
+    // Not what no longer holds: "debugging is off" after it was turned on.
+    val tried = state.tried.takeUnless { state.connecting || (it == SetupResult.Off && debuggingOn) } ?: return
+    item(key = "tried") {
+        Text(
+            stringResource(tried.why),
+            style = MaterialTheme.typography.bodySmall,
+            color = LocalTheme.current.colorOf(ThemeRole.Warning),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+        )
+    }
 }
+
+private val SetupResult.why: Int
+    get() = when (this) {
+        SetupResult.NotAllowed -> R.string.access_tried_not_allowed
+        SetupResult.NotKept -> R.string.access_tried_not_kept
+        SetupResult.AllowedOnce -> R.string.access_tried_allowed_once
+        SetupResult.Failed -> R.string.access_tried_failed
+        else -> R.string.access_tried_off
+    }
 
 /**
  * The apps that record the microphone themselves: each answer the user gave, to change. What the
@@ -181,20 +226,6 @@ private fun LazyListScope.uses(state: AccessState, connected: Boolean, commands:
             checked = state.settings.closeFromRecents,
             onClick = commands::toggleCloseFromRecents,
             enabled = connected,
-        )
-    }
-    item {
-        val lumbina = state.settings.openOnPowerOn
-        ChoiceRow(
-            title = stringResource(R.string.access_power_on),
-            options = listOf(
-                Choice(stringResource(R.string.access_power_on_lumbina), chosen = lumbina) {
-                    commands.setOpenOnPowerOn(true)
-                },
-                Choice(stringResource(R.string.access_power_on_nothing), chosen = !lumbina) {
-                    commands.setOpenOnPowerOn(false)
-                },
-            ),
         )
     }
     item {

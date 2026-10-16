@@ -1,37 +1,32 @@
 package dev.lumbina.tv.feature.home
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.ViewModelStoreOwner
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.tv.material3.Button
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.FilterChip
 import androidx.tv.material3.Icon
@@ -40,271 +35,300 @@ import androidx.tv.material3.Text
 import dev.lumbina.tv.core.domain.app.App
 import dev.lumbina.tv.core.domain.app.mostUsed
 import dev.lumbina.tv.core.domain.home.AppsOrder
+import dev.lumbina.tv.core.domain.home.HomeRow
+import dev.lumbina.tv.core.domain.home.NamesPlace
+import dev.lumbina.tv.core.domain.home.TileNames
 import dev.lumbina.tv.core.domain.home.TileSize
 import dev.lumbina.tv.core.ui.AppCard
 import dev.lumbina.tv.core.ui.Choice
 import dev.lumbina.tv.core.ui.ChoiceDialog
 import dev.lumbina.tv.core.ui.NameDialog
-import dev.lumbina.tv.core.ui.TileAnchor
+import dev.lumbina.tv.core.ui.TileName
 import dev.lumbina.tv.core.ui.anchorWhenFocused
 
-private enum class AppFilter { All, Tv, Phone, Hidden }
+internal enum class AppFilter { All, Tv, Phone, Hidden }
 
-private enum class AppsDialog { Find, Order, Show }
+internal enum class AppsDialog { Find, Order, Show }
 
-/** The apps in the order chosen: [top] the most opened (only when sorting by use), then [rest]. */
-private data class OrderedApps(val top: List<App>, val rest: List<App>)
+/** What the user asked "All apps" to show: a name search, a filter, and the dialog open over it. */
+@Stable
+internal class AppsChoice(filter: AppFilter = AppFilter.All, query: String = "") {
+    var filter by mutableStateOf(filter)
+    var query by mutableStateOf(query)
+    var dialog by mutableStateOf<AppsDialog?>(null)
+
+    /** Whether a search or a filter leaves some apps out. */
+    val narrowed: Boolean get() = filter != AppFilter.All || query.isNotBlank()
+
+    fun showAll() {
+        filter = AppFilter.All
+        query = ""
+    }
+
+    companion object {
+        val Saver: Saver<AppsChoice, Any> = listSaver(
+            save = { listOf(it.filter.name, it.query) },
+            restore = { AppsChoice(AppFilter.valueOf(it[0]), it[1]) },
+        )
+    }
+}
 
 /**
- * Every app on its own screen, off the home screen: a name search, the order (most used first
- * or by name), a filter (TV / phone / hidden) and the same menu as on home (hidden apps can be
- * shown again from it). The apps are the home screen's own: [home] is where its view model lives.
+ * The "All apps" screen as it shows now: [top] the most opened (only when sorting by use), then
+ * [rest] by name, after the search and the [filter].
  */
-@Suppress("ViewModelForwarding") // the dialogs take it only as HomeCommands
-@Composable
-fun AllAppsRoute(
-    home: ViewModelStoreOwner,
-    modifier: Modifier = Modifier,
-    viewModel: HomeViewModel = hiltViewModel(home),
+internal data class AppsSection(
+    val top: List<App>,
+    val rest: List<App>,
+    val filter: AppFilter,
+    val query: String,
+    val order: AppsOrder,
+    /** False while the order can't be by use: a search, the hidden apps, nothing opened yet. */
+    val orderApplies: Boolean,
+    val hidden: Int,
+    val size: TileSize,
+    val name: TileName,
 ) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    val current = state ?: return
-    var chosen by rememberSaveable { mutableStateOf(AppFilter.All) }
-    var query by rememberSaveable { mutableStateOf("") }
-    var open by remember { mutableStateOf<AppsDialog?>(null) }
-    val menu = remember { MenuState() }
-    // Once nothing is hidden any more, the hidden filter is gone: show everything.
-    val filter = if (chosen == AppFilter.Hidden && current.content.hidden.isEmpty()) AppFilter.All else chosen
-    val source = if (filter == AppFilter.Hidden) current.content.hidden else current.content.apps
-    val order = current.appearance.appsOrder
-    val apps = remember(source, filter, query, order, current.usage) {
-        orderedApps(source, filter, query.trim(), order, current.usage)
+    val count: Int get() = top.size + rest.size
+
+    /** The first tile, where the focus goes when the section is opened or changed. */
+    val firstKey: FocusKey? get() = (top.firstOrNull() ?: rest.firstOrNull())?.let { FocusKey(ROW, it.id.flatten()) }
+
+    companion object {
+        val ROW = HomeRow.AllApps.key
+
+        /** The screen's heading in its grid. */
+        val TITLE = "title:$ROW"
+        val SHOW_ALL = FocusKey(ROW, "show-all")
+
+        /** The search button, where the focus goes on a screen with no apps to show. */
+        val FIND = FocusKey(ROW, "find")
     }
-    AppsGrid(
-        apps = apps,
-        header = {
-            AppsHeader(
-                count = source.size,
-                filter = filter,
-                hidden = current.content.hidden.size,
-                order = order,
-                query = query,
-                onOpen = { open = it },
+}
+
+/** The section for [state] and what the user [chose]; null until the apps are read. */
+@Composable
+internal fun rememberAppsSection(state: HomeUiState?, chose: AppsChoice): AppsSection? {
+    val content = state?.content ?: return null
+    val look = state.appearance
+    // Once nothing is hidden any more, the hidden filter is gone: show everything.
+    val filter = if (chose.filter == AppFilter.Hidden && content.hidden.isEmpty()) AppFilter.All else chose.filter
+    // Kept that way: apps hidden later must not bring the filter back.
+    if (filter != chose.filter) SideEffect { chose.filter = filter }
+    val words = chose.query.trim()
+    // Not on every change of the look or the layout: a tile being moved or a size being set
+    // would sort every app again on each step.
+    val size = look.tileSizeOf(AppsSection.ROW)
+    val names = look.namesIn(AppsSection.ROW) to look.namesPlaceIn(AppsSection.ROW)
+    return remember(content.apps, content.hidden, filter, words, look.appsOrder, state.usage, size, names) {
+        appsSection(state, filter, words)
+    }
+}
+
+private fun appsSection(state: HomeUiState, filter: AppFilter, words: String): AppsSection {
+    val look = state.appearance
+    val hiddenOnes = filter == AppFilter.Hidden
+    val orderApplies = !hiddenOnes && words.isEmpty() && state.usage.isNotEmpty()
+    val shown = (if (hiddenOnes) state.content.hidden else state.content.apps)
+        .filter { filter.shows(it) && it.label.contains(words, ignoreCase = true) }
+        .sortedWith(appsByName())
+    val byUse = orderApplies && look.appsOrder == AppsOrder.ByUse
+    val top = if (byUse) mostUsed(shown, state.usage, TOP_APPS) else emptyList()
+    return AppsSection(
+        top = top,
+        rest = shown - top.toSet(),
+        filter = filter,
+        query = words,
+        order = look.appsOrder,
+        orderApplies = orderApplies,
+        hidden = state.content.hidden.size,
+        size = look.tileSizeOf(AppsSection.ROW),
+        // Hidden apps are looked for by name: there the names are always on.
+        name = if (hiddenOnes) {
+            TileName(TileNames.All, NamesPlace.Under)
+        } else {
+            TileName(look.namesIn(AppsSection.ROW), look.namesPlaceIn(AppsSection.ROW))
+        },
+    )
+}
+
+/**
+ * The first apps of the "All apps" screen, in its order and with nothing filtered: what the "Apps"
+ * row of home shows before its tile that opens the screen.
+ */
+internal fun homeApps(state: HomeUiState): List<App> {
+    val byName = state.content.apps.sortedWith(appsByName())
+    val byUse = state.appearance.appsOrder == AppsOrder.ByUse && state.usage.isNotEmpty()
+    val top = if (byUse) mostUsed(byName, state.usage, TOP_APPS) else emptyList()
+    return (top + (byName - top.toSet())).take(HomeRow.AllApps.APPS)
+}
+
+private fun AppFilter.shows(app: App): Boolean = when (this) {
+    AppFilter.Tv -> app.isTvApp
+    AppFilter.Phone -> !app.isTvApp
+    AppFilter.All, AppFilter.Hidden -> true
+}
+
+/**
+ * After the search, the filter or the order changes, the focus goes to the section's first tile:
+ * the button it was on stays, but what was under it is another list.
+ */
+@Composable
+internal fun AppsFocusOnChange(section: AppsSection?, focus: HomeFocus) {
+    val changed = section?.let { Triple(it.filter, it.query, it.order) }
+    var seen by remember { mutableStateOf(changed) }
+    LaunchedEffect(changed) {
+        val before = seen
+        seen = changed
+        if (section == null || before == null || before == changed) return@LaunchedEffect
+        focus.focusSoon(section.firstKey ?: AppsSection.SHOW_ALL)
+    }
+}
+
+/** Every app, as the "All apps" screen lays them out: the heading with its three buttons, then the tiles. */
+internal fun LazyGridScope.allApps(section: AppsSection, chose: AppsChoice, actions: HomeActions) {
+    fullWidth(AppsSection.TITLE) { AppsHeader(section, onOpen = { chose.dialog = it }) }
+    val span = GridItemSpan(section.size.gridSpan)
+    val tiles: (List<App>) -> Unit = { apps ->
+        items(apps, key = { "${AppsSection.ROW}:${it.id.flatten()}" }, span = { span }, contentType = { APP }) { app ->
+            AppCard(
+                app = app,
+                onClick = { actions.open(app) },
+                onLongClick = { actions.appMenu(app, Place.All) },
+                name = section.name,
+                banner = actions.banner(app),
+                modifier = Modifier
+                    .gridCell()
+                    .anchorWhenFocused(actions.anchor)
+                    .homeFocus(LocalHomeFocus.current, FocusKey(AppsSection.ROW, app.id.flatten())),
             )
-        },
-        showLabels = current.appearance.showLabels || filter == AppFilter.Hidden,
-        hidden = filter == AppFilter.Hidden,
-        size = current.appearance.tileSize,
-        banner = { current.appearance.customBanners[it.id.flatten()] },
-        onOpen = viewModel::open,
-        onMenu = {
-            viewModel.onMenuOpened()
-            menu.open(HomeDialog.AppActions(it, Place.All))
-        },
-        anchor = menu.anchor,
+        }
+    }
+    if (section.top.isNotEmpty()) {
+        fullWidth("label:top") { AppsLabel(stringResource(R.string.apps_most_used)) }
+        tiles(section.top)
+        if (section.rest.isNotEmpty()) fullWidth("label:rest") { AppsLabel(stringResource(R.string.apps_the_rest)) }
+    }
+    tiles(section.rest)
+    if (section.count == 0) fullWidth("empty:${AppsSection.ROW}") { NoApps(section, onShowAll = chose::showAll) }
+}
+
+@Composable
+private fun AppsLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier,
     )
-    open?.let { shown ->
-        AppsDialogs(
-            dialog = shown,
-            query = query,
-            hidden = current.content.hidden.size,
-            onQuery = { query = it },
-            onOrder = viewModel::setAppsOrder,
-            onFilter = { chosen = it },
-            onDismiss = { open = null },
-        )
-    }
-    menu.dialog?.let { shown ->
-        HomeDialogs(
-            dialog = shown,
-            state = current,
-            commands = viewModel,
-            show = { menu.dialog = it },
-            startMoving = {},
-            anchor = menu.at,
-        )
-    }
 }
 
-/** [source] filtered and sorted by name; sorting by use puts the most opened in [OrderedApps.top]. */
-private fun orderedApps(
-    source: List<App>,
-    filter: AppFilter,
-    words: String,
-    order: AppsOrder,
-    usage: Map<String, Long>,
-): OrderedApps {
-    val shown = source.filter { app ->
-        val kind = when (filter) {
-            AppFilter.Tv -> app.isTvApp
-            AppFilter.Phone -> !app.isTvApp
-            AppFilter.All, AppFilter.Hidden -> true
-        }
-        kind && (words.isEmpty() || app.label.contains(words, ignoreCase = true))
-    }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label })
-    val byUse = order == AppsOrder.ByUse && filter != AppFilter.Hidden && words.isEmpty()
-    val top = if (byUse) mostUsed(shown, usage, TOP_APPS) else emptyList()
-    return OrderedApps(top, shown - top.toSet())
-}
-
+/** Why the section is empty, and the way out: a search or a filter left nothing. */
 @Composable
-private fun AppsDialogs(
-    dialog: AppsDialog,
-    query: String,
-    hidden: Int,
-    onQuery: (String) -> Unit,
-    onOrder: (AppsOrder) -> Unit,
-    onFilter: (AppFilter) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    when (dialog) {
+private fun NoApps(section: AppsSection, onShowAll: () -> Unit, modifier: Modifier = Modifier) {
+    val why = when {
+        section.query.isNotEmpty() -> stringResource(R.string.apps_none_found, section.query)
+        section.filter == AppFilter.Tv -> stringResource(R.string.apps_none_tv)
+        section.filter == AppFilter.Phone -> stringResource(R.string.apps_none_phone)
+        else -> stringResource(R.string.apps_nothing)
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = modifier.padding(vertical = 8.dp)) {
+        Text(why, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (section.query.isNotEmpty() || section.filter != AppFilter.All) {
+            Button(
+                onClick = onShowAll,
+                modifier = Modifier.homeFocus(LocalHomeFocus.current, AppsSection.SHOW_ALL),
+            ) { Text(stringResource(R.string.apps_show_all)) }
+        }
+    }
+}
+
+/** The dialog [chose] has open: the name to find, the order, what to show. The current choice is marked. */
+@Composable
+internal fun AppsDialogs(section: AppsSection, chose: AppsChoice, onOrder: (AppsOrder) -> Unit) {
+    val close = { chose.dialog = null }
+    when (chose.dialog) {
         AppsDialog.Find -> NameDialog(
             title = stringResource(R.string.apps_find_title),
-            initial = query,
+            initial = chose.query,
             saveLabel = stringResource(R.string.apps_find),
             cancelLabel = stringResource(R.string.name_cancel),
             onSave = {
-                onQuery(it)
-                onDismiss()
+                chose.query = it.trim()
+                close()
             },
-            onDismiss = onDismiss,
+            onDismiss = close,
         )
 
         AppsDialog.Order -> ChoiceDialog(
             title = stringResource(R.string.apps_order),
-            choices = AppsOrder.entries.map { entry -> Choice(stringResource(entry.title)) { onOrder(entry) } },
-            onDismiss = onDismiss,
+            choices = AppsOrder.entries.map { entry ->
+                Choice(stringResource(entry.title), chosen = entry == section.order) { onOrder(entry) }
+            },
+            onDismiss = close,
         )
 
         AppsDialog.Show -> ChoiceDialog(
             title = stringResource(R.string.apps_show),
             choices = AppFilter.entries
-                .filter { it != AppFilter.Hidden || hidden > 0 }
-                .map { entry -> Choice(filterTitle(entry, hidden)) { onFilter(entry) } },
-            onDismiss = onDismiss,
+                .filter { it != AppFilter.Hidden || section.hidden > 0 }
+                .map { entry ->
+                    val title = filterTitle(entry, section.hidden)
+                    Choice(title, chosen = entry == section.filter) { chose.filter = entry }
+                },
+            onDismiss = close,
         )
+
+        null -> Unit
     }
 }
 
-@Composable
-private fun AppsGrid(
-    apps: OrderedApps,
-    header: @Composable () -> Unit,
-    showLabels: Boolean,
-    hidden: Boolean,
-    size: TileSize,
-    banner: (App) -> String?,
-    onOpen: (App) -> Unit,
-    onMenu: (App) -> Unit,
-    anchor: TileAnchor,
-    modifier: Modifier = Modifier,
-) {
-    val topTitle = stringResource(R.string.apps_most_used)
-    val restTitle = stringResource(R.string.apps_the_rest)
-    // The screen opens on its first app; a frame later, once the grid has laid its tiles out.
-    val firstTile = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
-        withFrameNanos {}
-        runCatching { firstTile.requestFocus() }
-    }
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(size.columns),
-        contentPadding = GRID_PADDING,
-        horizontalArrangement = Arrangement.spacedBy(GRID_SPACING),
-        verticalArrangement = Arrangement.spacedBy(GRID_SPACING),
-        modifier = modifier.fillMaxSize(),
-    ) {
-        item(span = { GridItemSpan(maxLineSpan) }) { header() }
-        // Down from the last row goes nowhere, explicitly: otherwise focus search lays out the
-        // hint below the grid on every repeat of a held key.
-        val tile: @Composable (App, Boolean, Boolean) -> Unit = { app, first, lastRow ->
-            AppCard(
-                app = app,
-                onClick = { onOpen(app) },
-                onLongClick = { onMenu(app) },
-                showLabel = showLabels,
-                banner = banner(app),
-                modifier = Modifier
-                    .then(if (first) Modifier.focusRequester(firstTile) else Modifier)
-                    .anchorWhenFocused(anchor)
-                    .focusProperties { if (lastRow) down = FocusRequester.Cancel },
-            )
-        }
-        val columns = size.columns
-        if (apps.top.isNotEmpty()) {
-            label(topTitle)
-            itemsIndexed(apps.top, key = { _, app -> app.id.flatten() }) { index, app ->
-                tile(app, index == 0, apps.rest.isEmpty() && index >= lastRowStart(apps.top.size, columns))
-            }
-            if (apps.rest.isNotEmpty()) label(restTitle)
-        }
-        itemsIndexed(apps.rest, key = { _, app -> app.id.flatten() }) { index, app ->
-            tile(app, index == 0 && apps.top.isEmpty(), index >= lastRowStart(apps.rest.size, columns))
-        }
-        if (apps.top.isEmpty() && apps.rest.isEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Text(stringResource(R.string.apps_nothing), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Text(
-                stringResource(if (hidden) R.string.apps_hint_hidden else R.string.home_hold_ok_hint),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 16.dp),
-            )
-        }
-    }
-}
-
-/** Index of the first item in the last row of [count] items laid out [columns] to a row. */
-private fun lastRowStart(count: Int, columns: Int): Int = count - ((count - 1) % columns + 1)
-
-private fun LazyGridScope.label(text: String) = item(key = "label:$text", span = { GridItemSpan(maxLineSpan) }) {
-    Text(text, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-}
-
-/** Three buttons, the most used first: find, the order, what to show (the rarer filters live in there). */
+/**
+ * "All apps", how many are shown, and three buttons, the most used first: find, the order, what
+ * to show (the rarer filters live in there).
+ */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun AppsHeader(
-    count: Int,
-    filter: AppFilter,
-    hidden: Int,
-    order: AppsOrder,
-    query: String,
-    onOpen: (AppsDialog) -> Unit,
-    modifier: Modifier = Modifier,
-) {
+private fun AppsHeader(section: AppsSection, onOpen: (AppsDialog) -> Unit, modifier: Modifier = Modifier) {
+    val focus = LocalHomeFocus.current
     Row(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier.fillMaxWidth().padding(bottom = 16.dp),
+        modifier = modifier.fillMaxWidth().padding(top = 8.dp),
     ) {
-        Text(stringResource(R.string.home_all_apps), style = MaterialTheme.typography.headlineMedium)
+        Text(stringResource(R.string.home_all_apps), style = MaterialTheme.typography.titleMedium)
         Text(
-            count.toString(),
-            style = MaterialTheme.typography.titleLarge,
+            section.count.toString(),
+            style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.weight(1f))
-        FilterChip(selected = query.isNotBlank(), onClick = { onOpen(AppsDialog.Find) }) {
+        FilterChip(
+            selected = section.query.isNotEmpty(),
+            onClick = { onOpen(AppsDialog.Find) },
+            modifier = Modifier.homeFocus(focus, AppsSection.FIND),
+        ) {
             Icon(painterResource(R.drawable.ic_search), contentDescription = null, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
-            Text(query.ifBlank { stringResource(R.string.apps_find) }, maxLines = 1)
+            Text(section.query.ifEmpty { stringResource(R.string.apps_find) }, maxLines = 1)
         }
-        FilterChip(selected = false, onClick = { onOpen(AppsDialog.Order) }) {
+        val byUse = section.orderApplies && section.order == AppsOrder.ByUse
+        FilterChip(
+            selected = false,
+            enabled = section.orderApplies,
+            onClick = { onOpen(AppsDialog.Order) },
+            modifier = Modifier.homeFocus(focus, FocusKey(AppsSection.ROW, "order")),
+        ) {
             Text(
-                stringResource(
-                    if (order == AppsOrder.ByUse) R.string.apps_order_chip_by_use else R.string.apps_order_chip_by_name,
-                ),
+                stringResource(if (byUse) R.string.apps_order_chip_by_use else R.string.apps_order_chip_by_name),
                 maxLines = 1,
             )
         }
-        FilterChip(selected = filter != AppFilter.All, onClick = { onOpen(AppsDialog.Show) }) {
-            Text(stringResource(R.string.apps_show_chip, filterTitle(filter, hidden)), maxLines = 1)
-        }
+        FilterChip(
+            selected = section.filter != AppFilter.All,
+            onClick = { onOpen(AppsDialog.Show) },
+            modifier = Modifier.homeFocus(focus, FocusKey(AppsSection.ROW, "show")),
+        ) { Text(stringResource(R.string.apps_show_chip, filterTitle(section.filter, section.hidden)), maxLines = 1) }
     }
 }
 
@@ -322,5 +346,7 @@ private val AppsOrder.title: Int
         AppsOrder.ByName -> R.string.apps_order_by_name
     }
 
-/** How many of the most used apps come first when sorting by use: one row of a medium grid. */
+/** How many of the most used apps come first when sorting by use. */
 private const val TOP_APPS = 5
+
+private const val APP = "app"

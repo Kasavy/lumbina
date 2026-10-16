@@ -39,17 +39,21 @@ class VoiceSettingsViewModel @Inject constructor(
     val state: StateFlow<VoiceLanguagesState?> =
         voiceLanguages.state.stateIn(viewModelScope, WhileUiSubscribed, null)
 
-    /** Whether phrases like "open Kinopoisk" are carried out rather than typed. */
-    val commands: StateFlow<Boolean> = voiceSettings.settings.map { it.commands }
-        .stateIn(viewModelScope, WhileUiSubscribed, true)
+    /** Whether phrases like "open Kinopoisk" are carried out rather than typed; null until read. */
+    val commands: StateFlow<Boolean?> = voiceSettings.settings.map { it.commands }
+        .stateIn(viewModelScope, WhileUiSubscribed, null)
 
-    /** Who recognizes, and which cloud services have a key. */
-    val recognizer: StateFlow<Recognizer> =
+    /**
+     * Who recognizes, and which cloud services have a key; null until known. The page is built
+     * from it (another app recognizing leaves no languages to show), so a guess shown first would
+     * give way to another page under the user's eyes.
+     */
+    val recognizer: StateFlow<Recognizer?> =
         // Asked again when apps change: the one that recognizes may be installed or removed meanwhile.
         combine(voiceSettings.settings, speechKeys.providers, installedApps.observe()) { settings, withKey, _ ->
             Recognizer(settings.provider, withKey, speechApps.installed().firstOrNull())
         }
-            .stateIn(viewModelScope, WhileUiSubscribed, Recognizer())
+            .stateIn(viewModelScope, WhileUiSubscribed, null)
 
     fun chooseProvider(provider: SpeechProvider) {
         viewModelScope.launch { voiceSettings.update { it.copy(provider = provider) } }

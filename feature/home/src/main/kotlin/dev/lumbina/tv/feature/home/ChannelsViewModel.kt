@@ -11,10 +11,12 @@ import dev.lumbina.tv.core.domain.channels.ChannelSettingsRepository
 import dev.lumbina.tv.core.domain.channels.ProgramCard
 import dev.lumbina.tv.core.domain.channels.ProgramLauncher
 import dev.lumbina.tv.core.domain.channels.TvChannels
+import dev.lumbina.tv.core.domain.channels.TvListingsPermission
 import dev.lumbina.tv.core.domain.channels.byAppUse
 import dev.lumbina.tv.core.domain.channels.visibleRows
 import dev.lumbina.tv.core.ui.WhileUiSubscribed
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
@@ -24,6 +26,8 @@ data class ChannelsUi(
     val watchNext: List<ProgramCard> = emptyList(),
     val rows: List<ChannelRow> = emptyList(),
     val loaded: Boolean = false,
+    /** The permission the TV Provider wants before it shows other apps' rows; null when it has it. */
+    val missingPermission: String? = null,
 )
 
 /**
@@ -38,7 +42,10 @@ class ChannelsViewModel @Inject constructor(
     installedApps: InstalledApps,
     usage: AppUsage,
     private val launcher: ProgramLauncher,
+    private val permission: TvListingsPermission,
 ) : ViewModel() {
+
+    private val missing = MutableStateFlow(permission.missing())
 
     val state: StateFlow<ChannelsUi> = combine(
         channels.channels(),
@@ -48,15 +55,35 @@ class ChannelsViewModel @Inject constructor(
         usage.recent(),
     ) { feeds, watchNext, choice, apps, used ->
         val labels = labelsByPackage(apps)
+        appNames = labels
         val watching = watchNext.filter { it.packageName in labels }
         ChannelsUi(
             watchNext = watching,
             rows = feeds.byAppUse(used, watching.map { it.packageName }.toSet()).visibleRows(choice, labels),
             loaded = true,
         )
-    }.stateIn(viewModelScope, WhileUiSubscribed, ChannelsUi())
+    }.combine(missing) { ui, _ ->
+        // Asked again with each reading: granted elsewhere (the setup, drawn over home, which
+        // never left the screen) the rows are read again, and home must stop asking for it.
+        ui.copy(missingPermission = permission.missing())
+    }.stateIn(viewModelScope, WhileUiSubscribed, ChannelsUi(missingPermission = permission.missing()))
+
+    /** Home is on screen again: the permission may have been granted elsewhere meanwhile. */
+    fun onHomeShown() = onAccess(granted = permission.missing() == null)
+
+    /** The user answered the system's question about the permission. */
+    fun onAccess(granted: Boolean) {
+        if (granted && missing.value != null) permission.onGranted()
+        missing.value = permission.missing()
+    }
+
+    private var appNames = emptyMap<String, String>()
+    private val failures = Failures(viewModelScope)
+
+    /** The program that just failed to open, for a few seconds. */
+    internal val failed: StateFlow<Failed?> get() = failures.state
 
     fun open(card: ProgramCard) {
-        launcher.open(card)
+        if (!launcher.open(card)) failures.say(Failed.Program(appNames[card.packageName] ?: card.packageName))
     }
 }

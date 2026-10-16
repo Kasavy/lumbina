@@ -23,7 +23,15 @@ data class VoiceStats(
     val hypotheses: List<Hypothesis>,
     /** The level of the loudest chunk, in dBFS; null when no sound came at all (no audio, or all zeros). */
     val loudestDb: Double? = null,
-)
+) {
+    /** Whether anything as loud as a voice came from the mic: without it nobody spoke, whatever the room hummed. */
+    val voiceHeard: Boolean get() = loudestDb != null && loudestDb >= VOICE_DB
+
+    private companion object {
+        // Between a remote's mic in silence (about -33..-38 dBFS on a Hisense one) and with a voice (-5..-23).
+        const val VOICE_DB = -28.0
+    }
+}
 
 /**
  * One push-to-talk utterance: capture → recognize → pick the language.

@@ -46,6 +46,14 @@ fun dateText(time: Long): String {
     return DateFormat.format(pattern, time).toString().asHeading(locale)
 }
 
+/** [time]'s date in short, to stand in a line with other things: "Sun, Sep 27". */
+@Composable
+fun shortDateText(time: Long): String {
+    val locale = LocalLocale.current.platformLocale
+    val pattern = remember(locale) { DateFormat.getBestDateTimePattern(locale, "EEEdMMM") }
+    return DateFormat.format(pattern, time).toString()
+}
+
 /**
  * Starts with a capital: a date standing alone is a line of its own, while Russian and most other
  * languages write the day of the week in lower case.

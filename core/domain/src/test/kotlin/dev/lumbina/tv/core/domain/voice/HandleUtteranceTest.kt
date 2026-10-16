@@ -47,9 +47,10 @@ class HandleUtteranceTest {
     }
 
     private var launches = true
+    private var installed = listOf(kinopoisk)
 
     private fun handler(commands: Boolean = true) = HandleUtterance(
-        apps = { listOf(kinopoisk) },
+        apps = { installed },
         launcher = { launches && launched.add(it) },
         device = device,
         search = { searched.add(it) },
@@ -85,14 +86,14 @@ class HandleUtteranceTest {
     fun `closes the app named, or the one in front`() = runTest {
         assertEquals(UtteranceOutcome.Closed("Кинопоиск"), handler()("закрой кинопоиск"))
         inFront = "ru.kinopoisk.tv"
-        assertEquals(UtteranceOutcome.Done(VoiceCommand.Close(null)), handler()("закрой"))
+        assertEquals(UtteranceOutcome.Closed("Кинопоиск"), handler()("закрой"))
         assertEquals(listOf("stop ru.kinopoisk.tv", "home", "stop ru.kinopoisk.tv"), controls)
     }
 
     @Test
     fun `an app in front gives way to Lumbina even where it can't be stopped`() = runTest {
         stoppable = false
-        assertEquals(UtteranceOutcome.Failed(VoiceCommand.Close("кинопоиск")), handler()("закрой кинопоиск"))
+        assertEquals(UtteranceOutcome.CantClose, handler()("закрой кинопоиск"))
         inFront = "ru.kinopoisk.tv"
         assertEquals(UtteranceOutcome.Closed("Кинопоиск"), handler()("закрой кинопоиск"))
         assertEquals(listOf("home"), controls)
@@ -100,7 +101,7 @@ class HandleUtteranceTest {
 
     @Test
     fun `closing needs an app, neither a launcher in front nor an unknown name`() = runTest {
-        assertEquals(UtteranceOutcome.Failed(VoiceCommand.Close(null)), handler()("закрой"))
+        assertEquals(UtteranceOutcome.NothingToClose, handler()("закрой"))
         assertEquals(UtteranceOutcome.AppNotFound("телеграм"), handler()("закрой телеграм"))
         assertEquals(emptyList<String>(), controls)
     }
@@ -151,6 +152,18 @@ class HandleUtteranceTest {
         assertEquals(1_000L + 30 * 60_000L, sleep.current.value.timerEndsAt)
         assertEquals(UtteranceOutcome.SleepSet(null), handler()("отмени таймер"))
         assertEquals(null, sleep.current.value.timerEndsAt)
+        assertEquals(UtteranceOutcome.NoTimer, handler()("отмени таймер"))
+    }
+
+    @Test
+    fun `where several apps fit the name, the one chosen is opened`() = runTest {
+        val hd = kinopoisk.copy(id = AppId("ru.kinopoisk.hd", "Main"), label = "Кинопоиск HD")
+        val kids = kinopoisk.copy(id = AppId("ru.kinopoisk.kids", "Main"), label = "Кинопоиск Детям")
+        installed = listOf(hd, kids)
+        val asked = handler()("открой кинопоиск") as UtteranceOutcome.Ambiguous
+        assertEquals(listOf(hd, kids), asked.apps)
+        assertEquals(UtteranceOutcome.Opened("Кинопоиск Детям"), asked.pick(kids))
+        assertEquals(listOf(kids.id), launched)
     }
 
     @Test

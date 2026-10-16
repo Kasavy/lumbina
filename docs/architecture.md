@@ -25,8 +25,8 @@ Lumbina is a multi-module Android project organised around a pure-Kotlin domain.
 | `:core:common` | `LumbinaActions` (in-app broadcast actions and extras) and the `LumbinaLog` port. Plain Kotlin/JVM. |
 | `:core:network` | `HttpGet` port and its `HttpURLConnection` adapter (timeouts, User-Agent, status check), shared by the platform adapters. Plain Kotlin/JVM. |
 | `:core:data` | Persistence: Room (sections, folders, hidden apps, labels) and JSON DataStore files for settings, multi-process where both processes use them. |
-| `:core:designsystem` | TV theme: colours, accent, typography. |
-| `:core:ui` | Shared TV components: app cards, program tiles, dialogs, on-screen keyboard, app artwork, wallpaper layer, QR code. |
+| `:core:designsystem` | TV themes (dark and light) by role: colours, accent, typography. |
+| `:core:ui` | Shared TV components: app cards, program tiles, the side panel and its menus, dialogs, on-screen keyboard, app artwork, wallpaper layer, QR code. |
 | `:core:testing` | Fakes shared by tests. Plain Kotlin/JVM. |
 | `:feature:*` | Screens and view models: `home` (incl. all apps), `settings`, `onboarding`, `screensaver`. |
 | `:platform:*` | Android adapters: `packages`, `accessibility`, `system`, `weather`, `wallpaper`, `tvprovider`, `adb`. |

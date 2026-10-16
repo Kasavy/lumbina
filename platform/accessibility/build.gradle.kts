@@ -13,5 +13,6 @@ dependencies {
     implementation(projects.core.domain)
     implementation(projects.core.common)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.zxing.core)
     testImplementation(projects.core.testing)
 }

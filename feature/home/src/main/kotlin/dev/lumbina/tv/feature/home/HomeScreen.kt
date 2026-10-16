@@ -2,24 +2,23 @@ package dev.lumbina.tv.feature.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
-import androidx.compose.foundation.lazy.grid.LazyGridState
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -27,9 +26,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -39,27 +38,27 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import dev.lumbina.tv.core.domain.app.App
-import dev.lumbina.tv.core.domain.channels.ProgramCard
-import dev.lumbina.tv.core.domain.home.HomeItem
-import dev.lumbina.tv.core.domain.home.HomeRow
+import dev.lumbina.tv.core.designsystem.LocalTheme
+import dev.lumbina.tv.core.designsystem.colorOf
+import dev.lumbina.tv.core.domain.home.HomeAppearance
 import dev.lumbina.tv.core.domain.home.SectionContent
 import dev.lumbina.tv.core.domain.home.SectionStyle
 import dev.lumbina.tv.core.domain.home.TileContent
-import dev.lumbina.tv.core.domain.home.TileSize
+import dev.lumbina.tv.core.domain.theme.ThemeRole
 import dev.lumbina.tv.core.ui.AppCard
 import dev.lumbina.tv.core.ui.FolderCard
-import dev.lumbina.tv.core.ui.PivotScrolling
-import dev.lumbina.tv.core.ui.TileAnchor
+import dev.lumbina.tv.core.ui.PanelHost
+import dev.lumbina.tv.core.ui.TileName
 import dev.lumbina.tv.core.ui.anchorWhenFocused
+import dev.lumbina.tv.core.ui.preloadArtwork
 
 // The dialogs only see the HomeCommands interface, not the view model's state.
-@Suppress("ViewModelForwarding")
+@Suppress("ViewModelForwarding", "LongMethod")
 @Composable
 fun HomeRoute(
-    onOpenAllApps: () -> Unit,
     modifier: Modifier = Modifier,
     refocus: Int = 0,
+    toAllApps: Int = 0,
     visible: Boolean = true,
     over: ScreenOnTop? = null,
     header: @Composable () -> Unit = {},
@@ -69,61 +68,83 @@ fun HomeRoute(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val channels by channelsViewModel.state.collectAsStateWithLifecycle()
     val hint by viewModel.holdOkHint.collectAsStateWithLifecycle()
-    var moving by remember { mutableStateOf<Moving?>(null) }
-    HomeComings(refocus, visible, shown = viewModel::onHomeShown) { moving = null }
+    val failedApp by viewModel.failed.collectAsStateWithLifecycle()
+    val failedProgram by channelsViewModel.failed.collectAsStateWithLifecycle()
+    val spotlight by viewModel.spotlight.collectAsStateWithLifecycle()
+    val movingTile = remember { MovingTile() }
+    var moving by movingTile::tile
+    val allApps = rememberAllApps(toAllApps, refocus, visible)
+    // Back on "All apps": home takes the focus back while still hidden under it, then it goes.
+    var closing by remember { mutableStateOf(false) }
+    LaunchedEffect(allApps.value) { closing = false }
+    val homeShown = visible && (!allApps.value || closing)
+    HomeComings(
+        refocus = refocus,
+        visible = visible,
+        shown = {
+            viewModel.onHomeShown()
+            channelsViewModel.onHomeShown()
+        },
+    ) { moving = null }
     val menu = remember { MenuState() }
-    val (current, shownChannels) = heldWhileHidden(state to channels, visible)
-    val latest by rememberUpdatedState(current)
-    val openAllApps by rememberUpdatedState(onOpenAllApps)
-    // One instance, so tiles taking it can skip recomposing when home does.
-    val actions = remember(viewModel, channelsViewModel) {
-        HomeActions(
-            open = viewModel::open,
-            openFolder = { menu.dialog = HomeDialog.OpenFolder(it.id) },
-            appMenu = { app, place ->
-                viewModel.onMenuOpened()
-                val section = (place as? Place.InSection)?.sectionId.orEmpty()
-                menu.open(HomeDialog.AppActions(app, place), Moving(section, HomeItem.AppItem(app.id).key))
-            },
-            folderMenu = { sectionId, folder ->
-                viewModel.onMenuOpened()
-                menu.open(HomeDialog.FolderActions(sectionId, folder), Moving(sectionId, folder.key))
-            },
-            move = { by -> moving?.let { viewModel.moveItem(it.sectionId, it.key, by) } },
-            stopMoving = { moving = null },
-            cancelMoving = {
-                moving?.let(viewModel::putBack)
-                moving = null
-            },
-            openProgram = channelsViewModel::open,
-            banner = { app -> latest?.appearance?.customBanners?.get(app.id.flatten()) },
-            openAllApps = { openAllApps() },
-            anchor = menu.anchor,
-        )
-    }
-    Box(modifier.hiddenFromFocus(!visible, over)) {
-        HomeScreen(
-            state = current,
-            channels = shownChannels,
-            moving = moving,
-            menuTile = menu.tile.takeIf { menu.dialog != null },
-            actions = actions,
-            refocus = refocus,
-            visible = visible,
-            header = header,
-        )
-        HoldOkHint(visible = hint, modifier = Modifier.align(Alignment.BottomCenter))
+    // A value of its own: the state read through its delegate could not be smart-cast.
+    val current = state
+    val actions = rememberHomeActions(viewModel, channelsViewModel, menu, movingTile, current) { allApps.value = true }
+    // The tile may go from under a move (its app uninstalled): then there is nothing to move.
+    val lost = moving?.let { current != null && current.indexOf(it) < 0 } == true
+    LaunchedEffect(lost) { if (lost) moving = null }
+    val undo by viewModel.undo.collectAsStateWithLifecycle()
+    var undone by remember { mutableIntStateOf(0) }
+    val onUndo = { if (viewModel.undoLast()) undone++ }
+    val failed = newerOf(failedApp, failedProgram)
+    // One message at a time at the bottom: the move's, a failure, then "Undo", then the hint.
+    val offered = undo.takeIf { moving == null && failed == null }
+    // "All apps" is inside too, so what is hidden there can be undone there.
+    UndoHost(offered, onUndo, modifier.hiddenFromFocus(!visible, over), busy = moving != null) {
+        Box(Modifier.fillMaxSize().hiddenFromFocus(!homeShown, null)) {
+            HomeScreen(
+                state = current,
+                channels = channels,
+                moving = moving,
+                menuTile = menu.tile.takeIf { menu.dialog != null },
+                actions = actions,
+                spotlight = spotlight.takeIf { !visible },
+                refocus = refocus,
+                visible = homeShown,
+                undo = offered,
+                undone = undone,
+                header = header,
+                // Under the "All apps" screen home is not drawn: the wallpaper is its background.
+                modifier = Modifier.graphicsLayer { alpha = if (allApps.value) 0f else 1f },
+            )
+        }
+        if (current != null && allApps.value && visible) {
+            AllAppsScreen(
+                state = current,
+                actions = actions,
+                onAppsOrder = viewModel::setAppsOrder,
+                closing = closing,
+                onClose = { closing = true },
+                onFinish = { allApps.value = false },
+                undone = undone,
+            )
+        }
+        val moved = current?.nameOf(moving, stringResource(R.string.home_all_apps))
+        HomeHints(hint, moved, Modifier.align(Alignment.BottomCenter), failed)
     }
     val shown = menu.dialog
-    if (current != null && shown != null) {
-        HomeDialogs(
-            dialog = shown,
-            state = current,
-            commands = viewModel,
-            show = { menu.dialog = it },
-            startMoving = { moving = it.copy(from = current.indexOf(it)) },
-            anchor = menu.at,
-        )
+    // One window as a menu leads to the next page, so home does not show between them.
+    PanelHost {
+        if (current != null && shown != null) {
+            HomeDialogs(
+                dialog = shown,
+                state = current,
+                commands = viewModel,
+                menu = menu,
+                startMoving = { moving = it.copy(from = current.indexOf(it)) },
+                anchor = menu.at,
+            )
+        }
     }
 }
 
@@ -136,30 +157,12 @@ data class Moving(val sectionId: String, val key: String, val from: Int = -1) {
     fun isTile(sectionId: String, key: String): Boolean = this.sectionId == sectionId && this.key == key
 }
 
-/** What the home screen can ask for; grouped to keep signatures short. */
-class HomeActions(
-    val open: (App) -> Unit,
-    val openFolder: (TileContent.FolderTile) -> Unit,
-    val appMenu: (App, Place) -> Unit,
-    val folderMenu: (String, TileContent.FolderTile) -> Unit,
-    val move: (Int) -> Unit,
-    /** OK: the tile stays where it is now. */
-    val stopMoving: () -> Unit,
-    /** Back: the tile goes back where it was. */
-    val cancelMoving: () -> Unit,
-    val openProgram: (ProgramCard) -> Unit,
-    /** The user's own banner for an app, if any. */
-    val banner: (App) -> String?,
-    val openAllApps: () -> Unit,
-    /** Tiles report here while focused, so a menu can open under the tile. */
-    val anchor: TileAnchor,
-)
-
 /**
- * Favorites (ending with the way to all apps), then the rows in the user's order: continue
- * watching, recently installed, categories (rows or grids) and the channels' recommendations.
- * Holding OK on a tile opens its menu.
+ * The rows in the user's order: Favorites, continue watching, recently installed, categories, the
+ * channels' recommendations, the first apps. Holding OK on a tile opens its menu. While the
+ * settings work on a row ([spotlight]), it is brought up and stays lit, the rest dimmed.
  */
+@Suppress("LongParameterList")
 @Composable
 internal fun HomeScreen(
     state: HomeUiState?,
@@ -170,139 +173,95 @@ internal fun HomeScreen(
     menuTile: Moving? = null,
     refocus: Int = 0,
     visible: Boolean = true,
+    spotlight: String? = null,
+    undo: Undo? = null,
+    undone: Int = 0,
     header: @Composable () -> Unit = {},
 ) {
     val last = rememberSaveable { mutableStateOf<FocusKey?>(null) }
     val focus = remember { HomeFocus(last) }
-    val grid = rememberLazyGridState()
-    RestoreFocus(focus, state, channels, grid, refocus, visible)
-    CompositionLocalProvider(LocalHomeFocus provides focus) {
-        HomeGrid(state, channels, moving, menuTile, actions, grid, header, modifier.then(focus.area))
-    }
-}
-
-@Composable
-@Suppress("LongParameterList")
-private fun HomeGrid(
-    state: HomeUiState?,
-    channels: ChannelsUi,
-    moving: Moving?,
-    menuTile: Moving?,
-    actions: HomeActions,
-    grid: LazyGridState,
-    header: @Composable () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val size = state?.appearance?.tileSize ?: TileSize.Medium
-    val watchNextTitle = stringResource(R.string.home_watch_next)
-    val favoritesTitle = stringResource(R.string.home_favorites)
-    val frequentTitle = stringResource(R.string.home_frequent)
-    val openedTitle = stringResource(R.string.home_opened)
-    val recentTitle = stringResource(R.string.home_recently_installed)
-    PivotScrolling {
-        LazyVerticalGrid(
-            state = grid,
-            columns = GridCells.Fixed(size.columns),
-            contentPadding = GRID_PADDING,
-            horizontalArrangement = Arrangement.spacedBy(GRID_SPACING),
-            verticalArrangement = Arrangement.spacedBy(GRID_SPACING),
-            modifier = modifier.fillMaxSize(),
-        ) {
-            fullWidth("header") { header() }
-            if (state == null) {
-                homeLoading(favoritesTitle, size)
-                return@LazyVerticalGrid
-            }
-            val showLabels = state.appearance.showLabels
-            state.content.sections.firstOrNull()?.let { favorites ->
-                section(
-                    favorites,
-                    size,
-                    showLabels,
-                    Marks(moving, menuTile),
-                    actions,
-                    allApps = state.content.apps.size,
-                )
-            }
-            state.rows.forEach { row ->
-                when (row) {
-                    HomeRow.WatchNext -> if (channels.loaded) {
-                        programRow(HomeRow.WatchNext.key, watchNextTitle, channels.watchNext, size, actions)
-                    } else {
-                        programRowLoading(HomeRow.WatchNext.key, watchNextTitle, size)
-                    }
-
-                    HomeRow.Opened -> appRow(HomeRow.Opened.key, openedTitle, state.opened, size, showLabels, actions)
-
-                    HomeRow.Frequent ->
-                        appRow(HomeRow.Frequent.key, frequentTitle, state.frequent, size, showLabels, actions)
-
-                    HomeRow.Recent -> appRow(HomeRow.Recent.key, recentTitle, state.recent, size, showLabels, actions)
-
-                    HomeRow.Recommendations -> if (channels.rows.isNotEmpty()) {
-                        fullWidth("recommendations") { Recommendations(channels.rows, size, actions) }
-                    }
-
-                    is HomeRow.Category -> state.content.sections.firstOrNull { it.id == row.id }?.let {
-                        section(it, size, showLabels, Marks(moving, menuTile), actions)
-                    }
-                }
-            }
+    val grid = rememberHomeGrid()
+    val apps = remember(state) { state?.let(::homeApps).orEmpty() }
+    // Every app's picture loaded while home is looked at, so "All apps" and the rows scroll from cache.
+    val context = LocalContext.current
+    val installed = state?.content?.apps
+    LaunchedEffect(installed) { installed?.let { preloadArtwork(context, it) } }
+    val shown = remember(state, channels, apps) { HomeRows(state, channels, apps) }
+    RestoreFocus(focus, state, channels, grid, refocus, visible, apps)
+    // The settings are working on a row: it is shown here as it changes.
+    LaunchedEffect(spotlight) { spotlight?.let { grid.showRow(it) } }
+    FocusOnUndone(focus, menuTile != null, undo, undone)
+    FocusOnNeighbour(focus, shown)
+    HomeBack(visible && moving == null, grid, focus, shown)
+    Box(modifier) {
+        CompositionLocalProvider(LocalHomeFocus provides focus) {
+            HomeGrid(shown, Marks(moving, menuTile), actions, grid, header, Modifier.then(focus.area))
         }
+        if (spotlight != null) SpotlightShade(grid, spotlight)
     }
 }
 
-private fun LazyGridScope.section(
+internal fun LazyGridScope.section(
     section: SectionContent,
-    size: TileSize,
-    showLabels: Boolean,
+    key: String,
+    look: HomeAppearance,
     marks: Marks,
     actions: HomeActions,
-    allApps: Int? = null,
 ) {
-    fullWidth("title:${section.id}") {
-        val title = if (section.isFavorites) stringResource(R.string.home_favorites) else section.name
-        val moved = marks.moving?.takeIf { it.sectionId == section.id }
-            ?.let { m -> section.tiles.firstOrNull { it.key == m.key } }
-        if (moved == null) SectionTitle(title) else MovingTitle(title, moved.name())
+    val row = RowLookUi.of(look, key)
+    if (look.showTitleIn(key)) {
+        fullWidth("title:${section.id}") {
+            val title = if (section.isFavorites) stringResource(R.string.home_favorites) else section.name
+            SectionTitle(title)
+        }
     }
     if (section.tiles.isEmpty()) {
         fullWidth("empty:${section.id}") {
             val hint = if (section.isFavorites) R.string.home_favorites_empty else R.string.home_category_empty
             Hint(stringResource(hint))
         }
-        if (allApps == null) return
     }
     val movingHere = marks.moving?.sectionId == section.id
-    val trailing: (@Composable (Modifier) -> Unit)? = allApps?.let { count ->
-        { modifier ->
-            AllAppsTile(
-                count,
-                actions.openAllApps,
-                modifier.dimmedIf(movingHere).homeFocus(LocalHomeFocus.current, FocusKey(section.id, ALL_APPS_KEY)),
-            )
+    // What every row of apps ends with; it is not moved.
+    // An empty row keeps its "+" whatever the setting: its hint says to press it.
+    val plus = look.showPlusIn(key) || section.tiles.isEmpty()
+    val trailing = buildList {
+        if (plus) add(Trailing(PLUS_KEY) { PlusTile({ actions.pickApps(section.id) }, it) })
+    }.map { tile ->
+        Trailing(tile.key) { modifier ->
+            val focus = FocusKey(section.id, tile.key)
+            tile.content(modifier.dimmedIf(movingHere).homeFocus(LocalHomeFocus.current, focus))
         }
     }
-    when (section.style) {
-        SectionStyle.Grid -> {
-            items(section.tiles, key = { "${section.id}:${it.key}" }, contentType = { TILE }) { tile ->
-                val focus = Modifier.homeFocus(LocalHomeFocus.current, FocusKey(section.id, tile.key))
-                SectionTile(section.id, tile, showLabels, marks, actions, focus)
+    val tile: @Composable (TileContent, Modifier) -> Unit = { content, modifier ->
+        SectionTile(
+            section.id,
+            content,
+            row.name,
+            marks,
+            actions,
+            modifier.homeFocus(LocalHomeFocus.current, FocusKey(section.id, content.key)),
+        )
+    }
+    when {
+        section.style == SectionStyle.Grid && !row.plate -> {
+            val span = GridItemSpan(row.size.gridSpan)
+            items(section.tiles, key = { "${section.id}:${it.key}" }, span = { span }, contentType = { TILE }) {
+                tile(it, Modifier.gridCell())
             }
-            if (trailing != null) item(key = ALL_APPS_KEY, contentType = ALL_APPS_KEY) { trailing(Modifier) }
+            items(trailing, key = { "${section.id}:${it.key}" }, span = { span }, contentType = { it.key }) {
+                it.content(Modifier.gridCell())
+            }
         }
 
-        SectionStyle.Row -> fullWidth("row:${section.id}") {
-            SectionRow(section, size.rowTileWidth, marks.moving, trailing = trailing) { tile, modifier ->
-                SectionTile(
-                    section.id,
-                    tile,
-                    showLabels,
-                    marks,
-                    actions,
-                    modifier.homeFocus(LocalHomeFocus.current, FocusKey(section.id, tile.key)),
-                )
-            }
+        // A grid on its backing is one item: the backing goes round all its lines.
+        section.style == SectionStyle.Grid -> fullWidth("row:${section.id}") {
+            PlateGrid(section, row.size.columns, row.size.appTileWidth(inset = PLATE_INSET), trailing, tile)
+        }
+
+        else -> fullWidth("row:${section.id}") {
+            val width = row.size.appTileWidth(inset = if (row.plate) PLATE_INSET else 0.dp)
+            SectionRow(section, width, marks.moving, plate = row.plate, trailing = trailing, tile = tile)
         }
     }
 }
@@ -313,15 +272,47 @@ private fun SectionRow(
     tileWidth: Dp,
     moving: Moving?,
     modifier: Modifier = Modifier,
-    trailing: (@Composable (Modifier) -> Unit)? = null,
+    plate: Boolean = false,
+    trailing: List<Trailing> = emptyList(),
     tile: @Composable (TileContent, Modifier) -> Unit,
 ) {
     val listState = rememberLazyListState()
     val movingIndex = section.tiles.indexOfFirst { moving?.isTile(section.id, it.key) == true }
     LaunchedEffect(movingIndex) { if (movingIndex >= 0) listState.animateScrollToItem(movingIndex) }
-    HomeRow(modifier, listState) {
+    RowStart(section.id, listState)
+    // Apps ticked from the "+" push it to the right: it stays in view, the focus is on it.
+    val focus = LocalHomeFocus.current
+    val count = section.tiles.size + trailing.size
+    // Read in the effect, not while composing: every row would recompose on every move of the focus.
+    LaunchedEffect(count) { if (focus?.last == FocusKey(section.id, PLUS_KEY)) listState.scrollToItem(count - 1) }
+    val tiles: LazyListScope.() -> Unit = {
         items(section.tiles, key = { it.key }) { tile(it, Modifier.width(tileWidth)) }
-        if (trailing != null) item(key = ALL_APPS_KEY) { trailing(Modifier.width(tileWidth)) }
+        items(trailing, key = { it.key }) { it.content(Modifier.width(tileWidth)) }
+    }
+    if (plate) PlateRow(modifier, listState, tiles) else HomeRow(modifier, listState, tiles)
+}
+
+/** A section laid out as a grid on its backing: every line of it inside one backing, the tiles [tileWidth] wide. */
+@Composable
+private fun PlateGrid(
+    section: SectionContent,
+    columns: Int,
+    tileWidth: Dp,
+    trailing: List<Trailing>,
+    tile: @Composable (TileContent, Modifier) -> Unit,
+) {
+    val width = Modifier.width(tileWidth)
+    Plate {
+        // One layout for all the lines, each tile keyed: a tile being moved keeps its focus as it
+        // changes places, onto another line too.
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(GRID_SPACING),
+            verticalArrangement = Arrangement.spacedBy(GRID_SPACING),
+            maxItemsInEachRow = columns,
+        ) {
+            section.tiles.forEach { shown -> key(shown.key) { tile(shown, width) } }
+            trailing.forEach { extra -> key(extra.key) { extra.content(width) } }
+        }
     }
 }
 
@@ -334,7 +325,7 @@ private fun SectionRow(
 private fun SectionTile(
     sectionId: String,
     tile: TileContent,
-    showLabels: Boolean,
+    name: TileName,
     marks: Marks,
     actions: HomeActions,
     modifier: Modifier = Modifier,
@@ -346,7 +337,7 @@ private fun SectionTile(
         modifier
             .dimmedIf(dimmed)
             .anchorWhenFocused(actions.anchor)
-            .onPreviewKeyEvent { event -> isMoving && moveKey(event.key, event.type, actions) },
+            .moveKeys(isMoving, actions),
     ) {
         val lifted = if (isMoving) Modifier.lifted() else Modifier
         when (tile) {
@@ -356,7 +347,7 @@ private fun SectionTile(
                 onClick = { if (isMoving) actions.stopMoving() else actions.open(tile.app) },
                 onLongClick = { if (!isMoving) actions.appMenu(tile.app, Place.InSection(sectionId)) },
                 highlighted = marked,
-                showLabel = showLabels,
+                name = name,
                 modifier = lifted,
             )
 
@@ -365,6 +356,16 @@ private fun SectionTile(
                 apps = tile.apps,
                 onClick = { if (isMoving) actions.stopMoving() else actions.openFolder(tile) },
                 onLongClick = { if (!isMoving) actions.folderMenu(sectionId, tile) },
+                highlighted = marked,
+                names = name,
+                modifier = lifted,
+            )
+
+            TileContent.AllAppsTile -> AllAppsTile(
+                onClick = { if (isMoving) actions.stopMoving() else actions.openAllApps() },
+                onLongClick = { if (!isMoving) actions.shortcutMenu() },
+                label = stringResource(R.string.home_all_apps),
+                name = name,
                 highlighted = marked,
                 modifier = lifted,
             )
@@ -378,11 +379,23 @@ private fun SectionTile(
 
 internal fun LazyGridScope.fullWidth(key: String, content: @Composable () -> Unit) =
     // The key's first word is the kind of item, so a title is reused for a title, a row for a row.
-    item(key = key, span = { GridItemSpan(maxLineSpan) }, contentType = key.substringBefore(':')) { content() }
+    item(key = key, span = { GridItemSpan(maxLineSpan) }, contentType = key.substringBefore(':')) {
+        Box(Modifier.gridCell()) { content() }
+    }
 
 @Composable
 internal fun SectionTitle(text: String, modifier: Modifier = Modifier) {
-    Text(text, style = MaterialTheme.typography.titleMedium, modifier = modifier.padding(top = 8.dp))
+    // A soft shadow in the veil's color: a heading stands on the picture itself, above the dense veil.
+    val veil = LocalTheme.current.colorOf(ThemeRole.Veil)
+    val base = MaterialTheme.typography.titleMedium
+    val style = remember(veil, base) {
+        base.copy(shadow = Shadow(veil.copy(alpha = TITLE_SHADOW_ALPHA), blurRadius = 8f))
+    }
+    Text(
+        text = text,
+        style = style,
+        modifier = modifier.padding(top = 8.dp),
+    )
 }
 
 @Composable
@@ -411,24 +424,8 @@ private fun HomeComings(refocus: Int, visible: Boolean, shown: () -> Unit, left:
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { onLeft() }
 }
 
-/** Padding and spacing of the home and "All apps" grids. */
-internal val GRID_SIDE = 48.dp
-internal val GRID_PADDING = PaddingValues(horizontal = GRID_SIDE, vertical = 32.dp)
-internal val GRID_SPACING = 20.dp
-
-/** Tiles per row of a grid. */
-internal val TileSize.columns: Int
-    get() = when (this) {
-        TileSize.Small -> 6
-        TileSize.Medium -> 5
-        TileSize.Large -> 4
-    }
-
-internal val TileSize.rowTileWidth: Dp
-    get() = when (this) {
-        TileSize.Small -> 176.dp
-        TileSize.Medium -> 208.dp
-        TileSize.Large -> 256.dp
-    }
+/** A tile a row ends with after its apps: the "+", the tile that opens all apps. */
+internal class Trailing(val key: String, val content: @Composable (Modifier) -> Unit)
 
 private const val TILE = "tile"
+private const val TITLE_SHADOW_ALPHA = 0.7f

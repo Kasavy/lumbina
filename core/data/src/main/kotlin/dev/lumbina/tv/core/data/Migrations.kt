@@ -46,3 +46,24 @@ internal val MIGRATION_2_3 = object : Migration(2, 3) {
         )
     }
 }
+
+/** v3 → v4: nothing to change; the step stays for the databases already at version 4. */
+internal val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) = Unit
+}
+
+/**
+ * v4 → v5: the shortcut to all apps is an item of Favorites, which the user can move and take out.
+ * Until now it was drawn after the last tile whatever the layout said: that is where it goes. A
+ * layout never written yet has no rows to add to, and gets the shortcut as every new one does.
+ */
+internal val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "INSERT INTO `section_items` (`sectionId`, `position`, `appId`, `folderId`) " +
+                "SELECT 'favorites', " +
+                "(SELECT COALESCE(MAX(`position`) + 1, 0) FROM `section_items` WHERE `sectionId` = 'favorites'), " +
+                "'@all-apps', NULL WHERE EXISTS (SELECT 1 FROM `sections` WHERE `id` = 'favorites')",
+        )
+    }
+}

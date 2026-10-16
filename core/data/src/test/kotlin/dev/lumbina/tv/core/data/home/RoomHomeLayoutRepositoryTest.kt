@@ -34,8 +34,8 @@ class RoomHomeLayoutRepositoryTest {
     fun close() = database.close()
 
     @Test
-    fun `an empty database is an empty layout`() = runTest {
-        assertEquals(HomeLayout(), repository.layout.first())
+    fun `an empty database is a new layout, with the all-apps shortcut in favorites`() = runTest {
+        assertEquals(HomeLayout().withAllAppsShortcut(true), repository.layout.first())
     }
 
     @Test

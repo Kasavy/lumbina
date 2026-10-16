@@ -3,7 +3,6 @@ package dev.lumbina.tv
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.FiniteAnimationSpec
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -24,7 +23,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -37,14 +35,17 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import dev.lumbina.tv.core.common.LumbinaActions
 import dev.lumbina.tv.core.ui.LAYERS_ARE_CHEAP
-import dev.lumbina.tv.feature.home.AllAppsRoute
 import dev.lumbina.tv.feature.home.HomeRoute
 import dev.lumbina.tv.feature.home.HomeTopBarRoute
-import dev.lumbina.tv.feature.home.NowPlayingRoute
+import dev.lumbina.tv.feature.home.HomeWindows
 import dev.lumbina.tv.feature.home.ScreenOnTop
 import dev.lumbina.tv.feature.home.WallpaperBackdrop
-import dev.lumbina.tv.feature.onboarding.SetupRoute
+import dev.lumbina.tv.feature.home.WindowAsk
+import dev.lumbina.tv.feature.onboarding.ServicePlateRoute
+import dev.lumbina.tv.feature.onboarding.SetupWizardRoute
+import dev.lumbina.tv.feature.onboarding.rememberSetupLeft
 import dev.lumbina.tv.feature.screensaver.ScreensaverActivity
 import dev.lumbina.tv.feature.settings.SettingsPage
 import dev.lumbina.tv.feature.settings.SettingsRoute
@@ -53,9 +54,9 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.collectLatest
 
 /**
- * Lumbina's screens: home, and over it settings and "All apps". Home stays composed under the
- * other two, unseen, so coming back to it builds nothing. The view models of all three belong
- * to the activity: a screen opened again shows what it last showed from its first frame.
+ * Lumbina's screens: home, and over it the settings in their panel. Home stays in sight under
+ * it and shows at once what is changed there. The view models of both belong to the activity: a
+ * screen opened again shows what it last showed from its first frame.
  */
 @Composable
 internal fun LumbinaNavHost(request: NavRequest?, modifier: Modifier = Modifier) {
@@ -63,12 +64,19 @@ internal fun LumbinaNavHost(request: NavRequest?, modifier: Modifier = Modifier)
     // Counts the times home is sent back to its first tile; saved, so a re-created screen
     // doesn't take an old count for a new request.
     var toStart by rememberSaveable { mutableIntStateOf(0) }
+    // Counts the requests to open the "All apps" screen over home.
+    var toAllApps by rememberSaveable { mutableIntStateOf(0) }
+    // One of home's windows asked for by a button of the remote, until it is closed.
+    var window by remember { mutableStateOf<String?>(null) }
+    val ask = remember(window) { WindowAsk(window) { window = null } }
     LaunchedEffect(request) {
         if (request == null) return@LaunchedEffect
         val onHome = navController.currentDestination?.route == HOME
         navController.popBackStack(HOME, inclusive = false)
         val page = request.settingsPage
         when {
+            page == LumbinaActions.HOME_ALL_APPS -> toAllApps++
+            page in LumbinaActions.HOME_WINDOWS -> window = page
             page != null -> navController.navigate("$SETTINGS?$PAGE_ARG=$page")
             request.sendsHomeToStart(onHome) -> toStart++
         }
@@ -98,41 +106,43 @@ internal fun LumbinaNavHost(request: NavRequest?, modifier: Modifier = Modifier)
             false
         },
     ) {
-        // Behind settings and the app list a video holds still: it is dimmed there anyway.
-        Backdrop(dim = if (onHome) 0f else SCREEN_DIM, busy = { busy.value || !onHome })
-        val homeAlpha by animateFloatAsState(if (onHome) 1f else 0f, SCREEN_FADE, label = "home")
-        Home(navController, toStart, visible = onHome, over, Modifier.graphicsLayer { alpha = homeAlpha })
+        // Under the settings' panel home stays in sight; a video holds still there.
+        Backdrop(busy = { busy.value || !onHome })
+        Home(navController, toStart, toAllApps, visible = onHome, over)
+        HomeWindows(ask)
         LumbinaRoutes(navController, checkNotNull(LocalViewModelStoreOwner.current), over.area)
+        // Over everything, in a window of its own: at the first start, and when asked back.
+        SetupWizardRoute()
     }
 }
 
 /** Reads [busy] in its own scope, so key presses recompose only the wallpaper. */
 @Composable
-private fun Backdrop(dim: Float, busy: () -> Boolean) {
-    WallpaperBackdrop(dim = dim, busy = busy())
+private fun Backdrop(busy: () -> Boolean) {
+    WallpaperBackdrop(busy = busy())
 }
 
 @Composable
 private fun Home(
     navController: NavHostController,
     toStart: Int,
+    toAllApps: Int,
     visible: Boolean,
     over: ScreenOnTop,
     modifier: Modifier = Modifier,
 ) {
     HomeRoute(
-        onOpenAllApps = { navController.navigate(ALL_APPS) { launchSingleTop = true } },
         modifier = modifier,
         refocus = toStart,
+        toAllApps = toAllApps,
         visible = visible,
         over = over,
         header = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                HomeTopBarRoute(onOpenSettings = {
-                    navController.navigate(SETTINGS) { launchSingleTop = true }
-                })
-                NowPlayingRoute()
-                SetupRoute(active = visible)
+                HomeTopBarRoute(
+                    onOpenSettings = { navController.navigate(SETTINGS) { launchSingleTop = true } },
+                    plates = { ServicePlateRoute() },
+                )
             }
         },
     )
@@ -152,7 +162,6 @@ private fun LumbinaRoutes(navController: NavHostController, owner: ViewModelStor
         exitTransition = { fadeOut(SCREEN_FADE) },
     ) {
         composable(HOME) {}
-        composable(ALL_APPS) { AllAppsRoute(owner) }
         composable(
             route = "$SETTINGS?$PAGE_ARG={$PAGE_ARG}",
             arguments = listOf(
@@ -165,8 +174,11 @@ private fun LumbinaRoutes(navController: NavHostController, owner: ViewModelStor
             val context = LocalContext.current
             val page = entry.arguments?.getString(PAGE_ARG)
             CompositionLocalProvider(LocalViewModelStoreOwner provides owner) {
+                val setup = rememberSetupLeft()
                 SettingsRoute(
                     initialPage = SettingsPage.entries.firstOrNull { it.name == page },
+                    setupLeft = setup.steps,
+                    onSetup = setup.open,
                     onPreviewScreensaver = { context.startActivity(Intent(context, ScreensaverActivity::class.java)) },
                 )
             }
@@ -176,7 +188,6 @@ private fun LumbinaRoutes(navController: NavHostController, owner: ViewModelStor
 
 private const val HOME = "home"
 private const val SETTINGS = "settings"
-private const val ALL_APPS = "apps"
 private const val PAGE_ARG = "page"
 
 /** A video wallpaper plays again this long after the last button press. */
@@ -188,6 +199,3 @@ private const val IDLE_AFTER_KEYS_MILLIS = 2_000L
  */
 private val SCREEN_FADE: FiniteAnimationSpec<Float> = if (LAYERS_ARE_CHEAP) tween(SCREEN_FADE_MILLIS) else snap()
 private const val SCREEN_FADE_MILLIS = 150
-
-/** How dark the wallpaper gets behind settings and the app list. */
-private const val SCREEN_DIM = 0.78f

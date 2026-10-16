@@ -6,7 +6,7 @@ import java.text.Collator
 import java.util.Locale
 import kotlinx.coroutines.flow.Flow
 
-/** Something placed in a section: an app, or a folder of apps. */
+/** Something placed in a section: an app, a folder of apps, or the shortcut to all apps. */
 sealed interface HomeItem {
     /** Identifies the item within its section, e.g. for moving it. */
     val key: String
@@ -18,8 +18,20 @@ sealed interface HomeItem {
     data class Folder(val id: String, val name: String, val apps: List<AppId>) : HomeItem {
         override val key: String get() = "folder:$id"
     }
+
+    /**
+     * The tile that opens the "All apps" screen. It stands in Favorites, where the user moves it
+     * like a tile and can switch it off; the "Apps" row's "See all" opens the screen as well.
+     */
+    data object AllApps : HomeItem {
+        override val key: String = "all-apps"
+    }
 }
 
+/**
+ * How a section lays its tiles out: a [Row] that scrolls sideways or a [Grid] of several lines.
+ * Whether it stands on a backing is the row's look ([HomeAppearance.plateIn]).
+ */
 enum class SectionStyle { Row, Grid }
 
 /** A row (or grid) on the home screen: the favorites, or a category the user made. */
@@ -37,12 +49,16 @@ data class HomeSection(
     companion object {
         /** The built-in first section. Its name is shown localized, so it is stored empty. */
         const val FAVORITES = "favorites"
+
+        /** Favorites as a new installation has it: no apps yet, only the tile that opens all apps. */
+        fun emptyFavorites(): HomeSection = HomeSection(FAVORITES, "", SectionStyle.Row, listOf(HomeItem.AllApps))
     }
 }
 
 private fun HomeItem.apps(): List<AppId> = when (this) {
     is HomeItem.AppItem -> listOf(app)
     is HomeItem.Folder -> apps
+    HomeItem.AllApps -> emptyList()
 }
 
 /**
@@ -54,6 +70,7 @@ private fun HomeItem.apps(): List<AppId> = when (this) {
  */
 @Suppress("TooManyFunctions")
 data class HomeLayout(
+    /** By default an empty Favorites; a new installation starts with [HomeSection.emptyFavorites]. */
     val sections: List<HomeSection> = listOf(HomeSection(HomeSection.FAVORITES, "")),
     val hidden: Set<AppId> = emptySet(),
     val labels: Map<AppId, String> = emptyMap(),
@@ -66,6 +83,8 @@ data class HomeLayout(
         val folders = sections.flatMap { it.items }.filterIsInstance<HomeItem.Folder>()
         require(folders.map { it.id }.distinct().size == folders.size) { "duplicate folder ids" }
         require(folders.none { it.apps.isEmpty() }) { "empty folder" }
+        require(categories.none { HomeItem.AllApps in it.items }) { "the all-apps shortcut outside favorites" }
+        require(favorites.items.count { it == HomeItem.AllApps } <= 1) { "two all-apps shortcuts" }
         sections.forEach { section ->
             require(section.apps.distinct().size == section.apps.size) { "duplicate app in ${section.id}" }
             require(section.apps.none { it in hidden }) { "hidden app in ${section.id}" }
@@ -104,10 +123,14 @@ data class HomeLayout(
             copy(sections = sections.toMutableList().apply { add(at.coerceIn(1, size), category) })
         }
 
-    /** Moves a category [by] places among the categories; favorites stay first. */
-    fun moveCategory(id: String, by: Int): HomeLayout {
-        val moved = categories.moved(categories.indexOfFirst { it.id == id }, by) ?: return this
-        return copy(sections = listOf(favorites) + moved)
+    /** Whether Favorites has the shortcut to all apps. */
+    val hasAllAppsShortcut: Boolean get() = HomeItem.AllApps in favorites.items
+
+    /** Puts the shortcut at the end of Favorites, or takes it out. */
+    fun withAllAppsShortcut(shown: Boolean): HomeLayout = when {
+        shown == hasAllAppsShortcut -> this
+        shown -> updateSection(HomeSection.FAVORITES) { it.copy(items = it.items + HomeItem.AllApps) }
+        else -> updateSection(HomeSection.FAVORITES) { it.copy(items = it.items - HomeItem.AllApps) }
     }
 
     // --- Apps in sections ---
@@ -205,7 +228,7 @@ data class HomeLayout(
     /**
      * What the home screen shows for [installed] apps (custom names applied): each section
      * with its installed items, every visible app (TV apps first, then by name in [locale]'s
-     * alphabet, ё with е) and the hidden ones for the settings screen.
+     * alphabet, ё with е) and the hidden ones, which "All apps" shows when asked.
      */
     fun arrange(installed: List<App>, locale: Locale): HomeContent {
         val byId = installed.associate { it.id to it.copy(label = labels[it.id] ?: it.label) }
@@ -226,6 +249,8 @@ data class HomeLayout(
 
         is HomeItem.Folder ->
             apps.mapNotNull(byId::get).takeIf { it.isNotEmpty() }?.let { TileContent.FolderTile(id, name, it, key) }
+
+        HomeItem.AllApps -> TileContent.AllAppsTile
     }
 
     private fun sectionOf(folderId: String): String? =
@@ -244,6 +269,7 @@ private fun HomeSection.without(app: AppId): HomeSection = copy(
         when (item) {
             is HomeItem.AppItem -> item.takeIf { it.app != app }
             is HomeItem.Folder -> item.copy(apps = item.apps - app).takeIf { it.apps.isNotEmpty() }
+            HomeItem.AllApps -> item
         }
     },
 )
@@ -272,6 +298,11 @@ sealed interface TileContent {
     data class AppTile(val app: App, override val key: String) : TileContent
 
     data class FolderTile(val id: String, val name: String, val apps: List<App>, override val key: String) : TileContent
+
+    /** The shortcut to the "All apps" section. */
+    data object AllAppsTile : TileContent {
+        override val key: String = HomeItem.AllApps.key
+    }
 }
 
 /** Persisted [HomeLayout]. */

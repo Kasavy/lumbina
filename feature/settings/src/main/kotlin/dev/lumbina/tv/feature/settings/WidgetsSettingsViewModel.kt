@@ -3,6 +3,8 @@ package dev.lumbina.tv.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.lumbina.tv.core.domain.app.InstalledApps
+import dev.lumbina.tv.core.domain.app.labelsByPackage
 import dev.lumbina.tv.core.domain.home.ClockFormat
 import dev.lumbina.tv.core.domain.home.HomeAppearance
 import dev.lumbina.tv.core.domain.home.HomeAppearanceRepository
@@ -32,6 +34,8 @@ data class WidgetsState(
     val weather: WeatherSettings,
     val youTube: YouTubeChoice,
     val search: SearchChoice,
+    /** The apps whose notifications are muted, by package, each with its name. */
+    val muted: List<Pair<String, String>> = emptyList(),
 )
 
 /** Where a city search is: not started, running, failed (e.g. offline) or found (maybe nothing). */
@@ -55,6 +59,9 @@ interface WidgetsCommands {
     fun closeSearch()
     fun useYouTubeApp(app: YouTubeApp)
     fun searchIn(target: SearchTarget)
+
+    /** Hides the notifications of this package, or shows them again. */
+    fun setMuted(packageName: String, muted: Boolean)
 }
 
 @Suppress("TooManyFunctions") // implements WidgetsCommands
@@ -65,6 +72,7 @@ class WidgetsSettingsViewModel @Inject constructor(
     private val places: PlaceLocator,
     private val youTube: YouTube,
     private val searches: Search,
+    installedApps: InstalledApps,
 ) : ViewModel(),
     WidgetsCommands {
 
@@ -77,8 +85,12 @@ class WidgetsSettingsViewModel @Inject constructor(
         weather.settings,
         youTube.choice,
         searches.choice,
-        ::WidgetsState,
-    )
+        installedApps.observe(),
+    ) { look, weather, youTube, search, apps ->
+        val labels = labelsByPackage(apps)
+        val muted = look.mutedNotices.map { it to (labels[it] ?: it) }.sortedBy { it.second.lowercase() }
+        WidgetsState(look, weather, youTube, search, muted)
+    }
         .stateIn(viewModelScope, WhileUiSubscribed, null)
 
     override fun toggleDate() = look { it.copy(showDate = !it.showDate) }
@@ -88,6 +100,10 @@ class WidgetsSettingsViewModel @Inject constructor(
     override fun toggleWeather() = weatherChoice { it.copy(show = !it.show) }
 
     override fun setFahrenheit(fahrenheit: Boolean) = weatherChoice { it.copy(fahrenheit = fahrenheit) }
+
+    override fun setMuted(packageName: String, muted: Boolean) = look {
+        it.copy(mutedNotices = if (muted) it.mutedNotices + packageName else it.mutedNotices - packageName)
+    }
 
     override fun toggleNowPlaying() = look { it.copy(showNowPlaying = !it.showNowPlaying) }
 

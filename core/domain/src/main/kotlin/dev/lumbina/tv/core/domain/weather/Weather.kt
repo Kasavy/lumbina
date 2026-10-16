@@ -26,7 +26,19 @@ interface PlaceLocator {
     suspend fun search(query: String): List<Place>
 }
 
-/** [place] null means "find it by IP"; [show] off hides the weather on home and the screensaver. */
-data class WeatherSettings(val place: Place? = null, val show: Boolean = true, val fahrenheit: Boolean = false)
+/**
+ * [place] null means "find it by IP"; [show] off hides the weather on home and the screensaver.
+ * [found]: the place last found by IP, kept for what needs to know where the device is without
+ * asking again (the night's dimming of the wallpaper).
+ */
+data class WeatherSettings(
+    val place: Place? = null,
+    val show: Boolean = true,
+    val fahrenheit: Boolean = false,
+    val found: Place? = null,
+) {
+    /** Where the device is, as far as is known: the place chosen, else the one last found. */
+    val known: Place? get() = place ?: found
+}
 
 typealias WeatherSettingsRepository = SettingsRepository<WeatherSettings>

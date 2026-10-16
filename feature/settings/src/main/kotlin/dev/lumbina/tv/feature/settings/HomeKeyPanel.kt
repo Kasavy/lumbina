@@ -9,23 +9,16 @@ import androidx.compose.ui.unit.dp
 import dev.lumbina.tv.core.domain.remote.HomeScreen
 import dev.lumbina.tv.core.ui.Choice
 
-/** What the remote's Home key does besides opening Lumbina. */
+/** The other launcher for Home's menu, and what the device does when turned on. */
 @Composable
 fun HomeKeyPanel(
     state: HomeKeyState?,
-    onToggleDoubleHome: () -> Unit,
     onUseHome: (HomeScreen) -> Unit,
+    onOpenOnPowerOn: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (state == null) return
     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = modifier) {
-        Header(stringResource(R.string.home_key_header))
-        SwitchRow(
-            title = stringResource(R.string.home_key_double),
-            hint = stringResource(R.string.home_key_double_hint),
-            checked = state.doubleHomeRecents,
-            onClick = onToggleDoubleHome,
-        )
         // With one other home screen there is nothing to choose, with none no menu item.
         state.otherHome.chosen?.takeIf { state.otherHome.screens.size > 1 }?.let { chosen ->
             ChoiceRow(
@@ -36,5 +29,17 @@ fun HomeKeyPanel(
                 },
             )
         }
+        Header(stringResource(R.string.power_on_header))
+        ChoiceRow(
+            title = stringResource(R.string.access_power_on),
+            options = listOf(
+                Choice(stringResource(R.string.access_power_on_lumbina), chosen = state.openOnPowerOn) {
+                    onOpenOnPowerOn(true)
+                },
+                Choice(stringResource(R.string.access_power_on_nothing), chosen = !state.openOnPowerOn) {
+                    onOpenOnPowerOn(false)
+                },
+            ),
+        )
     }
 }

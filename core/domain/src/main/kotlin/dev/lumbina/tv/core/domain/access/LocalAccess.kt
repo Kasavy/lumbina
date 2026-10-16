@@ -4,6 +4,7 @@ import dev.lumbina.tv.core.domain.health.AccessibilityServiceList
 import dev.lumbina.tv.core.domain.health.HealAccessibilityService
 import dev.lumbina.tv.core.domain.health.SecureSettings
 import dev.lumbina.tv.core.domain.settings.SettingsRepository
+import java.io.InputStream
 
 /** How far Lumbina's own connection to the device's debugging gets. */
 enum class AdbState {
@@ -26,6 +27,12 @@ enum class SetupResult {
 
     /** Connected, but the device refused the permission to keep the service on. */
     NotKept,
+
+    /**
+     * Allowed for that one connection only ("Always allow" left unticked): the next connection,
+     * which grants the permissions, was refused.
+     */
+    AllowedOnce,
     NotAllowed,
     Off,
     Failed,
@@ -51,7 +58,10 @@ interface LocalAdb {
      * connected. For what the shell may not open itself, like a file in an app's folder. The
      * command must know how much to read: the input is sent whole and then left open.
      */
-    suspend fun exec(command: String, input: ByteArray): String? = null
+    suspend fun exec(command: String, input: ByteArray): String? = exec(command, input.inputStream())
+
+    /** As the other [exec], reading [input] as it goes: a package need not fit in memory whole. */
+    suspend fun exec(command: String, input: InputStream): String? = null
 }
 
 /** What Lumbina does with that access; shared by the settings screen and the remote's process. */
@@ -60,13 +70,18 @@ data class AccessSettings(
     val closeFromRecents: Boolean = true,
     /** Open Lumbina when the device turns on. */
     val openOnPowerOn: Boolean = false,
-    /** "Hide" on the home screen's setup card; the steps stay in the settings. */
+    /**
+     * The first-run setup was finished or skipped; its steps stay in the settings. The name is
+     * from when the setup was a card on the home screen with "Hide" on it.
+     */
     val setupCardHidden: Boolean = false,
     /**
      * The user's answers about apps that record the microphone themselves: true lets the app
      * hear the remote, false keeps it from it. An app not here has not been asked about.
      */
     val micApps: Map<String, Boolean> = emptyMap(),
+    /** The setup was asked back after it was over: it opens at its steps, with nobody to welcome. */
+    val setupReopened: Boolean = false,
 )
 
 typealias AccessSettingsRepository = SettingsRepository<AccessSettings>
@@ -76,6 +91,8 @@ typealias AccessSettingsRepository = SettingsRepository<AccessSettings>
  * WRITE_SECURE_SETTINGS permission: with it, [heal] turns the service back on whenever the
  * firmware drops it.
  */
+// One function per thing Lumbina asks of the device's shell; splitting them would only scatter the commands.
+@Suppress("TooManyFunctions")
 class LocalAccess(
     private val adb: LocalAdb,
     private val secureSettings: SecureSettings,
@@ -101,6 +118,7 @@ class LocalAccess(
 
     private suspend fun setUp(): SetupResult {
         val kept = grantSecureSettings(true)
+        if (!kept && adb.state() == AdbState.NotAllowed) return SetupResult.AllowedOnce
         renew()
         if (!kept) return SetupResult.NotKept
         heal()
@@ -169,6 +187,9 @@ class LocalAccess(
 
     /** Stops [app] as if from the system's app info; false without access. */
     suspend fun forceStop(app: String): Boolean = app != packageName && adb.shell("am force-stop $app") != null
+
+    /** Holds the key with this code down as a finger would: an accessibility service can press keys, not hold them. */
+    suspend fun holdKey(keyCode: Int): Boolean = adb.shell("input keyevent --longpress $keyCode") != null
 }
 
 /** The system's settings screens where the user finishes the setup; which exist depends on the device. */

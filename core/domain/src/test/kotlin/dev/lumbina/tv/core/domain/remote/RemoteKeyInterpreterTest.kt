@@ -68,7 +68,8 @@ class RemoteKeyInterpreterTest {
 
     @Test
     fun `with the double press turned off Home answers at once, and twice for two presses`() = runTest {
-        val interpreter = interpreter(policy = KeyBindingPolicy.defaults(doubleHomeRecents = false))
+        val asDevice = KeyBinding(RemoteKey.Home, KeyGesture.DoubleTap, action = null)
+        val interpreter = interpreter(policy = KeyBindingPolicy.defaults(own = listOf(asDevice)))
         interpreter.onKey(down())
         advanceTimeBy(100)
         interpreter.onKey(up())
@@ -107,9 +108,9 @@ class RemoteKeyInterpreterTest {
         val interpreter = interpreter()
         interpreter.onKey(down())
         advanceTimeBy(100)
-        interpreter.onKey(down())
+        assertTrue(interpreter.onKey(down().copy(repeat = true)))
         advanceTimeBy(100)
-        interpreter.onKey(down())
+        interpreter.onKey(down().copy(repeat = true))
         interpreter.onKey(up())
         advanceTimeBy(301)
         assertEquals(listOf(RemoteAction.OpenLumbina), actions)
@@ -139,7 +140,7 @@ class RemoteKeyInterpreterTest {
         val interpreter = interpreter(voice = true)
         interpreter.onKey(down(micScan))
         advanceTimeBy(2_000)
-        interpreter.onKey(down(micScan))
+        interpreter.onKey(down(micScan).copy(repeat = true))
         interpreter.onKey(down(homeScan)) // Home pressed while talking
         interpreter.onKey(up(homeScan))
         interpreter.onKey(up(micScan))

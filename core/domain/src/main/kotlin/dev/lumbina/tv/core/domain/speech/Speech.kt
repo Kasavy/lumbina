@@ -1,5 +1,6 @@
 package dev.lumbina.tv.core.domain.speech
 
+import dev.lumbina.tv.core.domain.MILLIS_PER_SECOND
 import java.io.IOException
 import java.util.Locale
 import kotlin.math.log10
@@ -18,7 +19,6 @@ object Pcm {
 
     /** Less audio than this is a tap of the key, not a phrase: not worth a recognizer's while. */
     const val TAP_MILLIS = 500L
-    private const val MILLIS_PER_SECOND = 1_000
 
     private const val FULL_SCALE = 32_768.0
     private const val DB_PER_DECADE = 20.0
@@ -89,6 +89,9 @@ class SpeechUnavailable(val reason: Reason, message: String, cause: Throwable? =
 
         /** The service is asked too often: to wait a little. */
         Busy(Side.Service),
+
+        /** An app that recognizes is still at the phrase before: free in a few seconds. */
+        Occupied(Side.Service),
 
         /** Another app recognizes, and the remote's sound can't be given to it now. */
         MicNotGiven(Side.Audio),

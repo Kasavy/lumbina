@@ -53,13 +53,13 @@ class LocalThenOnlinePhotosTest {
     @Test
     fun `offline, the user's own pictures show even when they aren't the wallpaper`() = runBlocking {
         val photos = photos(WallpaperSettings(source = WallpaperSource.Gradient), online = false)
-        assertArrayEquals(own, photos.next(1920, 1080)?.bytes)
+        assertArrayEquals(own, photos.next(1920, 1080).bytes)
     }
 
     @Test
     fun `offline and without pictures of one's own, the bundled ones take turns`() = runBlocking {
         val photos = photos(WallpaperSettings(), online = false, ownPictures = false)
-        val shown = List(4) { photos.next(1920, 1080)?.bytes }
+        val shown = List(4) { photos.next(1920, 1080).bytes }
         assertTrue(shown.all { it != null && it.isNotEmpty() })
         assertFalse(shown[0].contentEquals(shown[1]))
         assertTrue(shown[0].contentEquals(shown[3]))
@@ -68,15 +68,15 @@ class LocalThenOnlinePhotosTest {
     @Test
     fun `where picsum refuses, a photo of the day comes with its credit and own pictures have none`() = runBlocking {
         val online = photos(WallpaperSettings(), online = true, ownPictures = false, picsum = false).next(1920, 1080)
-        assertEquals("A lake (© Someone)", online?.credit)
+        assertEquals("A lake (© Someone)", online.credit)
         val ours = photos(WallpaperSettings(source = WallpaperSource.MyMedia), online = true).next(1920, 1080)
-        assertEquals(null, ours?.credit)
+        assertEquals(null, ours.credit)
     }
 
     @Test
     fun `with online photos off nothing is asked of the network`() = runBlocking {
         val photos = photos(WallpaperSettings(), online = true, onlinePhotos = false)
-        assertArrayEquals(own, photos.next(1920, 1080)?.bytes)
+        assertArrayEquals(own, photos.next(1920, 1080).bytes)
         assertEquals(emptyList<String>(), requests)
     }
 }

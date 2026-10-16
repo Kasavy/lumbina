@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
+import android.provider.Settings
 import android.view.KeyEvent
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.domain.backdrop.PhotoFolder
@@ -20,11 +21,13 @@ import dev.lumbina.tv.core.domain.text.YouTube
 import dev.lumbina.tv.core.domain.voice.DeviceControls
 import dev.lumbina.tv.core.domain.voice.MediaAction
 import dev.lumbina.tv.core.domain.voice.VolumeChange
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 /**
  * The phone remote: runs the page's server while it is switched on and carries out what the page
@@ -53,9 +56,38 @@ internal class PhoneRemote(
          * The page's arrows otherwise reach the app underneath: overlays get no D-pad focus.
          */
         val overlayKey: (KeyEvent) -> Boolean,
+        /** Holds OK down, where Lumbina can (it takes its own access to the device); null where it can't. */
+        val holdOk: (suspend () -> Boolean)? = null,
+        /** Whether the remote has a mic Lumbina hears: only then are the speech services' keys of any use. */
+        val hasMic: Boolean = false,
     )
 
     private val cursor by lazy { PhoneCursor(service) }
+
+    /**
+     * What the page is told as it opens: the device's name (two devices in a home look alike
+     * otherwise), and what this one can do, so the page shows no button that does nothing.
+     */
+    private val info: () -> String = {
+        val name = Settings.Global.getString(service.contentResolver, "device_name") ?: Build.MODEL
+        JSONObject()
+            .put("ok", true)
+            .put("name", name)
+            .put("arrows", DPAD_ACTIONS.isNotEmpty())
+            .put("holdOk", ports.holdOk != null)
+            .put("mic", ports.hasMic)
+            .toString()
+    }
+
+    /**
+     * The last diagnostics report, as the settings kept it for a phone; null while none was saved.
+     * Given once: the key it is asked for with is on every QR code of the page (the screensaver's
+     * too), and the report holds the log and the list of apps.
+     */
+    private val report: () -> ByteArray? = {
+        File(service.filesDir, PhoneRemoteSettings.REPORT_FILE).takeIf { it.isFile }
+            ?.let { file -> file.readBytes().also { file.delete() } }
+    }
 
     /**
      * What a button press answers before the device gets it: taken by one of Lumbina's overlays
@@ -87,11 +119,13 @@ internal class PhoneRemote(
 
     fun start(scope: CoroutineScope) {
         scope.launch {
-            settings.settings.distinctUntilChanged().collect { current ->
+            // Only what the server is made of: any other setting changed must not drop the phones connected.
+            settings.settings.distinctUntilChangedBy { it.enabled to it.key }.collect { current ->
                 server?.stop()
                 server = null
                 if (current.enabled && current.key.isNotEmpty()) {
-                    server = PhoneRemoteServer(PhoneRemoteSettings.PORT, current.key, ::page, ::handle, log)
+                    val port = PhoneRemoteSettings.PORT
+                    server = PhoneRemoteServer(port, current.key, ::page, ::handle, log, report, info)
                         .also { it.start(scope) }
                 }
             }
@@ -112,7 +146,7 @@ internal class PhoneRemote(
         return PhoneAnswer.of(
             when (request.command) {
                 "ping" -> true
-                "key" -> onMain { key(button) }
+                "key" -> pressed(button)
                 "move", "click", "longclick", "scroll" -> onMain { pointer(request.command.orEmpty(), request.query) }
                 "text" -> text(request)
                 "link" -> request.shortBody()?.let { link -> withContext(Dispatchers.Main) { open(link) } } ?: false
@@ -138,10 +172,16 @@ internal class PhoneRemote(
         }
     }
 
+    /** A button of the page: OK held goes by Lumbina's own access to the device, the rest by the service. */
+    private val pressed: suspend (String) -> Boolean = { button ->
+        if (button == "oklong") ports.holdOk?.invoke() ?: false else onMain { key(button) }
+    }
+
     private fun key(button: String): Boolean = homeGestures[button]?.invoke() ?: when (button) {
         "back" -> service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
         "play" -> ports.controls.media(MediaAction.Play)
         "pause" -> ports.controls.media(MediaAction.Pause)
+        "playpause" -> ports.controls.media(MediaAction.PlayPause)
         "next" -> ports.controls.media(MediaAction.Next)
         "previous" -> ports.controls.media(MediaAction.Previous)
         "volup" -> ports.controls.volume(VolumeChange.Up)

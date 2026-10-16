@@ -1,0 +1,10 @@
+# Written by hand: what only Android 9 and older run (LAYERS_ARE_CHEAP false). The generated
+# profile is recorded on a newer emulator, which never runs it, and a Mi Box 4 is where it matters.
+HSPLdev/lumbina/tv/core/ui/TileCardKt*;->**(**)**
+HSPLdev/lumbina/tv/core/ui/CardLook;->**(**)**
+HSPLdev/lumbina/tv/core/ui/GlowShown;->**(**)**
+HSPLdev/lumbina/tv/core/ui/OkPress;->**(**)**
+HSPLdev/lumbina/tv/core/ui/LayersKt*;->**(**)**
+HSPLdev/lumbina/tv/core/ui/HeldStepsKt*;->**(**)**
+HSPLdev/lumbina/tv/core/ui/HeldStepPacer;->**(**)**
+HSPLdev/lumbina/tv/core/ui/PaceHeldSteps*;->**(**)**

@@ -37,6 +37,10 @@ import kotlinx.coroutines.runBlocking
  * The app is told the language to expect and may not heed it. It also ends a phrase by itself when
  * the speech pauses: it is then asked to listen again for as long as the key is held, and what it
  * heard each time makes the phrase.
+ *
+ * An app let go of may record on for some seconds, and asked to listen meanwhile it answers that it
+ * is busy and starts recording anew: asking again only keeps it busy. So it is never asked while the
+ * helper says it records; it is waited for, briefly, and then the user is told to wait.
  */
 @Singleton
 class SpeechAppEngine @Inject internal constructor(
@@ -83,6 +87,19 @@ class SpeechAppEngine @Inject internal constructor(
         return Session(app, uid, feed, languages.ifEmpty { this.languages }).apply { open() }
     }
 
+    /** Waits until the app records no more, at most [millis]; false if it still does. */
+    private fun awaitIdle(feed: MicInjection.Speech, uid: Int, millis: Long): Boolean {
+        val deadline = SystemClock.elapsedRealtime() + millis
+        while (feed.records(uid)) {
+            if (SystemClock.elapsedRealtime() >= deadline) return false
+            Thread.sleep(POLL_MILLIS)
+        }
+        return true
+    }
+
+    private fun occupied(app: SpeechApp) =
+        SpeechUnavailable(SpeechUnavailable.Reason.Occupied, "${app.packageName} is still at the phrase before")
+
     private fun unfed(app: SpeechApp) =
         SpeechUnavailable(SpeechUnavailable.Reason.MicNotGiven, "the remote's mic can't be given to ${app.packageName}")
 
@@ -100,12 +117,19 @@ class SpeechAppEngine @Inject internal constructor(
         SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT ->
             SpeechUnavailable(SpeechUnavailable.Reason.NoNetwork, "${app.packageName}: error $error")
 
+        // The app's own service behind it failed: said as that, not as a phrase that was not made out.
+        SpeechRecognizer.ERROR_SERVER, SpeechRecognizer.ERROR_SERVER_DISCONNECTED -> SpeechUnavailable(
+            SpeechUnavailable.Reason.ServiceError,
+            "${app.packageName}: recognizer error $error",
+            status = error,
+        )
+
         else -> IOException("${app.packageName}: recognizer error $error")
     }
 
     private inner class Session(
         private val app: SpeechApp,
-        uid: Int,
+        private val uid: Int,
         private val feed: MicInjection.Speech,
         private val expected: List<String>,
     ) : SpeechSession {
@@ -128,25 +152,32 @@ class SpeechAppEngine @Inject internal constructor(
 
         /** Has the app listening; an app that refuses at once fails the session here, not after the phrase. */
         fun open() {
+            if (!awaitIdle(feed, uid, LEFTOVER_MILLIS)) {
+                log.log(TAG, "${app.packageName} still records from before: not asked")
+                close()
+                throw occupied(app)
+            }
             main.post(connect)
             awaitListening()
-            // Still busy with a listening left over from before: it is free a moment later. Asked
-            // through a new connection: the one that was refused stays refused.
-            var asked = 1
-            while (answers.error in BUSY && asked < BUSY_TRIES) {
-                log.log(TAG, "${app.packageName} is busy (error ${answers.error}): asking again")
-                Thread.sleep(BUSY_MILLIS)
-                answers = newAnswers()
+            // Still busy with a listening left over from before. It is let go of and asked once
+            // more only when it records no longer, through a new connection: the one that was
+            // refused stays refused. Asked while it records, it would start recording anew.
+            if (answers.error in BUSY) {
+                log.log(TAG, "${app.packageName} is busy (error ${answers.error}): letting it finish")
                 main.post {
                     recognizer?.destroy()
-                    connect.run()
+                    recognizer = null
                 }
-                awaitListening()
-                asked++
+                Thread.sleep(BUSY_MILLIS)
+                if (awaitIdle(feed, uid, BUSY_IDLE_MILLIS)) {
+                    answers = newAnswers()
+                    main.post(connect)
+                    awaitListening()
+                }
             }
             answers.error?.let { error ->
                 close()
-                throw failure(app, error)
+                throw if (error in BUSY) occupied(app) else failure(app, error)
             }
         }
 
@@ -299,7 +330,12 @@ class SpeechAppEngine @Inject internal constructor(
         /** How long an app is left to start listening before it may be cancelled. */
         const val STARTED_MILLIS = 1_000L
         const val BUSY_MILLIS = 500L
-        const val BUSY_TRIES = 4
+
+        /** How long a new phrase waits for the app to end a recording left over from before. */
+        const val LEFTOVER_MILLIS = 2_000L
+
+        /** How long an app that answered "busy" is given to end that recording before it is asked again. */
+        const val BUSY_IDLE_MILLIS = 3_000L
         const val STOPPING_MILLIS = 300L
 
         /** For Android to see the connection gone, after it is let go of. */
@@ -388,14 +424,17 @@ internal class Answers(
     /**
      * A round's text is its result, or what it heard last if the result is empty. Another round
      * follows while the key is held; not after a failure, nor after rounds that end as soon as
-     * they start (an app that can't listen at all would be asked without end).
+     * they start (an app that can't listen at all would be asked without end), nor after a round
+     * that heard nothing: nobody is speaking, and an app asked again right after a silence may fail
+     * and stay busy.
      */
     private fun roundEnded(result: String, failed: Int?) {
         val now = now()
-        heard = heard.let { (said, hearing) -> joined(said, result.trim().ifEmpty { hearing }) to "" }
+        val round = result.trim().ifEmpty { heard.second }
+        heard = heard.let { (said, _) -> joined(said, round) to "" }
         settled = false
         changedAt = now
-        val worthAnother = now - roundSince >= MIN_ROUND_MILLIS && rounds < MAX_ROUNDS
+        val worthAnother = round.isNotEmpty() && now - roundSince >= MIN_ROUND_MILLIS && rounds < MAX_ROUNDS
         if (failed == null && isHeld() && worthAnother) {
             rounds++
             roundSince = now

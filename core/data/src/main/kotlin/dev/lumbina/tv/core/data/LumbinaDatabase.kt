@@ -22,7 +22,7 @@ import dev.lumbina.tv.core.data.home.SectionItemEntity
         AppLabelEntity::class,
         AppVoiceNameEntity::class,
     ],
-    version = 3,
+    version = 5,
     exportSchema = true,
 )
 internal abstract class LumbinaDatabase : RoomDatabase() {

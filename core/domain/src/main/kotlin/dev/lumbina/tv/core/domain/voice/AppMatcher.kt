@@ -42,10 +42,13 @@ class AppMatcher(aliases: Map<String, List<String>> = emptyMap()) {
         val tied = scored.filter { top.second.value - it.second.value <= TIE_MARGIN }
         // A name on screen beats a word of a package name that matches as well.
         val close = (tied.filter { it.second.byLabel }.ifEmpty { tied }).map { it.first }
+        // The whole name said beats a longer one that starts with it ("YouTube" is not "YouTube Music").
+        val whole = close.filter { skeleton(it.label) == query }
+        val among = whole.ifEmpty { close }
         val match = when {
-            close.size == 1 -> AppMatch.Found(close.single())
-            close.count { it.isTvApp } == 1 -> AppMatch.Found(close.first { it.isTvApp })
-            else -> AppMatch.Ambiguous(close.take(MAX_CHOICES))
+            among.size == 1 -> AppMatch.Found(among.single())
+            among.count { it.isTvApp } == 1 -> AppMatch.Found(among.first { it.isTvApp })
+            else -> AppMatch.Ambiguous(among)
         }
         return match to top.second.value
     }
@@ -73,7 +76,6 @@ class AppMatcher(aliases: Map<String, List<String>> = emptyMap()) {
         const val SHORT_THRESHOLD = 0.85
         const val SHORT_LENGTH = 5
         const val TIE_MARGIN = 0.04
-        const val MAX_CHOICES = 3
         val PACKAGE_NOISE = setOf("com", "ru", "org", "net", "tv", "app", "android", "stable", "dev", "atv", "mobile")
 
         fun thresholdFor(query: String) = if (query.length <= SHORT_LENGTH) SHORT_THRESHOLD else THRESHOLD

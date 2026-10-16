@@ -1,28 +1,11 @@
 package dev.lumbina.tv.feature.home
 
 import androidx.compose.foundation.focusGroup
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-
-/**
- * [latest] while [visible]; hidden, what was shown last. So home takes changes in when it comes
- * back: a switch flipped in settings doesn't rebuild the rows behind it.
- */
-@Composable
-internal fun <T> heldWhileHidden(latest: T, visible: Boolean): T {
-    var held by remember { mutableStateOf(latest) }
-    if (visible) SideEffect { held = latest }
-    return if (visible) latest else held
-}
 
 /**
  * While [hidden], the d-pad can't walk into this from the screen shown over it. Should that

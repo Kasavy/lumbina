@@ -23,8 +23,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -75,6 +77,9 @@ internal class MicInjection(
     /** A helper was started and has not connected yet. */
     @Volatile private var connecting = false
 
+    /** Whether each start of the helper connected: what an answer that changed the apps waits for. */
+    val outcomes = MutableSharedFlow<Boolean>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
     /** Ends the wait before the next start. */
     private val hurry = Channel<Unit>(Channel.CONFLATED)
 
@@ -83,6 +88,9 @@ internal class MicInjection(
 
     /** What the helper in service feeds, by uid; empty while there is none. */
     @Volatile private var fedNow: Map<Int, String> = emptyMap()
+
+    /** The uids that record now, as the helper in service tells; none while there is no helper. */
+    @Volatile private var recordingNow: Set<Int> = emptySet()
 
     /** The session of Lumbina's own that has an app listening. */
     @Volatile private var owner: Owner? = null
@@ -109,6 +117,15 @@ internal class MicInjection(
 
         /** The uid under which the helper in service feeds [app]; null while it doesn't. */
         fun uidFed(app: String): Int? = fedNow.entries.firstOrNull { it.value == app }?.key
+
+        /** Whether [uid] records right now: its own doing, or a listening it was asked for and has not ended. */
+        fun records(uid: Int): Boolean = uid in recordingNow
+
+        /** Keeps who records now, from the helper's word; always true, to stand in a condition. */
+        fun noted(said: HelperLine.Recording): Boolean {
+            recordingNow = if (said.on) recordingNow + said.uid else recordingNow - said.uid
+            return true
+        }
 
         /** [uid]'s recordings are a session's of Lumbina's own until what is returned is [release]d. */
         fun own(uid: Int): Any = Owner(uid).also { owner = it }
@@ -211,6 +228,7 @@ internal class MicInjection(
                 helper = socket
                 fedNow = apps
                 connecting = false
+                outcomes.tryEmit(true)
                 socket.use {
                     if (!changed) serve(scope, it, Fed(apps, allowed, leave), audio)
                 }
@@ -220,6 +238,7 @@ internal class MicInjection(
             } else {
                 socket?.close()
                 connecting = false
+                outcomes.tryEmit(false)
             }
             if (changed) {
                 wait = RETRY_MIN_MILLIS
@@ -268,7 +287,7 @@ internal class MicInjection(
                 when (val said = HelperLine.of(line)) {
                     is HelperLine.Log -> log.log(TAG, "mic helper: ${said.text}")
 
-                    is HelperLine.Recording -> if (!fed.pumpsTo(said, owner?.uid)) {
+                    is HelperLine.Recording -> if (speech.noted(said) && !fed.pumpsTo(said, owner?.uid)) {
                         log.log(TAG, "${apps[said.uid]} records, and is not sent the remote's mic by the pump")
                         // Not a session's, so it records by itself with no leave: the user is asked.
                         if (said.uid != owner?.uid) apps[said.uid]?.let(onHeard)
@@ -300,6 +319,7 @@ internal class MicInjection(
         } finally {
             pump?.cancel()
             feeding = false
+            recordingNow = emptySet()
         }
     }
 

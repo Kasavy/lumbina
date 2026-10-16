@@ -2,8 +2,8 @@
 <resources>
     <string name="home_settings">Настройки</string>
     <string name="home_favorites">Избранное</string>
-    <string name="home_favorites_empty">Удерживайте OK на приложении и выберите «Где показывать…», чтобы закрепить его здесь.</string>
-    <string name="home_category_empty">Пусто. Удерживайте OK на приложении и выберите «Где показывать…», чтобы положить его сюда.</string>
+    <string name="home_favorites_empty">Избранное пусто. Нажмите «+» и отметьте приложения.</string>
+    <string name="home_category_empty">Здесь пока пусто. Нажмите «+» и отметьте приложения.</string>
     <string name="home_action_unavailable">Устройство не позволяет это сделать</string>
 
     <string name="menu_move">Переместить</string>
@@ -31,29 +31,35 @@
     <string name="home_sleep_timer">Таймер сна</string>
     <string name="home_sleep_in">Выключить через %1$d мин</string>
     <string name="home_sleep_cancel">Отменить таймер</string>
-    <string name="home_sleep_left">Выключение через %1$d мин</string>
     <string name="home_watch_next">Продолжить просмотр</string>
     <string name="status_notifications">Уведомления</string>
-    <string name="status_no_notifications">Уведомлений нет</string>
     <string name="status_clear_notifications">Очистить все</string>
+    <string name="notices_hint">OK открыть · удерживайте OK, чтобы убрать или скрыть</string>
+    <string name="notice_nothing_to_open">OK уберёт</string>
+    <string name="notice_dismiss">Убрать</string>
+    <string name="notice_mute">Скрывать от «%1$s»</string>
+    <string name="undo_notices_muted">Уведомления от «%1$s» скрыты</string>
+    <string name="failed_notice">Не удалось открыть уведомление</string>
+    <string name="notices_none">Уведомлений больше нет</string>
+    <string name="failed_system_search">Поиск не открылся. Смените «Где искать» в настройках, в разделе «Виджеты»</string>
+    <string name="failed_youtube_search">Не удалось открыть поиск в YouTube. Проверьте приложение для YouTube в настройках, в разделе «Виджеты»</string>
     <string name="status_no_internet">Нет интернета</string>
     <string name="home_recently_installed">Недавно установленные</string>
     <string name="menu_banner">Свой баннер…</string>
-    <string name="banner_title">Баннер для %1$s</string>
-    <string name="banner_none">Пока нет картинок для %1$s</string>
-    <string name="banner_how">Отправьте картинку с телефона через «Пульт на телефоне» и выберите её здесь</string>
-    <string name="banner_restore">Вернуть исходный баннер</string>
+    <string name="banner_hint">OK ставит картинку на плитку</string>
+    <string name="banner_original">исходный</string>
+    <string name="banner_add">Добавить картинку с телефона</string>
+    <string name="banner_add_how">Телефон в той же сети Wi-Fi: наведите камеру на код, откроется страница пульта. Отправьте картинку на вкладке «Ещё», и она появится здесь.</string>
+    <string name="banner_phone_off">Чтобы отправить картинку с телефона, включите страницу пульта в разделе настроек «Пульт на телефоне».</string>
+    <string name="banner_no_network">Нет сети: чтобы отправить картинку с телефона, подключите устройство к Wi-Fi или Ethernet.</string>
+    <string name="banner_service_off">Служба пульта выключена, а без неё страница пульта не открывается. Чтобы отправить картинку с телефона, включите службу в настройках Lumbina.</string>
     <string name="media_play">Играть</string>
     <string name="media_pause">Пауза</string>
     <string name="media_next">Следующий</string>
     <string name="media_previous">Предыдущий</string>
     <string name="home_all_apps">Все приложения</string>
-    <plurals name="home_apps_count">
-        <item quantity="one">%d приложение</item>
-        <item quantity="few">%d приложения</item>
-        <item quantity="many">%d приложений</item>
-        <item quantity="other">%d приложения</item>
-    </plurals>
+    <string name="home_apps">Приложения</string>
+    <string name="home_see_all">Смотреть все</string>
     <string name="home_recommendations">Рекомендации</string>
     <string name="apps_filter_all">Все</string>
     <string name="apps_filter_tv">ТВ</string>
@@ -61,12 +67,16 @@
     <string name="apps_filter_hidden">Скрытые · %1$d</string>
     <string name="apps_find">Найти</string>
     <string name="apps_find_title">Название приложения</string>
-    <string name="apps_hint_hidden">Удерживайте OK на приложении, чтобы показывать его снова</string>
     <string name="apps_nothing">Здесь пусто</string>
+    <string name="apps_none_found">Ничего не найдено по «%1$s»</string>
+    <string name="apps_none_tv">Нет приложений для ТВ</string>
+    <string name="apps_none_phone">Нет мобильных приложений</string>
+    <string name="apps_show_all">Показать все</string>
     <string name="menu_unhide">Показывать снова</string>
     <string name="home_search">Поиск</string>
     <string name="home_recommendations_mix">Для вас</string>
-    <string name="status_no_wifi">Нет Wi-Fi</string>
+    <string name="status_no_wifi">Нет сети</string>
+    <string name="status_network_closed">Устройство не позволяет открыть настройки сети</string>
     <string name="status_weak_signal">Слабый сигнал</string>
     <string name="home_search_youtube">Поиск в YouTube</string>
     <string name="home_search_find">Найти</string>
@@ -83,13 +93,55 @@
     <string name="apps_the_rest">Остальные по алфавиту</string>
     <string name="menu_where">Где показывать…</string>
     <string name="menu_name_banner">Название и баннер…</string>
-    <string name="menu_more">Ещё…</string>
-    <string name="menu_more_hint">О приложении, удалить</string>
-    <string name="where_title">Где показывать %1$s</string>
     <string name="where_folder">Папка «%1$s»</string>
     <string name="folder_title">Папка «%1$s»</string>
-    <string name="folder_dissolve_hint">приложения останутся в ряду</string>
     <string name="move_hint">Перемещение %1$s · ◀ ▶ сдвинуть · OK поставить · Назад отменить</string>
+    <string name="failed_app">Не удалось открыть %1$s. Попробуйте ещё раз</string>
+    <string name="failed_program">Не удалось открыть программу. Откройте %1$s и найдите её там</string>
     <string name="folder_rename_title">Переименовать папку</string>
     <string name="home_opened">Недавно открытые</string>
+    <string name="menu_to_favorites">В «Избранное»</string>
+    <string name="menu_out_of_favorites">Убрать из «Избранного»</string>
+    <string name="menu_out_of">Убрать из «%1$s»</string>
+    <string name="menu_open">Открыть</string>
+    <string name="menu_group_app">Приложение</string>
+    <string name="menu_only_all_apps">Только во «Всех приложениях»</string>
+    <string name="undo">Отменить</string>
+    <string name="undo_keys">▼ OK</string>
+    <string name="undo_hidden">Приложение «%1$s» скрыто</string>
+    <string name="undo_out_of_favorites">Приложение «%1$s» убрано из «Избранного»</string>
+    <string name="undo_out_of_category">Приложение «%1$s» убрано из «%2$s»</string>
+    <string name="undo_folder_dissolved">Папка «%1$s» расформирована</string>
+    <string name="undo_row_hidden">Ряд «%1$s» скрыт</string>
+    <string name="shortcut_hint">Открывает экран всех приложений</string>
+    <string name="undo_shortcut_removed">Плитка убрана. «Все приложения» открываются и из быстрого меню</string>
+    <string name="channels_need_access">Нужен доступ к каналам приложений</string>
+    <string name="channels_allow">Разрешить</string>
+    <string name="channels_hide_row">Скрыть ряд</string>
+    <string name="menu_group_folder">Папка</string>
+    <string name="where_heading">Где показывать</string>
+    <string name="where_hint">Можно отметить несколько мест</string>
+    <string name="pick_apps_add">Добавить приложения</string>
+    <string name="pick_apps_hint">OK отмечает приложение, ряд меняется сразу</string>
+    <string name="pick_apps_title">Что показывать в «%1$s»</string>
+    <string name="pick_apps_title_favorites">Что показывать в «Избранном»</string>
+    <string name="pick_apps_count">выбрано %1$d</string>
+    <string name="pick_apps_in_row">В ряду</string>
+    <string name="pick_apps_rest">Остальные по алфавиту</string>
+    <string name="pick_apps_in_folder">в папке «%1$s»</string>
+    <string name="name_own">Своё…</string>
+    <string-array name="ready_names">
+        <item>Кино</item>
+        <item>Музыка</item>
+        <item>Игры</item>
+        <item>ТВ</item>
+        <item>Детям</item>
+        <item>Спорт</item>
+        <item>Новости</item>
+        <item>Сервисы</item>
+    </string-array>
+    <string name="home_sleep_minutes">%1$d мин</string>
+    <string name="home_sleep_left">Осталось %1$d мин</string>
+    <string name="notices_none_now">Уведомлений нет</string>
+    <string name="search_none">На этом устройстве искать негде</string>
 </resources>

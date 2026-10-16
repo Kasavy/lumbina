@@ -42,6 +42,7 @@ class CurrentWeatherTest {
         runCurrent()
         assertNull(reports.first())
         assertEquals(WeatherReport(moscow, Weather(5.0, Condition.Cloudy), placeFromIp = true), reports.last())
+        assertEquals(moscow, repository.current.value.found) // kept for the night's dimming
 
         failing = true
         advanceTimeBy(1_001)
@@ -88,6 +89,26 @@ class CurrentWeatherTest {
         runCurrent()
         assertEquals(moscow, reports.last()?.place)
         assertEquals(1, requests)
+    }
+
+    @Test
+    fun `collected anew, starts with the last report instead of nothing`() = runTest {
+        val weather = CurrentWeather(repository, locator, provider, refreshMillis = 1_000, retryMillis = 100)
+        val first = launch { weather.reports("en").collect { } }
+        runCurrent()
+        first.cancel()
+
+        failing = true
+        val reports = mutableListOf<WeatherReport?>()
+        backgroundScope.launch { weather.reports("en").collect { reports += it } }
+        runCurrent()
+        assertEquals(moscow, reports.first()?.place)
+
+        // Another language names the place differently: that report is not this one.
+        val other = mutableListOf<WeatherReport?>()
+        backgroundScope.launch { weather.reports("ru").collect { other += it } }
+        runCurrent()
+        assertNull(other.first())
     }
 
     @Test

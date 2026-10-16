@@ -9,7 +9,7 @@ import androidx.compose.ui.input.key.type
  * still down: the remote's repeats and the release would otherwise land on the menu's first
  * item and activate it. Use with `Modifier.onPreviewKeyEvent(guard::swallow)` on the dialog.
  */
-internal class FreshPressGuard {
+class FreshPressGuard {
     private var armed = false
 
     /** True (consumed) until the first key down that is not a repeat. */

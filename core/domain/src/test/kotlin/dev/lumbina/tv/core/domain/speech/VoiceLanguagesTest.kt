@@ -12,7 +12,7 @@ class VoiceLanguagesTest {
     private val catalog = listOf(SpeechModelInfo("de", 3), SpeechModelInfo("en", 2), SpeechModelInfo("ru", 1))
     private val repository = FakeSettings(VoiceSettings(listOf("ru", "en")))
     private val models = FakeSpeechModels(catalog, installed = setOf("ru"), instant = false)
-    private val languages = VoiceLanguages(models, repository)
+    private val languages = VoiceLanguages(models, repository) { listOf("ru", "en") }
 
     @Test
     fun `lists enabled languages first in order of preference`() = runTest {
@@ -45,8 +45,31 @@ class VoiceLanguagesTest {
     }
 
     @Test
-    fun `installing enabled languages skips the ones already installed`() = runTest {
-        languages.installEnabled()
+    fun `installing downloads what was offered`() = runTest {
+        languages.install(listOf("en"))
         assertEquals(listOf("en"), models.installs)
+    }
+
+    @Test
+    fun `voice follows Lumbina's language when it has a model, and not otherwise`() = runTest {
+        languages.followAppLanguage("de-DE", previous = null)
+        assertEquals(VoiceSettings(listOf("de"), VoiceLanguageMode.Auto), repository.current.value)
+        languages.followAppLanguage("fr", previous = "de-DE")
+        languages.followAppLanguage(null, previous = "de-DE")
+        assertEquals(listOf("de"), repository.current.value.languages)
+    }
+
+    @Test
+    fun `a second choice of Lumbina's language is followed too`() = runTest {
+        languages.followAppLanguage("de", previous = null)
+        languages.followAppLanguage("en", previous = "de")
+        assertEquals(listOf("en"), repository.current.value.languages)
+    }
+
+    @Test
+    fun `voice languages the user set are kept`() = runTest {
+        repository.update { it.copy(languages = listOf("ru", "de")) }
+        languages.followAppLanguage("en", previous = null)
+        assertEquals(listOf("ru", "de"), repository.current.value.languages)
     }
 }

@@ -101,6 +101,18 @@ class LocalAccessTest {
     }
 
     @Test
+    fun `a key allowed for one connection only is told apart from a refused grant`() = runTest {
+        val adb = object : LocalAdb {
+            override suspend fun state() = AdbState.NotAllowed
+
+            override suspend fun connect() = AdbState.Connected
+
+            override suspend fun shell(command: String): String? = null
+        }
+        assertEquals(SetupResult.AllowedOnce, access(adb).connectAndSetUp())
+    }
+
+    @Test
     fun `a grant the device refuses is not taken for success and heals nothing`() = runTest {
         val settings = FakeSecureSettings(services = ours, canWrite = false)
         val adb = FakeAdb(AdbState.Connected, output = "Exception occurred while executing 'grant'")

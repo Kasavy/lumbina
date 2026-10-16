@@ -172,6 +172,7 @@ internal fun HomeLayout.toRows(): LayoutRows {
                 when (item) {
                     is HomeItem.AppItem -> SectionItemEntity(section.id, i, item.app.encode(), null)
                     is HomeItem.Folder -> SectionItemEntity(section.id, i, null, item.id)
+                    HomeItem.AllApps -> SectionItemEntity(section.id, i, ALL_APPS_SHORTCUT, null)
                 }
             }
         },
@@ -194,6 +195,7 @@ internal fun LayoutRows.toLayout(): HomeLayout {
     val folderApps = folderApps.groupBy { it.folderId }.mapValues { (_, rows) -> rows.mapNotNull { decode(it.appId) } }
     val folderNames = folders.associate { it.id to it.name }
     val usedFolders = mutableSetOf<String>()
+    var shortcuts = 0
     val itemsBySection = items.groupBy { it.sectionId }
     val stored = sections.map { entity ->
         val seen = mutableSetOf<AppId>()
@@ -202,6 +204,10 @@ internal fun LayoutRows.toLayout(): HomeLayout {
             val app = row.appId?.let(::decode)
             val folderId = row.folderId
             when {
+                // Once, and in Favorites only: anything else is a damaged row.
+                row.appId == ALL_APPS_SHORTCUT ->
+                    HomeItem.AllApps.takeIf { entity.id == HomeSection.FAVORITES && shortcuts++ == 0 }
+
                 app != null -> HomeItem.AppItem(app).takeIf { keep(app) }
 
                 folderId != null && usedFolders.add(folderId) -> folderApps[folderId].orEmpty().filter(::keep)
@@ -214,7 +220,7 @@ internal fun LayoutRows.toLayout(): HomeLayout {
         val style = SectionStyle.entries.firstOrNull { it.name == entity.style } ?: SectionStyle.Row
         HomeSection(entity.id, entity.name, style, sectionItems)
     }
-    val favorites = stored.firstOrNull { it.isFavorites } ?: HomeSection(HomeSection.FAVORITES, "")
+    val favorites = stored.firstOrNull { it.isFavorites } ?: HomeSection.emptyFavorites()
     return HomeLayout(
         sections = listOf(favorites) + stored.filterNot { it.isFavorites },
         hidden = hiddenApps,
@@ -231,3 +237,6 @@ internal fun decode(value: String): AppId? {
     val activityName = value.substringAfter('/', missingDelimiterValue = "")
     return if (packageName.isBlank() || activityName.isBlank()) null else AppId(packageName, activityName)
 }
+
+/** What stands in an item's app column for the shortcut to all apps: no app's id looks like this. */
+internal const val ALL_APPS_SHORTCUT = "@all-apps"

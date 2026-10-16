@@ -172,6 +172,7 @@ internal val SpeechUnavailable.Reason.message: Int
         SpeechUnavailable.Reason.Region -> R.string.voice_other_country
         SpeechUnavailable.Reason.ServiceError -> R.string.voice_service_error
         SpeechUnavailable.Reason.Busy -> R.string.voice_busy
+        SpeechUnavailable.Reason.Occupied -> R.string.voice_occupied
         SpeechUnavailable.Reason.MicNotGiven -> R.string.voice_mic_not_given
         SpeechUnavailable.Reason.NoNetwork -> R.string.voice_no_network
     }

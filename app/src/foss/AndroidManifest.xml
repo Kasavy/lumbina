@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Not installed from a store: Lumbina updates itself from the project's releases when the user
+         asks. The system's installer asks before installing; over Lumbina's own debugging connection
+         (where it has one) nothing is asked. A build for a store must not have this. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+</manifest>

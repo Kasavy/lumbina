@@ -24,4 +24,21 @@ class ChannelRowsTest {
         val rows = feeds.visibleRows(ChannelSettings(hiddenChannels = setOf("kino/new")), labels)
         assertEquals(listOf("top", "news"), rows.map { it.channel })
     }
+
+    @Test
+    fun `channels go in the user's order, the ones it does not name after them as they came`() {
+        val keys = listOf("tube/top", "kino/new", "tube/news", "kino/old")
+        assertEquals(
+            listOf("kino/new", "tube/top", "tube/news", "kino/old"),
+            keys.inChannelOrder(listOf("kino/new", "gone/x", "tube/top")) { it },
+        )
+    }
+
+    @Test
+    fun `a channel moves among the others and stops at either end`() {
+        val keys = listOf("a", "b", "c")
+        assertEquals(listOf("b", "a", "c"), keys.movedChannel("b", -1))
+        assertEquals(listOf("a", "c", "b"), keys.movedChannel("b", 5))
+        assertEquals(keys, keys.movedChannel("x", 1))
+    }
 }

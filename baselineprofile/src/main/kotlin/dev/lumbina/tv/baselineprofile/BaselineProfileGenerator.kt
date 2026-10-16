@@ -27,6 +27,7 @@ class BaselineProfileGenerator {
         pressHome()
         allowTvListings()
         startActivityAndWait()
+        skipSetup()
         browseHome()
         visitAllApps()
         visitSettings()

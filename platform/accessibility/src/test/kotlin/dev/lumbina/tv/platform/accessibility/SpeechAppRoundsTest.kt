@@ -56,16 +56,32 @@ class SpeechAppRoundsTest {
     }
 
     @Test
-    fun `hearing nothing is no failure, a failure ends the listening with what was heard`() {
+    fun `hearing nothing is no failure, and ends the listening with what was heard`() {
         round("open")
         now += 2_000
         answers.onError(SpeechRecognizer.ERROR_NO_MATCH)
-        assertEquals(2, asked)
+        assertEquals(1, asked)
+        assertTrue(answers.isEnded)
         assertNull(answers.error)
+        assertEquals("open", answers.text)
+    }
 
+    @Test
+    fun `a silence with the key held asks for no other round`() {
+        now += 9_000
+        answers.onError(SpeechRecognizer.ERROR_SPEECH_TIMEOUT)
+        assertEquals(0, asked)
+        assertTrue(answers.isEnded)
+        assertNull(answers.error)
+        assertEquals("", answers.text)
+    }
+
+    @Test
+    fun `a failure ends the listening with what was heard`() {
+        round("open")
         now += 2_000
         answers.onError(SpeechRecognizer.ERROR_NETWORK)
-        assertEquals(2, asked)
+        assertEquals(1, asked)
         assertTrue(answers.isEnded)
         assertEquals(SpeechRecognizer.ERROR_NETWORK, answers.error)
         assertEquals("open", answers.text)

@@ -51,9 +51,13 @@ internal class AppPhotoFolder @Inject constructor(@ApplicationContext context: C
         if (File(safe).extension.lowercase() !in MEDIA_EXTENSIONS) return false
         dir.mkdirs()
         val file = File(dir, "${System.currentTimeMillis()}-$safe")
+        // Written under a name no listing takes, and named for good once whole: the banner panel
+        // reads the folder while a picture comes in and must not show half of it.
+        val part = File(dir, "${file.name}$PART")
         // A dropped connection ends the stream early: keep only what arrived whole.
-        val complete = runCatching { file.outputStream().use { input.copyTo(it) } }.getOrNull() == size
-        if (!complete) file.delete()
+        val complete = runCatching { part.outputStream().use { input.copyTo(it) } }.getOrNull() == size &&
+            part.renameTo(file)
+        if (!complete) part.delete()
         return complete
     }
 
@@ -73,6 +77,7 @@ internal class AppPhotoFolder @Inject constructor(@ApplicationContext context: C
         val VIDEO_EXTENSIONS = setOf("mp4", "webm", "mkv", "mov", "m4v")
         val MEDIA_EXTENSIONS = IMAGE_EXTENSIONS + VIDEO_EXTENSIONS
         const val SAFE_PUNCTUATION = ".-_ "
+        const val PART = ".part"
     }
 }
 
