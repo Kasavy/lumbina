@@ -393,9 +393,7 @@ private fun Root(
                     leadingContent = { RootIcon(page.icon) },
                     headlineContent = { Text(stringResource(page.title)) },
                     // Only a problem is said here: how a page is set is the page's own to show.
-                    supportingContent = problems[page]?.let { problem ->
-                        { Text(stringResource(problem), color = rowWarning()) }
-                    },
+                    supportingContent = problems[page]?.let { { Text(stringResource(it), color = rowWarning()) } },
                     modifier = if (page == start && !onSetupRow) Modifier.focusRequester(focus) else Modifier,
                 )
             }

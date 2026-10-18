@@ -294,7 +294,7 @@ internal class RemoteFeatures(
             val own = setOfNotNull(service.packageName, profile.stockLauncher?.packageName)
             // Read off the main thread too; the other home screen in use joins it as the user chooses.
             val launchers = ConcurrentHashMap.newKeySet<String>().apply { addAll(own) }
-            val volumeHold = volumeHold(service, scope)
+            val volumeHold = if (profile.heldVolumeStops) VolumeHold(service, scope, log, service::filterKeys) else null
             val controls = controls(service, launchers, volumeHold)
             val assembly = voiceAssembly(service, launchers, commandPorts(controls))
             val sleep = SleepWatcher(service, stores.sleep, controls::standby, log)
@@ -362,9 +362,6 @@ internal class RemoteFeatures(
                 stop = if (device.profile.localAdb) apps.localAccess::forceStop else null,
                 ownVolume = { volumeHold?.ownChange() },
             )
-
-        private fun volumeHold(service: AccessibilityService, scope: CoroutineScope): VolumeHold? =
-            if (device.profile.heldVolumeStops) VolumeHold(service, scope, device.log, service::filterKeys) else null
 
         private fun voiceAssembly(
             service: AccessibilityService,
