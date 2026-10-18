@@ -1,12 +1,16 @@
 import com.diffplug.gradle.spotless.SpotlessExtension
+import dev.detekt.gradle.Detekt
 import dev.detekt.gradle.extensions.DetektExtension
 import dev.lumbina.buildlogic.lib
 import dev.lumbina.buildlogic.libs
 import dev.lumbina.buildlogic.version
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.services.BuildService
+import org.gradle.api.services.BuildServiceParameters
 import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.dependencies
+import org.gradle.kotlin.dsl.withType
 
 /** detekt (with Compose rules) and ktlint formatting via Spotless, for every module. */
 class QualityConventionPlugin : Plugin<Project> {
@@ -23,6 +27,12 @@ class QualityConventionPlugin : Plugin<Project> {
         dependencies {
             add("detektPlugins", libs.lib("detekt-compose-rules"))
         }
+        // One module at a time: every detekt task of a build shares one class loader, and two that
+        // start at once race in its IntelliJ core ("Could not initialize class ...PluginEnabler").
+        val detektLock = gradle.sharedServices.registerIfAbsent("detektLock", DetektLock::class.java) {
+            maxParallelUsages.set(1)
+        }
+        tasks.withType<Detekt>().configureEach { usesService(detektLock) }
 
         // Passed explicitly: Spotless's ktlint step does not pick these up from .editorconfig.
         val ktlintRules = mapOf(
@@ -44,3 +54,6 @@ class QualityConventionPlugin : Plugin<Project> {
         }
     }
 }
+
+/** Held by a running detekt task, see [QualityConventionPlugin]. */
+abstract class DetektLock : BuildService<BuildServiceParameters.None>
