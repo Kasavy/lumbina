@@ -21,6 +21,13 @@ data class RemoteSettings(
     val keyNames: Map<RemoteKey, String> = emptyMap(),
     /** The other home screen Home's menu leads to; null, or one no longer there: the first found. */
     val otherHome: AppId? = null,
+    /**
+     * A held volume button goes on changing the volume. While Lumbina takes the buttons, Android
+     * does not repeat a held volume key; so once the volume changes, Lumbina lets the buttons go
+     * for a few seconds, and the next hold repeats. Only where it is so (`DeviceProfile.heldVolumeStops`). Off until
+     * the user turns it on: what it costs is said by the switch.
+     */
+    val volumeHold: Boolean = false,
 ) {
     /**
      * A double press on Home shows the recent apps. Off, Home answers at once (it need not wait

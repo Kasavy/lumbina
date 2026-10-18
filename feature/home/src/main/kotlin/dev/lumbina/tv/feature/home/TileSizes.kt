@@ -71,6 +71,13 @@ internal fun TileSize.appTileWidth(inset: Dp = 0.dp): Dp {
     return (screen - GRID_SIDE * 2 - inset * 2 - GRID_SPACING * (columns - 1)) / columns
 }
 
+/**
+ * How wide each of [columns] tiles with [gap] between them is in [width], all in whole pixels. In
+ * dp ([appTileWidth]) the tiles and the gaps would round each on its own and could come to a pixel
+ * more than [width]: the last tile of the line would go down to the next.
+ */
+internal fun tileWidthPx(width: Int, gap: Int, columns: Int): Int = (width - gap * (columns - 1)) / columns
+
 /** How wide a program card is in "Continue watching" and the channels' rows. */
 internal val TileSize.rowTileWidth: Dp
     get() = when (this) {

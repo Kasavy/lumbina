@@ -27,6 +27,8 @@ class LumbinaAccessibilityService : AccessibilityService() {
     private var features: RemoteFeatures? = null
 
     override fun onServiceConnected() {
+        // Keys let go for a held volume button stay so after the process ends, unless taken back here.
+        filterKeys(true)
         (features ?: featuresFactory.create(this, scope).also { features = it }).start()
     }
 

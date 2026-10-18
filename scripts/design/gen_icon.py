@@ -1,9 +1,11 @@
 # Lumbina launcher icon and TV banner: a film reel with a glowing hub, drawn as geometry and written
-# as Android vector drawables (app/src/main/res/drawable) and as SVG previews (scripts/design/preview).
+# as Android vector drawables (app/src/main/res/drawable), the banner as pictures (drawable-mdpi to
+# drawable-xxxhdpi), and as SVG previews (scripts/design/preview).
 #   python scripts/design/gen_icon.py
+# The banner's pictures are drawn from its preview by ImageMagick (`magick`, with librsvg).
 # Needs fontTools and Golos Text (OFL) for the banner's name, downloaded next to this script:
 #   https://github.com/google/fonts/raw/main/ofl/golostext/GolosText%5Bwght%5D.ttf -> Golos.ttf
-import math, os, sys
+import math, os, subprocess, sys
 from fontTools.ttLib import TTFont
 from fontTools.varLib.instancer import instantiateVariableFont
 from fontTools.pens.svgPathPen import SVGPathPen
@@ -155,7 +157,6 @@ if __name__ == '__main__':
         'drawable/ic_launcher_foreground.xml': android(108, 108, fg, 'Launcher icon, foreground: a film reel with a glowing hub.'),
         'drawable/ic_launcher_background.xml': android(108, 108, bg, 'Launcher icon, background: dark with a warm glow in the middle.'),
         'drawable/ic_launcher_monochrome.xml': android(108, 108, mn, 'Launcher icon, monochrome (themed icons): the reel alone.'),
-        'drawable/banner.xml': android(bw, bh, banner, '320x180 TV banner: the reel and the name, set in Golos Text (OFL) as outlines.'),
     }
     for p, text in files.items():
         with open(os.path.join(RES, p), 'w', encoding='utf-8', newline='\n') as out:
@@ -166,4 +167,15 @@ if __name__ == '__main__':
     open(os.path.join(prev, 'icon-circle.svg'), 'w').write(svg(108, 108, bg + fg, mask_circle=True))
     open(os.path.join(prev, 'icon-mono.svg'), 'w').write(svg(108, 108, [('fill', 'M0,0h108v108h-108z', '3C4250', 1.0, False)] + [(L[0], L[1], 'E8E9EC', 1.0, True) for L in mn], mask_circle=True))
     open(os.path.join(prev, 'banner.svg'), 'w').write(svg(bw, bh, banner))
+    # The banner as pictures of Android TV's 160x90 dp, as other apps have it: a vector's cached
+    # bitmap goes to pixels when a launcher scales the focused banner up, and a bigger picture
+    # shrunk to a launcher's tile without smoothing goes to steps (Android TV's own launcher, Mi Box 4).
+    for density, scale in (('mdpi', 1), ('hdpi', 1.5), ('xhdpi', 2), ('xxhdpi', 3), ('xxxhdpi', 4)):
+        folder = os.path.join(RES, f'drawable-{density}')
+        os.makedirs(folder, exist_ok=True)
+        size = f'{round(160 * scale)}x{round(90 * scale)}!'
+        # Drawn four times bigger, then shrunk with a sharp filter.
+        subprocess.run(['magick', '-background', 'none', '-density', str(round(96 * scale * 2)),
+                        os.path.join(prev, 'banner.svg'), '-filter', 'Lanczos', '-resize', size, '-strip',
+                        '-depth', '8', 'PNG32:' + os.path.join(folder, 'banner.png')], check=True)
     print('banner text ends at', round(142 + width, 1))

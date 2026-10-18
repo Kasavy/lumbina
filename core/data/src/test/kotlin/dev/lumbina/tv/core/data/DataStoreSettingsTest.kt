@@ -10,7 +10,7 @@ import org.junit.Test
 
 class DataStoreSettingsTest {
 
-    private class FullDisk(private val value: Int) : DataStore<Int> {
+    private class FullDisk(value: Int) : DataStore<Int> {
         var writes = 0
         override val data: Flow<Int> = flowOf(value)
 

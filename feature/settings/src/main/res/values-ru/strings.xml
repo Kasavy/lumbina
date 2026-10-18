@@ -365,6 +365,8 @@
     <string name="screensaver_needs_access">Нужно подключение к отладке. Выберите, чтобы настроить</string>
     <string name="buttons_title">Кнопки пульта</string>
     <string name="buttons_take">Занять кнопку…</string>
+    <string name="buttons_volume_hold">Удерживать кнопки громкости</string>
+    <string name="buttons_volume_hold_hint">Нажмите кнопку громкости, затем удерживайте. Несколько секунд после этого «Домой» и назначенные кнопки работают как без Lumbina</string>
     <string name="buttons_take_title">Занять кнопку</string>
     <string name="buttons_reset">Вернуть как было…</string>
     <string name="buttons_reset_title">Вернуть кнопки как были?</string>

@@ -353,6 +353,8 @@
     <string name="screensaver_needs_access">Needs a debugging connection. Select to set it up</string>
     <string name="buttons_title">Remote buttons</string>
     <string name="buttons_take">Take a button…</string>
+    <string name="buttons_volume_hold">Hold volume buttons</string>
+    <string name="buttons_volume_hold_hint">Press a volume button, then hold it. For a few seconds after that Home and the buttons you set work as without Lumbina</string>
     <string name="buttons_take_title">Take a button</string>
     <string name="buttons_reset">As it was…</string>
     <string name="buttons_reset_title">Put the buttons back as they were?</string>

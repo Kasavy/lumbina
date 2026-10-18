@@ -57,6 +57,13 @@ interface DeviceProfile {
     val volume: DeviceVolume? get() = null
 
     /**
+     * Whether a held volume button changes the volume by one step only while Lumbina's service
+     * takes the buttons (Android's volume on a TV: Mi Box), so the service has to let them go.
+     * Vidda, whose firmware has its own volume, repeats a held button as without the service.
+     */
+    val heldVolumeStops: Boolean get() = volume == null
+
+    /**
      * Debugging (adb) listens on the local network without TLS pairing once the user turns it
      * on, so Lumbina can connect to it itself (see `LocalAdb`).
      */

@@ -2,7 +2,6 @@ package dev.lumbina.tv.core.ui
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -48,7 +47,6 @@ class DrawnCardTest {
         assertEquals(1, longClicks)
     }
 
-    @OptIn(ExperimentalTestApi::class)
     @Test
     fun `OK on the focused card clicks it`() {
         show()

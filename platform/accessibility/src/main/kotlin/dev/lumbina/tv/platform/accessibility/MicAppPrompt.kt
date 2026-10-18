@@ -105,6 +105,9 @@ internal class MicAppPrompt(
         }
     }
 
+    /** Whether a card that takes keys shows: a question, or a failure OK leads on from. */
+    val takesKeys: Boolean get() = asking != null || failed
+
     /** ◀ ▶ pick an answer, OK gives it, Back is "not now"; ▲ ▼ do nothing while the card shows. */
     fun onKey(event: KeyEvent): Boolean {
         val code = event.keyCode

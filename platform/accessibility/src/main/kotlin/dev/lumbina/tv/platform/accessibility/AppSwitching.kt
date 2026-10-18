@@ -186,6 +186,8 @@ internal class AppSwitching(
         }
     }
 
+    val isShowing: Boolean get() = overlay.isShowing
+
     /** While the switcher shows, it takes the D-pad, OK and Back; true if consumed. */
     fun onKey(event: KeyEvent): Boolean {
         if (!overlay.isShowing) return false

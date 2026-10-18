@@ -20,10 +20,10 @@ import dev.lumbina.tv.core.domain.app.AppId
  * app underneath keeps running undisturbed.
  */
 internal class AppSwitcherOverlay(
-    private val context: Context,
+    context: Context,
     texts: AppSwitcherViews.Texts,
     private val onPick: (App) -> Unit,
-    private val onClose: (App) -> Unit,
+    onClose: (App) -> Unit,
 ) {
     private val windowManager = context.getSystemService(WindowManager::class.java)
     private val views = AppSwitcherViews(context, texts)

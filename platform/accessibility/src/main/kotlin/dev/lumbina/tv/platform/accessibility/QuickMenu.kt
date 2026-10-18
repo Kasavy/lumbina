@@ -69,6 +69,8 @@ internal class QuickMenu(
 
     fun show() = overlay.show(items())
 
+    val isShowing: Boolean get() = overlay.isShowing
+
     /** While the menu shows, it takes the D-pad, OK and Back; true if consumed. */
     fun onKey(event: KeyEvent): Boolean = overlay.onKey(event)
 

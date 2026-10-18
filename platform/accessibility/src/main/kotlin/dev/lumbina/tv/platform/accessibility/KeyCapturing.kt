@@ -25,6 +25,9 @@ internal class KeyCapturing(
 ) {
     private var asked = false
 
+    /** Whether the settings wait for a button to be pressed. */
+    val isAsking: Boolean get() = asked
+
     /** The key whose press was taken: its repeats and its release are taken too. */
     private var taken: Int? = null
 

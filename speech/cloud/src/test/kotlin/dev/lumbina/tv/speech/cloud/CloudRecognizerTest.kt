@@ -16,7 +16,7 @@ import org.robolectric.RobolectricTestRunner
 class CloudRecognizerTest {
 
     /** What the stand-in service got. */
-    private class Received(val path: String, val query: String?, val headers: Map<String, String>, val body: ByteArray)
+    private class Received(val query: String?, val headers: Map<String, String>, val body: ByteArray)
 
     private var received: Received? = null
     private val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
@@ -24,7 +24,6 @@ class CloudRecognizerTest {
     private fun answer(status: Int, body: String): String {
         server.createContext("/") { exchange ->
             received = Received(
-                path = exchange.requestURI.path,
                 query = exchange.requestURI.rawQuery,
                 headers = exchange.requestHeaders.mapValues { it.value.first() }.mapKeys { it.key.lowercase() },
                 body = exchange.requestBody.readBytes(),

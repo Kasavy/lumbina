@@ -41,7 +41,7 @@ class RecognizeSpeechActivity : Activity() {
         super.onCreate(savedInstanceState)
         caption = captionView()
         val app = AppRecognition.current
-        if (app == null) return flashAndFinish(getString(R.string.voice_for_apps_unavailable), RESULT_AUDIO_ERROR)
+            ?: return flashAndFinish(getString(R.string.voice_for_apps_unavailable), RESULT_AUDIO_ERROR)
         caption.text = intent.getStringExtra(EXTRA_PROMPT) ?: getString(R.string.voice_listening)
         scope.launch { listen(app) }
     }

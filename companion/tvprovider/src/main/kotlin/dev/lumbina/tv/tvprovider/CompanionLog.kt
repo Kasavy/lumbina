@@ -9,6 +9,8 @@ import java.util.Locale
 /**
  * For firmware with logcat disabled, writes and refusals go to `tvprovider.log` in the app's
  * external files (`/sdcard/Android/data/dev.lumbina.tv.tvprovider/files`); kept under [MAX_BYTES].
+ * Lumbina's diagnostics report reads both files and counts the lines by their shape, "date time
+ * package action …" (`AskDevice.COMPANION_WRITES`): a change of path, names or shape goes there too.
  */
 internal object CompanionLog {
     private const val MAX_BYTES = 256 * 1024L

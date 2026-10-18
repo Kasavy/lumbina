@@ -20,7 +20,7 @@ import android.widget.TextView
  * Back then returns to the list. It never takes focus — the service feeds it the remote's keys —
  * so a video underneath keeps playing.
  */
-internal class QuickMenuOverlay(private val context: Context, private val texts: Texts) {
+internal class QuickMenuOverlay(context: Context, private val texts: Texts) {
 
     /**
      * The panel's own words: its [title], and what the keys do on a page, where Back goes back to the

@@ -315,7 +315,7 @@ private const val INNER_FOCUS_ATTEMPTS = 20
 
 /** Call before the rows under the focus are taken away: the panel holds the focus meanwhile. */
 @Suppress("CompositionLocalAllowlist")
-internal val LocalParkFocus = staticCompositionLocalOf<() -> Unit> { {} }
+internal val LocalParkFocus = staticCompositionLocalOf { {} }
 
 /** A page opened inside the current one: its [title], and its own line about the [keys] if it has one. */
 internal data class Inside(val title: String, val keys: String? = null)
@@ -393,7 +393,9 @@ private fun Root(
                     leadingContent = { RootIcon(page.icon) },
                     headlineContent = { Text(stringResource(page.title)) },
                     // Only a problem is said here: how a page is set is the page's own to show.
-                    supportingContent = problems[page]?.let { { Text(stringResource(it), color = rowWarning()) } },
+                    supportingContent = problems[page]?.let { problem ->
+                        { Text(stringResource(problem), color = rowWarning()) }
+                    },
                     modifier = if (page == start && !onSetupRow) Modifier.focusRequester(focus) else Modifier,
                 )
             }

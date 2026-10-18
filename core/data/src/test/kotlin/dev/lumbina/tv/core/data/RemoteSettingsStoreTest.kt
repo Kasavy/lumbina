@@ -27,8 +27,14 @@ class RemoteSettingsStoreTest {
             lumbinaOnly = setOf(red),
             everywhere = setOf(RemoteKey.Menu),
             otherHome = AppId("tv.launcher", "tv.launcher.Home"),
+            volumeHold = true,
         )
         assertEquals(settings, settings.toStored().toDomain())
+    }
+
+    @Test
+    fun `a file from before the volume switch reads it as off`() {
+        assertFalse(StoredRemoteSettings().toDomain().volumeHold)
     }
 
     @Test

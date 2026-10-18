@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -125,7 +126,7 @@ internal fun ButtonsPages(onLeave: () -> Unit, viewModel: ButtonsViewModel = hil
     var resets by remember { mutableIntStateOf(0) }
     when (val at = stack.last()) {
         ButtonsScreen.Keys -> key(resets) {
-            KeysPage(current, way) {
+            KeysPage(current, way, viewModel::toggleVolumeHold) {
                 hold()
                 viewModel.free()
                 resets++
@@ -155,9 +156,9 @@ internal fun ButtonsPages(onLeave: () -> Unit, viewModel: ButtonsViewModel = hil
     }
 }
 
-/** Home, every button the user took, then "take a button" and "as it was". */
+/** Home, every button the user took, then "take a button" and "as it was", then held volume buttons. */
 @Composable
-private fun KeysPage(state: ButtonsState, way: ButtonsWay, onReset: () -> Unit) {
+private fun KeysPage(state: ButtonsState, way: ButtonsWay, onVolumeHold: () -> Unit, onReset: () -> Unit) {
     var asking by remember { mutableStateOf(false) }
     // The buttons every remote has: Home, and the mic where Lumbina hears it.
     val own = listOfNotNull(RemoteKey.Home, RemoteKey.Mic.takeIf { state.mic })
@@ -198,6 +199,7 @@ private fun KeysPage(state: ButtonsState, way: ButtonsWay, onReset: () -> Unit) 
                     )
                 }
             }
+            if (state.volumeHoldable) volumeHold(state.settings.volumeHold, onVolumeHold)
         }
     }
     if (asking) {
@@ -211,6 +213,19 @@ private fun KeysPage(state: ButtonsState, way: ButtonsWay, onReset: () -> Unit) 
                 onReset()
             },
             onDismiss = { asking = false },
+        )
+    }
+}
+
+/** Whether a held volume button goes on changing the volume, in a group of its own. */
+private fun LazyListScope.volumeHold(on: Boolean, onClick: () -> Unit) {
+    item { GroupLine() }
+    item(key = "volume") {
+        SwitchRow(
+            title = stringResource(R.string.buttons_volume_hold),
+            hint = stringResource(R.string.buttons_volume_hold_hint),
+            checked = on,
+            onClick = onClick,
         )
     }
 }

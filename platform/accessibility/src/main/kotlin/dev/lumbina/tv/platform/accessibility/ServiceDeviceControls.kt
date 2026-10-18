@@ -24,6 +24,8 @@ internal class ServiceDeviceControls(
     private val deviceVolume: DeviceVolume?,
     private val launchers: Set<String>,
     private val stop: (suspend (String) -> Boolean)?,
+    /** Told before each volume change of these controls': its volume bar is not the user's press. */
+    private val ownVolume: () -> Unit = {},
 ) : DeviceControls {
 
     private val audio = service.getSystemService(AudioManager::class.java)
@@ -74,6 +76,7 @@ internal class ServiceDeviceControls(
      * the range: a single volume step may not be heard, a tenth is too much. Raising unmutes first.
      */
     private fun stepVolume(direction: Int) {
+        ownVolume()
         if (direction > 0 && audio.isStreamMute(STREAM)) adjustVolume(AudioManager.ADJUST_UNMUTE)
         if (deviceVolume?.change(direction * PERCENT / STEPS) == true) return
         val max = audio.getStreamMaxVolume(STREAM)
@@ -82,7 +85,10 @@ internal class ServiceDeviceControls(
         audio.setStreamVolume(STREAM, level, AudioManager.FLAG_SHOW_UI)
     }
 
-    private fun adjustVolume(direction: Int) = audio.adjustStreamVolume(STREAM, direction, AudioManager.FLAG_SHOW_UI)
+    private fun adjustVolume(direction: Int) {
+        ownVolume()
+        audio.adjustStreamVolume(STREAM, direction, AudioManager.FLAG_SHOW_UI)
+    }
 
     private companion object {
         const val STREAM = AudioManager.STREAM_MUSIC

@@ -2,6 +2,7 @@ package dev.lumbina.tv.feature.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
@@ -29,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -256,7 +258,7 @@ internal fun LazyGridScope.section(
 
         // A grid on its backing is one item: the backing goes round all its lines.
         section.style == SectionStyle.Grid -> fullWidth("row:${section.id}") {
-            PlateGrid(section, row.size.columns, row.size.appTileWidth(inset = PLATE_INSET), trailing, tile)
+            PlateGrid(section, row.size.columns, trailing, tile)
         }
 
         else -> fullWidth("row:${section.id}") {
@@ -292,17 +294,18 @@ private fun SectionRow(
     if (plate) PlateRow(modifier, listState, tiles) else HomeRow(modifier, listState, tiles)
 }
 
-/** A section laid out as a grid on its backing: every line of it inside one backing, the tiles [tileWidth] wide. */
+/** A section laid out as a grid on its backing: every line of it inside one backing, [columns] tiles a line. */
 @Composable
 private fun PlateGrid(
     section: SectionContent,
     columns: Int,
-    tileWidth: Dp,
     trailing: List<Trailing>,
     tile: @Composable (TileContent, Modifier) -> Unit,
-) {
-    val width = Modifier.width(tileWidth)
-    Plate {
+) = Plate {
+    BoxWithConstraints {
+        val width = with(LocalDensity.current) {
+            Modifier.width(tileWidthPx(constraints.maxWidth, GRID_SPACING.roundToPx(), columns).toDp())
+        }
         // One layout for all the lines, each tile keyed: a tile being moved keeps its focus as it
         // changes places, onto another line too.
         FlowRow(

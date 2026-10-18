@@ -52,9 +52,9 @@ internal class QuietSemantics(private val context: Context, private val log: Lum
         return services.isNotEmpty() && services.all { it.resolveInfo.serviceInfo.packageName == context.packageName }
     }
 
-    private fun composeViews(view: View): List<View> = when {
-        view is ViewRootForTest -> listOf(view)
-        view is ViewGroup -> (0 until view.childCount).flatMap { composeViews(view.getChildAt(it)) }
+    private fun composeViews(view: View): List<View> = when (view) {
+        is ViewRootForTest -> listOf(view)
+        is ViewGroup -> (0 until view.childCount).flatMap { composeViews(view.getChildAt(it)) }
         else -> emptyList()
     }
 

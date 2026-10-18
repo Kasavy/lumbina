@@ -48,10 +48,10 @@ internal fun ProviderDialog(
     // Another app is offered only where there is one that can be given the remote's sound.
     val offered = SpeechProvider.entries.filter { it != SpeechProvider.App || recognizer.app != null }
     val choices = offered.map { provider ->
-        val subtitle = when {
-            provider == SpeechProvider.Device -> stringResource(R.string.voice_provider_device_hint)
-            provider == SpeechProvider.App -> recognizer.app?.label.orEmpty()
-            provider in recognizer.withKey -> stringResource(R.string.voice_provider_key_set)
+        val subtitle = when (provider) {
+            SpeechProvider.Device -> stringResource(R.string.voice_provider_device_hint)
+            SpeechProvider.App -> recognizer.app?.label.orEmpty()
+            in recognizer.withKey -> stringResource(R.string.voice_provider_key_set)
             else -> noKey
         }
         Choice(providerName(provider), subtitle) { onChoose(provider) }

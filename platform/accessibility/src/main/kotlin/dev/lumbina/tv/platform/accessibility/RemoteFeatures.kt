@@ -62,6 +62,8 @@ internal class RemoteFeatures(
         val inLumbina: () -> Boolean,
         /** Only in debuggable builds. */
         val debug: DebugCommands?,
+        /** Where a held volume button stops repeating ([DeviceProfile.heldVolumeStops]). */
+        val volumeHold: VolumeHold?,
     )
 
     /**
@@ -112,6 +114,7 @@ internal class RemoteFeatures(
                 remoteSettings.settings.collect {
                     ownBindings = it.bindings
                     lumbinaOnly = it.limited
+                    volumeHold?.enabled = it.volumeHold
                     bindKeys()
                 }
             }
@@ -121,6 +124,8 @@ internal class RemoteFeatures(
             quickMenu.start(scope)
             sleep.start(scope)
             phoneRemote.start(scope)
+            volumeHold?.busy = ::ownScreenShows
+            volumeHold?.start()
             capture.start()
             debug?.key = { code, what ->
                 onKey(KeyEvent(if (what == "up") KeyEvent.ACTION_UP else KeyEvent.ACTION_DOWN, code))
@@ -138,6 +143,7 @@ internal class RemoteFeatures(
         started = false
         with(parts) {
             phoneRemote.stop()
+            volumeHold?.stop()
             capture.stop()
             debug?.unregister()
             switching.dispose()
@@ -176,6 +182,12 @@ internal class RemoteFeatures(
         return interpreter.onKey(RawKey(event.scanCode, event.keyCode, action, repeat = event.repeatCount > 0))
     }
 
+    /** Whether a screen of the service's own shows over the app: it has the remote's keys then. */
+    private fun ownScreenShows(): Boolean = with(parts) {
+        sleep.warns || quickMenu.isShowing || switching.isShowing || forApps.micPrompt?.takesKeys == true ||
+            capture.isAsking
+    }
+
     /** Printing keys are skipped: what is typed stays out of the log. */
     private fun note(event: KeyEvent) {
         if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0) return
@@ -191,6 +203,7 @@ internal class RemoteFeatures(
 
     fun onAccessibilityEvent(event: AccessibilityEvent) {
         parts.switching.onAccessibilityEvent(event)
+        parts.volumeHold?.onAccessibilityEvent(event)
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             parts.powerOn.onWindow(event.packageName, event.className)
             parts.forApps.micPrompt?.onWindowChanged()
@@ -281,8 +294,8 @@ internal class RemoteFeatures(
             val own = setOfNotNull(service.packageName, profile.stockLauncher?.packageName)
             // Read off the main thread too; the other home screen in use joins it as the user chooses.
             val launchers = ConcurrentHashMap.newKeySet<String>().apply { addAll(own) }
-            val stop = if (profile.localAdb) apps.localAccess::forceStop else null
-            val controls = ServiceDeviceControls(service, device.lumbinaHome, profile.volume, launchers, stop)
+            val volumeHold = volumeHold(service, scope)
+            val controls = controls(service, launchers, volumeHold)
             val assembly = voiceAssembly(service, launchers, commandPorts(controls))
             val sleep = SleepWatcher(service, stores.sleep, controls::standby, log)
             followTheme(service, stores.appearance.settings, scope)
@@ -313,7 +326,6 @@ internal class RemoteFeatures(
                 holdOk = holdOk(),
                 hasMic = profile.hasRemoteMic,
             )
-            val powerOn = powerOn(service)
             // One mic connection for everything: the remote has room for one reader only.
             val mic = profile.remoteMicAudio?.let { assembly.warm(scope, it) }
             val readiness = VoiceReadiness(voice.engine, log)
@@ -327,7 +339,7 @@ internal class RemoteFeatures(
                 micKey = micKey,
                 forApps = forApps,
                 switching = switching,
-                powerOn = powerOn,
+                powerOn = powerOn(service),
                 quickMenu = quickMenu,
                 sleep = sleep,
                 phoneRemote = PhoneRemote(service, stores.phoneRemote, phonePorts, log),
@@ -335,9 +347,24 @@ internal class RemoteFeatures(
                 capture = KeyCapturing(service, { keyOf(profile, it) }, log),
                 inLumbina = { service.rootInActiveWindow?.packageName == service.packageName },
                 debug = debug,
+                volumeHold = volumeHold,
             )
             return RemoteFeatures(parts, profile, device.lumbinaHome, stores.remote, scope, log)
         }
+
+        /** Apps are stopped over Lumbina's own adb where it has one; its volume changes are told to [volumeHold]. */
+        private fun controls(service: AccessibilityService, launchers: Set<String>, volumeHold: VolumeHold?) =
+            ServiceDeviceControls(
+                service,
+                device.lumbinaHome,
+                device.profile.volume,
+                launchers,
+                stop = if (device.profile.localAdb) apps.localAccess::forceStop else null,
+                ownVolume = { volumeHold?.ownChange() },
+            )
+
+        private fun volumeHold(service: AccessibilityService, scope: CoroutineScope): VolumeHold? =
+            if (device.profile.heldVolumeStops) VolumeHold(service, scope, device.log, service::filterKeys) else null
 
         private fun voiceAssembly(
             service: AccessibilityService,

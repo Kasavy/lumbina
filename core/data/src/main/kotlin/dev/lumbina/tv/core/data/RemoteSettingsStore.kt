@@ -21,6 +21,7 @@ internal data class StoredRemoteSettings(
     val keyNames: Map<String, String> = emptyMap(),
     val lumbinaOnly: List<String> = emptyList(),
     val everywhere: List<String> = emptyList(),
+    val volumeHold: Boolean = false,
 )
 
 /** [action]: an action's name, "app:" and an app's id, or null for "as on the device". */
@@ -47,6 +48,7 @@ internal fun StoredRemoteSettings.toDomain(): RemoteSettings {
         everywhere = everywhere.map(::RemoteKey).toSet(),
         keyNames = keyNames.mapKeys { RemoteKey(it.key) },
         otherHome = otherHome?.let(::decode),
+        volumeHold = volumeHold,
     )
 }
 
@@ -62,6 +64,7 @@ internal fun RemoteSettings.toStored() = StoredRemoteSettings(
     keyNames = keyNames.mapKeys { it.key.id },
     lumbinaOnly = lumbinaOnly.map { it.id },
     everywhere = everywhere.map { it.id },
+    volumeHold = volumeHold,
 )
 
 private const val APP = "app:"

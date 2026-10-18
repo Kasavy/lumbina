@@ -45,6 +45,8 @@ data class ButtonsState(
     val mic: Boolean = false,
     /** Whether the remote's service runs: without it no button does what is set here. */
     val serviceOn: Boolean = true,
+    /** Whether a held volume button needs [RemoteSettings.volumeHold] here ([DeviceProfile.heldVolumeStops]). */
+    val volumeHoldable: Boolean = false,
 ) {
     /**
      * The buttons that do something of Lumbina's or were set by the user, besides Home: each has a
@@ -90,6 +92,7 @@ class ButtonsViewModel @Inject constructor(
             search = searched != null,
             mic = profile.hasRemoteMic,
             serviceOn = serviceOn,
+            volumeHoldable = profile.heldVolumeStops,
         )
     }.stateIn(viewModelScope, WhileUiSubscribed, null)
 
@@ -117,6 +120,10 @@ class ButtonsViewModel @Inject constructor(
     /** A blank [name] gives the button back the name its code has. */
     fun rename(key: RemoteKey, name: String) {
         viewModelScope.launch { settings.update { it.withKeyName(key, name) } }
+    }
+
+    fun toggleVolumeHold() {
+        viewModelScope.launch { settings.update { it.copy(volumeHold = !it.volumeHold) } }
     }
 
     /** Nothing of the user's on [key] any more; with no key, on any. */
