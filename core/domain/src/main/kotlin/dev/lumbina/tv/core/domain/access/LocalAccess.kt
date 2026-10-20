@@ -107,7 +107,7 @@ class LocalAccess(
 
     /**
      * Connects (asking the user if needed) and sets Lumbina up: the service kept on, usage
-     * statistics, notifications, and the companion apps the device misses.
+     * statistics, notifications, and the companion apps the device misses or has older copies of.
      */
     suspend fun connectAndSetUp(): SetupResult = when (adb.connect()) {
         AdbState.Connected -> setUp()
@@ -136,7 +136,7 @@ class LocalAccess(
         // Notifications for the bell and "now playing": firmware that needs this connection has
         // no screen where the user could allow Lumbina's listener.
         adb.shell("cmd notification allow_listener $packageName/$notificationListener")
-        companions.filter { it.missing() }.forEach { it.install(adb) }
+        companions.filter { it.wanted() }.forEach { it.install(adb) }
         return true
     }
 

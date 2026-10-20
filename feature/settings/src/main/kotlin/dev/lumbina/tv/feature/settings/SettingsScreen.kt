@@ -68,6 +68,9 @@ enum class SettingsPage(val title: Int, val icon: Int) {
     Channels(R.string.settings_channels, R.drawable.ic_page_channels),
     Widgets(R.string.page_widgets, R.drawable.ic_page_widgets),
     Wallpaper(R.string.settings_wallpaper, R.drawable.ic_page_wallpaper),
+
+    /** Not a page: the media library is a screen of its own, opened from this row. */
+    Media(R.string.media_title, R.drawable.ic_page_media),
     Look(R.string.page_look, R.drawable.ic_page_look),
     Voice(R.string.settings_voice, R.drawable.ic_page_voice),
     HomeKey(R.string.page_home_key, R.drawable.ic_page_keys),
@@ -81,7 +84,7 @@ enum class SettingsPage(val title: Int, val icon: Int) {
 /** The root's rows in their groups, a thin line between two: the home screen, the look, input, sleep, the system. */
 private enum class RootGroup(val pages: List<SettingsPage>) {
     Home(listOf(SettingsPage.Rows, SettingsPage.Widgets, SettingsPage.Channels)),
-    Look(listOf(SettingsPage.Wallpaper, SettingsPage.Look)),
+    Look(listOf(SettingsPage.Wallpaper, SettingsPage.Media, SettingsPage.Look)),
     Input(listOf(SettingsPage.HomeKey, SettingsPage.Voice, SettingsPage.Phone)),
     Sleep(listOf(SettingsPage.Sleep)),
     System(listOf(SettingsPage.Access, SettingsPage.State, SettingsPage.About)),
@@ -131,13 +134,14 @@ internal fun hiddenPages(localAdb: Boolean, remoteMic: Boolean): Set<SettingsPag
 fun SettingsRoute(
     onPreviewScreensaver: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenMedia: (MediaView) -> Unit = {},
     initialPage: SettingsPage? = null,
     setupLeft: Int = 0,
     onSetup: () -> Unit = {},
     pages: SettingsPagesViewModel = hiltViewModel(),
 ) {
     // A page asked for from outside may be one this device doesn't have.
-    val first = initialPage?.takeUnless { it in pages.hidden }
+    val first = initialPage?.takeUnless { it in pages.hidden || it == SettingsPage.Media }
     var page by rememberSaveable { mutableStateOf(first) }
     // The root's row left last: where the focus is when the root is shown again.
     var left by rememberSaveable { mutableStateOf(first) }
@@ -176,16 +180,20 @@ fun SettingsRoute(
                 list = rootList,
                 focused = left,
                 onOpen = {
-                    hold()
                     left = it
-                    page = it
+                    if (it == SettingsPage.Media) {
+                        onOpenMedia(MediaView())
+                    } else {
+                        hold()
+                        page = it
+                    }
                 },
                 onDevice = deviceSettingsOpener(pages),
             )
         } else {
             val openAccess = { follow(SettingsPage.Access) }.takeUnless { SettingsPage.Access in pages.hidden }
             CompositionLocalProvider(
-                LocalSettingsLinks provides SettingsLinks(page = follow, setup = onSetup),
+                LocalSettingsLinks provides SettingsLinks(page = follow, setup = onSetup, media = onOpenMedia),
                 LocalSubPage provides { inside = it },
                 LocalAdjustSize provides { adjusting = it },
             ) {
@@ -281,7 +289,11 @@ private fun Modifier.keepsArrows(): Modifier = focusProperties {
 }
 
 /** Where a row of one page leads when what it tells of is set elsewhere: another page, or the setup. */
-internal class SettingsLinks(val page: (SettingsPage) -> Unit, val setup: () -> Unit)
+internal class SettingsLinks(
+    val page: (SettingsPage) -> Unit,
+    val setup: () -> Unit,
+    val media: (MediaView) -> Unit = {},
+)
 
 @Suppress("CompositionLocalAllowlist")
 internal val LocalSettingsLinks = staticCompositionLocalOf { SettingsLinks(page = {}, setup = {}) }

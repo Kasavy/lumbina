@@ -177,7 +177,12 @@ internal fun HomeDialogs(
         is HomeDialog.Naming -> NamingDialog(dialog, state, commands, anchor, back)
 
         is HomeDialog.Banner ->
-            BannerPicker(dialog.app, state.appearance.customBanners[dialog.app.id.flatten()], commands, back)
+            BannerPicker(
+                dialog.app,
+                state.appearance.customBanners[dialog.app.id.flatten()],
+                commands,
+                back,
+            )
 
         is HomeDialog.PickApps -> PickApps(dialog, state, commands, back)
 

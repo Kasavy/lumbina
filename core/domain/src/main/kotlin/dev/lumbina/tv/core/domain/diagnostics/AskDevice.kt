@@ -63,31 +63,14 @@ class AskDevice(
         const val SYSTEM_TV_PROVIDER =
             "dumpsys package com.android.providers.tv | grep -E 'pkgFlags=|enabled=|hidden=|installed='"
 
-        /** Where Lumbina's own TV provider, on devices without the system's, logs what apps wrote (`CompanionLog`). */
-        const val COMPANION_LOG =
-            "cd /sdcard/Android/data/dev.lumbina.tv.tvprovider/files 2>/dev/null && cat tvprovider.1.log tvprovider.log"
-
-        /**
-         * What each app did there, counted ("ru.app insert channel"), as far as the log goes back:
-         * inserts, deletes and refusals, not updates. Follows the lines `CompanionLog` writes.
-         */
-        const val COMPANION_WRITES =
-            "$COMPANION_LOG | sed -E 's/^[^ ]+ [^ ]+ //; s/ → .*//; s/[?].*//; s#/[0-9]+$##; s/: .*//'" +
-                " | sort | uniq -c | sort -rn"
-
-        /** The provider's last refusals, with the time and the reason. */
-        const val COMPANION_REFUSALS = "$COMPANION_LOG | grep -E 'refused|unsupported' | tail -n 30"
-
         /**
          * Asked of any device: which apps offer themselves as the home screen, which packages are
-         * turned off (a firmware service Lumbina leans on may be among them), and the TV providers.
+         * turned off (a firmware service Lumbina leans on may be among them), and the system's TV provider.
          */
         val COMMANDS = listOf(
             "cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME",
             "pm list packages -d",
             SYSTEM_TV_PROVIDER,
-            COMPANION_WRITES,
-            COMPANION_REFUSALS,
         )
     }
 }

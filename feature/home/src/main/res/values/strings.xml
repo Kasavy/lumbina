@@ -46,10 +46,11 @@
     <string name="status_no_internet">No internet</string>
     <string name="home_recently_installed">Recently installed</string>
     <string name="menu_banner">Own banner…</string>
-    <string name="banner_hint">OK puts the picture on the tile</string>
-    <string name="banner_original">original</string>
-    <string name="banner_add">Add a picture from a phone</string>
-    <string name="banner_add_how">With the phone on the same Wi-Fi, point its camera at the code: the remote page opens. Send the picture under “More”, and it shows up here.</string>
+    <string name="banner_original">Original</string>
+    <string name="banner_photos">Photos from the library</string>
+    <string name="banner_photos_hint">becomes this tile’s banner</string>
+    <string name="banner_add">Add a banner from a phone</string>
+    <string name="banner_add_how">With the phone on the same Wi-Fi, point its camera at the code: the remote page opens. Under “More”, choose “Tile banner” and send a photo: it shows up here.</string>
     <string name="banner_phone_off">To send a picture from a phone, turn on the remote page under “Phone remote” in the settings.</string>
     <string name="banner_no_network">No network: connect the device to Wi-Fi or Ethernet to send a picture from a phone.</string>
     <string name="banner_service_off">The remote’s service is off, and the remote page doesn’t open without it. Turn the service on in Lumbina’s settings to send a picture from a phone.</string>
@@ -146,4 +147,12 @@
     <string name="home_sleep_left">%1$d min left</string>
     <string name="notices_none_now">No notifications</string>
     <string name="search_none">There is nowhere to search on this device</string>
+    <string name="media_arrived_open">Open</string>
+    <string name="media_arrived_photo">A photo from a phone is in the media library</string>
+    <string name="media_arrived_video">A video from a phone is in the media library</string>
+    <string name="media_arrived_banner">A banner from a phone is in the media library</string>
+    <plurals name="media_arrived_files">
+        <item quantity="one">%d file from a phone is in the media library</item>
+        <item quantity="other">%d files from a phone are in the media library</item>
+    </plurals>
 </resources>

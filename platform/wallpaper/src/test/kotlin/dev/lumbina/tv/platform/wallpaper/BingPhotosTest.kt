@@ -19,7 +19,7 @@ class BingPhotosTest {
                 "https://www.bing.com/th?id=OHR.BearsEars_ROW3487899068_1920x1080.jpg",
                 "https://www.bing.com/th?id=OHR.Lake_EN-US123_1920x1080.jpg",
             ),
-            bingPhotos(answer, uhd = false).map { it.url },
+            bingPhotos(answer).map { it.url },
         )
     }
 
@@ -27,7 +27,7 @@ class BingPhotosTest {
     fun `each photo comes with the place and the author Bing names`() {
         assertEquals(
             listOf("Bears Ears, Utah (© Jane \"JD\" Doe/Agency)", null),
-            bingPhotos(answer, uhd = false).map { it.credit },
+            bingPhotos(answer).map { it.credit },
         )
     }
 
@@ -36,17 +36,12 @@ class BingPhotosTest {
         val json = """{"images":[{"copyright":"A lake\/shore\n(\u00a9 A\\B)","hs":[],"urlbase":"/th?id=OHR.Lake"}]}"""
         assertEquals(
             listOf(DailyPhoto("https://www.bing.com/th?id=OHR.Lake_1920x1080.jpg", "A lake/shore (© A\\B)")),
-            bingPhotos(json, uhd = false),
+            bingPhotos(json),
         )
     }
 
     @Test
-    fun `asks for UHD on larger screens`() {
-        assertEquals("https://www.bing.com/th?id=OHR.Lake_EN-US123_UHD.jpg", bingPhotos(answer, uhd = true).last().url)
-    }
-
-    @Test
     fun `an unexpected answer has no photos`() {
-        assertEquals(emptyList<DailyPhoto>(), bingPhotos("<html>blocked</html>", uhd = false))
+        assertEquals(emptyList<DailyPhoto>(), bingPhotos("<html>blocked</html>"))
     }
 }

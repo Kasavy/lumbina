@@ -20,6 +20,13 @@ fun WallpaperBackdrop(busy: Boolean, modifier: Modifier = Modifier, viewModel: W
     val state by viewModel.state.collectAsStateWithLifecycle()
     Box(modifier.fillMaxSize()) {
         val ground = state.background.colors(LocalTheme.current)
-        WallpaperLayer(state.item, ground, state.nightDim, busy = busy, credit = true)
+        WallpaperLayer(
+            state.item,
+            ground,
+            state.nightDim,
+            busy = busy,
+            credit = true,
+            onVideoError = viewModel::videoFailed,
+        )
     }
 }

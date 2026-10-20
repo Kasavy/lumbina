@@ -2,6 +2,7 @@ package dev.lumbina.tv.core.data
 
 import androidx.datastore.core.DataStoreFactory
 import dev.lumbina.tv.core.domain.phone.PhoneRemoteSettings
+import dev.lumbina.tv.core.domain.sleep.ScreensaverPhotos
 import dev.lumbina.tv.core.domain.sleep.SleepSettings
 import dev.lumbina.tv.core.domain.weather.Place
 import dev.lumbina.tv.core.domain.weather.WeatherSettings
@@ -29,6 +30,28 @@ class JsonStoresTest {
         assertEquals(SleepSettings(autoSleepMinutes = 180), repository.settings.first())
         repository.update { it.copy(autoSleepMinutes = null, timerEndsAt = 42) }
         assertEquals(SleepSettings(autoSleepMinutes = null, timerEndsAt = 42), repository.settings.first())
+    }
+
+    @Test
+    fun `the screensaver's plugin and change interval round-trip, and the old online choice is photos of the day`() {
+        val plugin = SleepSettings(screensaverPhotos = ScreensaverPhotos.Plugin("p/s"), screensaverChangeMinutes = 5)
+        assertEquals(plugin, plugin.toStored().toDomain())
+        val old = StoredSleepSettings(screensaverPhotos = "Online").toDomain()
+        assertEquals(ScreensaverPhotos.PhotoOfTheDay, old.screensaverPhotos)
+        assertEquals(1, old.screensaverChangeMinutes)
+    }
+
+    @Test
+    fun `the gone landscapes, a plugin without its id and the old own-photos switch read sensibly`() {
+        assertEquals(
+            ScreensaverPhotos.AsWallpaper,
+            StoredSleepSettings(screensaverPhotos = "Bundled").toDomain().screensaverPhotos,
+        )
+        assertEquals(
+            ScreensaverPhotos.AsWallpaper,
+            StoredSleepSettings(screensaverPhotos = "Plugin").toDomain().screensaverPhotos,
+        )
+        assertEquals(ScreensaverPhotos.MyMedia, StoredSleepSettings(onlinePhotos = false).toDomain().screensaverPhotos)
     }
 
     @Test

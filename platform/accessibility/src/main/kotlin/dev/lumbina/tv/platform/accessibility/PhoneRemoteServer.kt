@@ -20,6 +20,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
+import org.json.JSONObject
 
 /** A request to the phone remote page's server: `/api/<command>?…` with an optional body. */
 internal class PhoneRequest(
@@ -34,22 +35,28 @@ internal class PhoneRequest(
 }
 
 /** How a command went, as the page reads it: `{"ok":…}`, with why it failed when the page can say so. */
-internal enum class PhoneAnswer(val json: String) {
-    Done("""{"ok":true}"""),
-    Failed("""{"ok":false}"""),
-
-    /** The device's Android can't do this (the D-pad needs 13). */
-    Unsupported("""{"ok":false,"error":"sdk"}"""),
-    ;
-
+internal class PhoneAnswer private constructor(val json: String) {
     companion object {
+        val Done = PhoneAnswer("""{"ok":true}""")
+        val Failed = PhoneAnswer("""{"ok":false}""")
+
+        /** The device's Android can't do this (the D-pad needs 13). */
+        val Unsupported = PhoneAnswer("""{"ok":false,"error":"sdk"}""")
+
         fun of(ok: Boolean) = if (ok) Done else Failed
+
+        /** Refused for a reason the page words itself ([error]), with [detail] to show as it is. */
+        fun refused(error: String, detail: String? = null): PhoneAnswer {
+            val json = JSONObject().put("ok", false).put("error", error)
+            detail?.let { json.put("detail", it) }
+            return PhoneAnswer(json.toString())
+        }
     }
 }
 
 /**
- * The phone remote's web server: plain HTTP on the local network, one short request per
- * connection (the page sends a request per button press or touchpad move). Serves the page to
+ * The phone remote's web server: plain HTTP on the local network, one request per connection (the
+ * page sends a request per button press or touchpad move, and one per file it sends). Serves the page to
  * anyone; the API answers only requests whose `X-Key` header carries the [key] from the QR code,
  * and the last diagnostics report ([report]) is given to an address that carries it (a phone's
  * camera opens an address, it sends no headers).
@@ -187,6 +194,23 @@ internal class PhoneRemoteServer(
                 respond(output, STATUS_OK, JSON, answer.json.toByteArray())
             }
         }
+        linger(client, request.body)
+    }
+
+    /**
+     * What is left of a body answered before it was read (a file refused for its size or name) is
+     * read and dropped, for a while: closed with it unread, the connection is reset and the browser
+     * gets an error in place of the answer that says why.
+     */
+    private fun linger(client: Socket, body: InputStream) {
+        runCatching {
+            client.shutdownOutput()
+            client.soTimeout = LINGER_READ_MILLIS
+            val until = System.currentTimeMillis() + LINGER_MILLIS
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            var open = true
+            while (open && System.currentTimeMillis() < until) open = body.read(buffer) >= 0
+        }
     }
 
     /** The report as a file to save or share: that is what a phone's browser then offers. */
@@ -214,6 +238,8 @@ internal class PhoneRemoteServer(
         const val READ_TIMEOUT_MILLIS = 30_000
         const val HEAD_MILLIS = 10_000L
         const val REFUSED_LOG_MILLIS = 10_000L
+        const val LINGER_MILLIS = 3_000L
+        const val LINGER_READ_MILLIS = 1_000
 
         // A phone's browser keeps several connections open at once, some of them idle ones it opened
         // ahead of need: with fewer slots than it uses, the page stops opening on that phone.

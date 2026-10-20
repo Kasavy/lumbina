@@ -6,23 +6,40 @@ import dev.lumbina.tv.core.domain.settings.SettingsRepository
 /**
  * When the device goes to standby by itself: [autoSleepMinutes] after the last remote button
  * press (null: never), and at [timerEndsAt] (wall-clock millis) when a sleep timer runs.
- * [screensaverMinutes]: idle time before Lumbina shows its screensaver over its own screens (null: never).
+ * [screensaverMinutes]: idle time before Lumbina shows its screensaver over its own screens (null: never);
+ * [screensaverChangeMinutes]: how long each photo stays there (a video plays through all the same).
  * Shared by the launcher UI (which sets them) and the process that watches the remote.
  */
 data class SleepSettings(
     val autoSleepMinutes: Int? = DEFAULT_AUTO_SLEEP_MINUTES,
     val timerEndsAt: Long? = null,
     val screensaverMinutes: Int? = DEFAULT_SCREENSAVER_MINUTES,
-    /**
-     * Screensaver photos from picsum.photos and Bing, which see the device's address, when the
-     * user's own aren't the wallpaper.
-     */
-    val onlinePhotos: Boolean = true,
+    val screensaverPhotos: ScreensaverPhotos = ScreensaverPhotos.AsWallpaper,
+    val screensaverChangeMinutes: Int = DEFAULT_SCREENSAVER_CHANGE_MINUTES,
 ) {
     companion object {
         const val DEFAULT_AUTO_SLEEP_MINUTES = 180
         const val DEFAULT_SCREENSAVER_MINUTES = 10
+        const val DEFAULT_SCREENSAVER_CHANGE_MINUTES = 1
     }
+}
+
+/** Where the screensaver's photos come from: what the wallpaper shows, or one of the wallpaper's own sources. */
+sealed interface ScreensaverPhotos {
+    /** What the wallpaper shows: the user's files with the wallpaper mark, photos of the day, a plugin. */
+    data object AsWallpaper : ScreensaverPhotos
+
+    /** The user's files with the screensaver mark. */
+    data object MyMedia : ScreensaverPhotos
+
+    /**
+     * Photos of the day from the internet (Bing, picsum.photos where Bing fails), which see the
+     * device's address; offline, those already downloaded.
+     */
+    data object PhotoOfTheDay : ScreensaverPhotos
+
+    /** A wallpaper plugin, by [dev.lumbina.tv.core.domain.backdrop.WallpaperPluginInfo.id]. */
+    data class Plugin(val id: String) : ScreensaverPhotos
 }
 
 /** Sleep timer lengths to choose from, in minutes. */

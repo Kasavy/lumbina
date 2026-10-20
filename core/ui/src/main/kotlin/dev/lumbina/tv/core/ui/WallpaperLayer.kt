@@ -1,5 +1,6 @@
 package dev.lumbina.tv.core.ui
 
+import android.content.Context
 import android.view.TextureView
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.FrameLayout
@@ -18,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -37,6 +39,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
@@ -68,6 +71,7 @@ fun WallpaperLayer(
     modifier: Modifier = Modifier,
     busy: Boolean = false,
     credit: Boolean = true,
+    onVideoError: (String, VideoFailure) -> Unit = { _, _ -> },
 ) {
     Box(modifier.fillMaxSize().ditheredGradient(fallback)) {
         Crossfade(targetState = item, animationSpec = tween(CROSSFADE_MILLIS), label = "wallpaper") { current ->
@@ -79,7 +83,7 @@ fun WallpaperLayer(
                     modifier = Modifier.fillMaxSize(),
                 )
 
-                WallpaperKind.Video -> VideoWallpaper(current.uri, busy)
+                WallpaperKind.Video -> MutedVideo(current.uri, busy = busy, onError = { onVideoError(current.uri, it) })
 
                 WallpaperKind.Color -> Box(Modifier.fillMaxSize().background(colorOf(current.uri)))
 
@@ -144,22 +148,58 @@ private fun Credit(item: WallpaperItem?, uncovered: Boolean, modifier: Modifier 
 }
 
 /**
- * A silent looping video. It never asks for audio focus, so it doesn't pause music or another
- * app's sound, and it stops while the home screen is not visible.
+ * Why a video stopped, by the player's [code]. [lasting]: the file itself won't play on this device
+ * (a format it has no decoder for, a broken container); otherwise it may play another time, as
+ * when another video still holds the only decoder.
+ */
+@OptIn(UnstableApi::class)
+class VideoFailure(val code: String, val lasting: Boolean) {
+    constructor(error: PlaybackException) : this(error.errorCodeName, error.errorCode in LASTING)
+
+    private companion object {
+        val LASTING = setOf(
+            PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
+            PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
+            PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
+            PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
+        )
+    }
+}
+
+/**
+ * A silent video filling the screen, looping unless played [once] ([onEnd] then). It never asks
+ * for audio focus, so it doesn't pause music or another app's sound, and it stops while its screen
+ * is not visible or [busy]. [onError]: the player stopped on an error. Looping, it tries again a
+ * while after a passing error (another player held the decoder, the network went); played once, a
+ * video stuck loading counts as an error too, rather than a frozen frame for minutes.
  */
 @OptIn(UnstableApi::class)
 @Composable
-private fun VideoWallpaper(uri: String, busy: Boolean, modifier: Modifier = Modifier) {
+fun MutedVideo(
+    uri: String,
+    modifier: Modifier = Modifier,
+    busy: Boolean = false,
+    once: Boolean = false,
+    onEnd: () -> Unit = {},
+    onError: (VideoFailure) -> Unit = {},
+) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val ended by rememberUpdatedState(onEnd)
+    val failed by rememberUpdatedState(onError)
+    var passingFailures by remember(uri) { mutableIntStateOf(0) }
     val player = remember(uri) {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(uri))
-            repeatMode = Player.REPEAT_MODE_ALL
-            volume = 0f
-            prepare()
+        mutedPlayer(context, uri, once, onEnd = { ended() }) { failure ->
+            failed(failure)
+            if (!once && !failure.lasting) passingFailures++
         }
     }
+    LaunchedEffect(player, passingFailures) {
+        if (passingFailures == 0) return@LaunchedEffect
+        delay(RETRY_MILLIS)
+        player.prepare()
+    }
+    if (once) LaunchedEffect(player) { giveUpWhenStuck(player) { failed(it) } }
     val latestBusy by rememberUpdatedState(busy)
     LaunchedEffect(player, busy) {
         if (busy) {
@@ -206,10 +246,54 @@ private fun VideoWallpaper(uri: String, busy: Boolean, modifier: Modifier = Modi
     )
 }
 
+@OptIn(UnstableApi::class)
+private fun mutedPlayer(
+    context: Context,
+    uri: String,
+    once: Boolean,
+    onEnd: () -> Unit,
+    onError: (VideoFailure) -> Unit,
+): ExoPlayer = ExoPlayer.Builder(context).build().apply {
+    setMediaItem(MediaItem.fromUri(uri))
+    repeatMode = if (once) Player.REPEAT_MODE_OFF else Player.REPEAT_MODE_ALL
+    volume = 0f
+    addListener(
+        object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState != Player.STATE_ENDED) return
+                // Done with: the decoder goes now, not after the cross-fade, for the next video.
+                stop()
+                onEnd()
+            }
+
+            override fun onPlayerError(error: PlaybackException) = onError(VideoFailure(error))
+        },
+    )
+    prepare()
+}
+
+/** Loading this long while meant to play: stuck (a stalled stream), as good as failed. */
+private suspend fun giveUpWhenStuck(player: ExoPlayer, onStuck: (VideoFailure) -> Unit) {
+    var loadingSince = 0L
+    while (true) {
+        delay(STALL_CHECK_MILLIS)
+        val loading = player.playWhenReady && player.playbackState == Player.STATE_BUFFERING
+        loadingSince = if (loading) loadingSince.takeIf { it > 0 } ?: System.currentTimeMillis() else 0L
+        if (loadingSince > 0 && System.currentTimeMillis() - loadingSince > STALL_MILLIS) {
+            player.stop()
+            return onStuck(VideoFailure(STALLED, lasting = false))
+        }
+    }
+}
+
 private fun colorOf(value: String): Color =
     runCatching { Color(android.graphics.Color.parseColor(value)) }.getOrDefault(Color.Black)
 
 private const val CROSSFADE_MILLIS = 1_200
+private const val RETRY_MILLIS = 15_000L
+private const val STALL_CHECK_MILLIS = 5_000L
+private const val STALL_MILLIS = 30_000L
+private const val STALLED = "STALLED"
 
 /**
  * A photo's credit as it is written: what it shows on one line and whose it is on the next, where

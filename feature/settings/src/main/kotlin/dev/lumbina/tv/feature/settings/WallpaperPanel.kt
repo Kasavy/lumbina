@@ -9,23 +9,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.tv.material3.Text
 import dev.lumbina.tv.core.domain.backdrop.WALLPAPER_CHANGE_MINUTES
 import dev.lumbina.tv.core.domain.backdrop.WallpaperPluginInfo
 import dev.lumbina.tv.core.domain.backdrop.WallpaperSource
 import dev.lumbina.tv.core.ui.Choice
-import dev.lumbina.tv.core.ui.ConfirmDialog
 
 /** Where the home wallpaper comes from, how often it changes, and dimming at night. */
 @Composable
 fun WallpaperPanel(state: WallpaperPanelState?, commands: WallpaperCommands, modifier: Modifier = Modifier) {
     if (state == null) return
-    var deleting by remember { mutableStateOf(false) }
     SettingsList(modifier) {
         builtInSources(state, commands)
-        items(state.plugins, key = { it.id }) { plugin -> PluginItem(plugin, state.settings.source, commands) }
+        items(state.plugins, key = { it.id }) { plugin -> PluginItem(plugin, state.shownSource, commands) }
         item { Note(stringResource(R.string.wallpaper_plugins_note)) }
         item { Header(stringResource(R.string.wallpaper_options)) }
         item {
@@ -49,43 +46,18 @@ fun WallpaperPanel(state: WallpaperPanelState?, commands: WallpaperCommands, mod
                 onClick = commands::toggleDimAtNight,
             )
         }
-        if (state.myMedia > 0) {
-            item {
-                SettingRow(
-                    onClick = { deleting = true },
-                    headlineContent = { Text(stringResource(R.string.wallpaper_delete_media)) },
-                    supportingContent = {
-                        Text(pluralStringResource(R.plurals.wallpaper_files, state.myMedia, state.myMedia))
-                    },
-                )
-            }
-        }
     }
-    if (deleting) DeleteMediaDialog(state.myMedia, commands::deleteMyMedia, onDismiss = { deleting = false })
 }
 
-/** Deleting takes the files off the device, and the banners made from them: one OK is too easy on a remote. */
-@Composable
-private fun DeleteMediaDialog(files: Int, onDelete: () -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
-    ConfirmDialog(
-        title = stringResource(R.string.wallpaper_delete_media_title),
-        text = stringResource(
-            R.string.wallpaper_delete_media_text,
-            pluralStringResource(R.plurals.wallpaper_files, files, files),
-        ),
-        confirmLabel = stringResource(R.string.wallpaper_delete_media_confirm),
-        cancelLabel = stringResource(R.string.action_cancel),
-        onConfirm = {
-            onDelete()
-            onDismiss()
-        },
-        onDismiss = onDismiss,
-        modifier = modifier,
-    )
-}
+/** The source as it shows: a plugin removed since it was chosen gives nothing, as the gradient. */
+private val WallpaperPanelState.shownSource: WallpaperSource
+    get() = settings.source.let { source ->
+        val gone = source is WallpaperSource.Plugin && plugins.none { it.id == source.id }
+        if (gone) WallpaperSource.Gradient else source
+    }
 
 private fun LazyListScope.builtInSources(state: WallpaperPanelState, commands: WallpaperCommands) {
-    val source = state.settings.source
+    val source = state.shownSource
     item {
         SourceItem(
             title = stringResource(R.string.wallpaper_none),
@@ -95,15 +67,15 @@ private fun LazyListScope.builtInSources(state: WallpaperPanelState, commands: W
         )
     }
     item {
-        SourceItem(
-            title = stringResource(R.string.wallpaper_my_media),
+        MyMediaSource(
+            pick = MediaMark.Wallpaper,
             hint = if (state.myMedia == 0) {
                 stringResource(R.string.wallpaper_my_media_empty)
             } else {
-                pluralStringResource(R.plurals.wallpaper_files, state.myMedia, state.myMedia)
+                stringResource(R.string.wallpaper_my_media_hint, state.onWallpaper, state.myMedia)
             },
             selected = source == WallpaperSource.MyMedia,
-            onClick = { commands.choose(WallpaperSource.MyMedia) },
+            onChoose = { commands.choose(WallpaperSource.MyMedia) },
         )
     }
     item {
@@ -114,6 +86,26 @@ private fun LazyListScope.builtInSources(state: WallpaperPanelState, commands: W
             onClick = { commands.choose(WallpaperSource.PhotoOfTheDay) },
         )
     }
+}
+
+/**
+ * The user's own photos and videos as the wallpaper's or screensaver's source: OK chooses them;
+ * holding OK chooses them too and opens the library to [pick] which, so what is picked there shows.
+ */
+@Composable
+internal fun MyMediaSource(pick: MediaMark, hint: String, selected: Boolean, onChoose: () -> Unit) {
+    val links = LocalSettingsLinks.current
+    SourceItem(
+        title = stringResource(R.string.wallpaper_my_media),
+        hint = hint,
+        selected = selected,
+        onClick = onChoose,
+        onSettings = {
+            onChoose()
+            links.media(MediaView(pick = pick))
+        },
+        holdIcon = R.drawable.ic_page_media,
+    )
 }
 
 /** A plugin: OK chooses it, and holding OK opens its own settings, if it has any. */
@@ -128,14 +120,16 @@ private fun PluginItem(plugin: WallpaperPluginInfo, source: WallpaperSource, com
     )
 }
 
+/** One place pictures come from: OK chooses it; with [onSettings], holding OK opens what it has to pick. */
 @Composable
-private fun SourceItem(
+internal fun SourceItem(
     title: String,
     hint: String,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onSettings: (() -> Unit)? = null,
+    holdIcon: Int = R.drawable.ic_plugin_settings,
 ) {
     var focused by remember { mutableStateOf(false) }
     SettingRow(
@@ -144,7 +138,7 @@ private fun SourceItem(
         headlineContent = { Text(title) },
         supportingContent = { Text(hint) },
         trailingContent = {
-            TrailingWithHold(focused, R.drawable.ic_plugin_settings.takeIf { onSettings != null }) {
+            TrailingWithHold(focused, holdIcon.takeIf { onSettings != null }) {
                 RowRadio(selected = selected)
             }
         },

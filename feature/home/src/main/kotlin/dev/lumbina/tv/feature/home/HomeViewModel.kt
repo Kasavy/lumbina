@@ -13,9 +13,12 @@ import dev.lumbina.tv.core.domain.app.RecentAppsRepository
 import dev.lumbina.tv.core.domain.app.mostUsed
 import dev.lumbina.tv.core.domain.app.recentlyInstalled
 import dev.lumbina.tv.core.domain.app.recentlyOpened
-import dev.lumbina.tv.core.domain.backdrop.MediaFolder
-import dev.lumbina.tv.core.domain.backdrop.WallpaperItem
-import dev.lumbina.tv.core.domain.backdrop.WallpaperKind
+import dev.lumbina.tv.core.domain.backdrop.MediaArrivalRepository
+import dev.lumbina.tv.core.domain.backdrop.MediaFile
+import dev.lumbina.tv.core.domain.backdrop.MediaKind
+import dev.lumbina.tv.core.domain.backdrop.MediaLibrary
+import dev.lumbina.tv.core.domain.backdrop.SeparateBanners
+import dev.lumbina.tv.core.domain.backdrop.toWallpaperItem
 import dev.lumbina.tv.core.domain.device.DeviceProfile
 import dev.lumbina.tv.core.domain.home.AppsOrder
 import dev.lumbina.tv.core.domain.home.HomeAppearance
@@ -42,8 +45,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
@@ -69,6 +75,9 @@ private const val HINT_MILLIS = 8_000L
 
 /** How often the banner panel looks for a picture sent from a phone. */
 private const val BANNER_POLL_MILLIS = 2_000L
+
+/** A file that came longer ago than this, while home was away, is not said on coming back. */
+private const val ARRIVAL_FRESH_MILLIS = 15_000L
 
 /** Everything the home screen's menus and dialogs can do. */
 @Suppress("TooManyFunctions") // one per menu entry
@@ -120,10 +129,13 @@ interface HomeCommands {
     fun unhide(app: App)
 
     /** The user's own pictures that can become an app's banner, again whenever one comes or goes. */
-    fun bannerChoices(): Flow<List<WallpaperItem>>
+    fun bannerChoices(): Flow<BannerChoices>
 
     /** Shows [uri] as the app's banner; null brings back the app's own. */
     fun setBanner(app: App, uri: String?)
+
+    /** Makes a banner of a copy of the library's [photo] and shows it on the app's tile. */
+    fun bannerFromPhoto(app: App, photo: MediaFile)
 
     /** The phone remote page that pictures are sent from, or why a phone can't reach it now. */
     suspend fun phonePage(): PhonePage
@@ -137,7 +149,9 @@ class HomeViewModel @Inject constructor(
     private val layouts: HomeLayoutRepository,
     private val launcher: AppLauncher,
     private val system: AppSystemActions,
-    private val media: MediaFolder,
+    private val media: MediaLibrary,
+    separateBanners: SeparateBanners,
+    private val arrivals: MediaArrivalRepository,
     usage: AppUsage,
     recentApps: RecentAppsRepository,
     profile: DeviceProfile,
@@ -148,6 +162,42 @@ class HomeViewModel @Inject constructor(
 
     /** The row the settings are working on now: home brings it into view and keeps it lit. */
     val spotlight: StateFlow<String?> = spotlight.key
+
+    init {
+        // Banners from before they had a folder of their own move there, once.
+        viewModelScope.launch(Dispatchers.IO) { separateBanners() }
+        viewModelScope.launch { sayArrivals() }
+    }
+
+    /**
+     * Files come through the phone page's server, in the remote's service: the bar at the bottom says
+     * so for a while, with the way to the media library. Not for files that came while home was away.
+     * Something that can be undone keeps the bar: the files are said once its time is up.
+     */
+    private suspend fun sayArrivals() {
+        arrivals.settings.distinctUntilChangedBy { it.at }.collectLatest { arrival ->
+            undoable.first { it == null || it.arrived != null }
+            if (System.currentTimeMillis() - arrival.at > ARRIVAL_FRESH_MILLIS) return@collectLatest
+            undoJob?.cancel()
+            undoJob = viewModelScope.launch {
+                undoable.value = Undo(UndoKind.MediaArrived, name = "", arrived = arrival)
+                delay(UNDO_MILLIS)
+                undoable.value = null
+            }
+        }
+    }
+
+    /**
+     * The bottom bar's button: for files just come from a phone, [openLibrary] (true: banners only
+     * came) and the bar goes; otherwise "Undo". True if a tile is coming back.
+     */
+    fun barButton(openLibrary: (Boolean) -> Unit): Boolean {
+        val arrived = undoable.value?.arrived ?: return undoLast()
+        undoJob?.cancel()
+        undoable.value = null
+        openLibrary(arrived.photos + arrived.videos == 0)
+        return false
+    }
 
     /** Null until apps and the layout are loaded. */
     val state: StateFlow<HomeUiState?> =
@@ -288,18 +338,26 @@ class HomeViewModel @Inject constructor(
 
     /**
      * The folder is read again every couple of seconds: a picture comes in through the phone page's
-     * server in the remote's service, which tells home nothing. A listing of a few files is cheap,
-     * and it is only read while the panel is open.
+     * server in the remote's service, which tells home nothing. A listing reads names only, cheap
+     * even with many photos, and it is only read while the panel is open.
      */
-    override fun bannerChoices(): Flow<List<WallpaperItem>> = flow {
+    override fun bannerChoices(): Flow<BannerChoices> = flow {
         while (true) {
-            emit(media.items().filter { it.kind == WallpaperKind.Image })
+            val photos = media.files().filter { it.kind == MediaKind.Photo }
+            emit(BannerChoices(media.banners().map { it.toWallpaperItem() }, photos))
             delay(BANNER_POLL_MILLIS)
         }
     }.distinctUntilChanged().flowOn(Dispatchers.IO)
 
     override fun setBanner(app: App, uri: String?) {
         viewModelScope.launch { appearance.update { it.withBanner(app.id.flatten(), uri) } }
+    }
+
+    override fun bannerFromPhoto(app: App, photo: MediaFile) {
+        viewModelScope.launch {
+            val uri = withContext(Dispatchers.IO) { media.copyToBanner(photo.id) } ?: return@launch
+            appearance.update { it.withBanner(app.id.flatten(), uri) }
+        }
     }
 
     override suspend fun phonePage(): PhonePage = withContext(Dispatchers.IO) { phoneLink.current() }

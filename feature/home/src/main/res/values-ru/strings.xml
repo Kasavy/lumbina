@@ -46,10 +46,11 @@
     <string name="status_no_internet">Нет интернета</string>
     <string name="home_recently_installed">Недавно установленные</string>
     <string name="menu_banner">Свой баннер…</string>
-    <string name="banner_hint">OK ставит картинку на плитку</string>
-    <string name="banner_original">исходный</string>
-    <string name="banner_add">Добавить картинку с телефона</string>
-    <string name="banner_add_how">Телефон в той же сети Wi-Fi: наведите камеру на код, откроется страница пульта. Отправьте картинку на вкладке «Ещё», и она появится здесь.</string>
+    <string name="banner_original">Исходный</string>
+    <string name="banner_photos">Фото из медиатеки</string>
+    <string name="banner_photos_hint">станет баннером этой плитки</string>
+    <string name="banner_add">Добавить баннер с телефона</string>
+    <string name="banner_add_how">Телефон в той же сети Wi-Fi: наведите камеру на код, откроется страница пульта. На вкладке «Ещё» выберите «Баннер плитки» и отправьте фото, оно появится здесь.</string>
     <string name="banner_phone_off">Чтобы отправить картинку с телефона, включите страницу пульта в разделе настроек «Пульт на телефоне».</string>
     <string name="banner_no_network">Нет сети: чтобы отправить картинку с телефона, подключите устройство к Wi-Fi или Ethernet.</string>
     <string name="banner_service_off">Служба пульта выключена, а без неё страница пульта не открывается. Чтобы отправить картинку с телефона, включите службу в настройках Lumbina.</string>
@@ -144,4 +145,14 @@
     <string name="home_sleep_left">Осталось %1$d мин</string>
     <string name="notices_none_now">Уведомлений нет</string>
     <string name="search_none">На этом устройстве искать негде</string>
+    <string name="media_arrived_open">Открыть</string>
+    <string name="media_arrived_photo">Фото с телефона в медиатеке</string>
+    <string name="media_arrived_video">Видео с телефона в медиатеке</string>
+    <string name="media_arrived_banner">Баннер с телефона в медиатеке</string>
+    <plurals name="media_arrived_files">
+        <item quantity="one">%d файл с телефона в медиатеке</item>
+        <item quantity="few">%d файла с телефона в медиатеке</item>
+        <item quantity="many">%d файлов с телефона в медиатеке</item>
+        <item quantity="other">%d файла с телефона в медиатеке</item>
+    </plurals>
 </resources>

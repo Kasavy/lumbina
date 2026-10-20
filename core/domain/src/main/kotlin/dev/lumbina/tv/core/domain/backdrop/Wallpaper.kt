@@ -7,7 +7,7 @@ sealed interface WallpaperSource {
     /** The built-in gradient chosen in the home appearance. */
     data object Gradient : WallpaperSource
 
-    /** The user's own pictures and videos ([MediaFolder]). */
+    /** The user's own photos and videos ([MediaLibrary]) with the wallpaper mark. */
     data object MyMedia : WallpaperSource
 
     /** Photos of the day from the internet. */
@@ -24,6 +24,8 @@ data class WallpaperSettings(
     val dimAtNight: Boolean = true,
     /** Changed when new media arrive, so the wallpaper shows them now rather than next round. */
     val mediaChangedAt: Long = 0,
+    /** The file to show first when the user's own are cycled, e.g. one just chosen in the library. */
+    val startWith: String? = null,
 ) {
     companion object {
         const val DEFAULT_CHANGE_MINUTES = 15
@@ -61,15 +63,10 @@ interface WallpaperPlugins {
     fun openSettings(id: String): Boolean
 }
 
-/** The user's own wallpapers on the device: pictures and videos. */
-fun interface MediaFolder {
-    fun items(): List<WallpaperItem>
-}
-
 /** A photo of the day: its image URL and the [credit] its source gives (the place, the author). */
 data class DailyPhoto(val url: String, val credit: String? = null)
 
-/** Recent photos of the day (e.g. Bing's). */
+/** Recent photos of the day (e.g. Bing's), full HD. */
 fun interface PhotosOfTheDay {
-    suspend fun photos(width: Int): List<DailyPhoto>
+    suspend fun photos(): List<DailyPhoto>
 }

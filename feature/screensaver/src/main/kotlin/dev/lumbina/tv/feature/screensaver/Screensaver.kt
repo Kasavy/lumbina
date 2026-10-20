@@ -1,6 +1,5 @@
 package dev.lumbina.tv.feature.screensaver
 
-import android.graphics.BitmapFactory
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -19,6 +18,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -37,12 +37,16 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import dev.lumbina.tv.core.common.LumbinaLog
+import dev.lumbina.tv.core.domain.backdrop.BackdropPhoto
 import dev.lumbina.tv.core.domain.backdrop.BackdropPhotos
+import dev.lumbina.tv.core.domain.backdrop.MarkUnplayable
 import dev.lumbina.tv.core.domain.home.ClockFormat
 import dev.lumbina.tv.core.domain.home.HomeAppearanceRepository
 import dev.lumbina.tv.core.domain.phone.LocalAddress
 import dev.lumbina.tv.core.domain.phone.PhoneRemoteSettingsRepository
 import dev.lumbina.tv.core.domain.phone.phoneRemoteAddress
+import dev.lumbina.tv.core.domain.sleep.SleepSettingsRepository
 import dev.lumbina.tv.core.domain.weather.CurrentWeather
 import dev.lumbina.tv.core.domain.weather.ShownWeather
 import dev.lumbina.tv.core.domain.weather.WeatherSettingsRepository
@@ -51,8 +55,11 @@ import dev.lumbina.tv.core.ui.CREDIT_ALPHA
 import dev.lumbina.tv.core.ui.CREDIT_MAX_LINES
 import dev.lumbina.tv.core.ui.CreditLineBreak
 import dev.lumbina.tv.core.ui.GradientTones
+import dev.lumbina.tv.core.ui.LAYERS_ARE_CHEAP
 import dev.lumbina.tv.core.ui.MINUTE_MILLIS
+import dev.lumbina.tv.core.ui.MutedVideo
 import dev.lumbina.tv.core.ui.QrCode
+import dev.lumbina.tv.core.ui.VideoFailure
 import dev.lumbina.tv.core.ui.creditLines
 import dev.lumbina.tv.core.ui.dateText
 import dev.lumbina.tv.core.ui.label
@@ -63,20 +70,24 @@ import dev.lumbina.tv.core.ui.timeText
 import java.util.Locale
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** The clock as chosen for home. */
 data class ClockLook(val format: ClockFormat = ClockFormat.System, val showDate: Boolean = true)
 
-/** A decoded photo and the credit its source gives, if any. */
-class ShownPhoto(val image: ImageBitmap, val credit: String?)
+/** A decoded photo and the credit its source gives, if any; or a [video] to play through. */
+class ShownPhoto(val image: ImageBitmap?, val credit: String?, val video: String? = null)
 
 /** What the screensaver shows; shared by the system screensaver and the preview screen. */
 class ScreensaverModel @Inject constructor(
@@ -84,8 +95,11 @@ class ScreensaverModel @Inject constructor(
     weatherSettings: WeatherSettingsRepository,
     appearance: HomeAppearanceRepository,
     private val backdrop: BackdropPhotos,
+    private val sleep: SleepSettingsRepository,
     phoneRemote: PhoneRemoteSettingsRepository,
     address: LocalAddress,
+    private val markUnplayable: MarkUnplayable,
+    private val log: LumbinaLog,
 ) {
 
     /**
@@ -110,40 +124,72 @@ class ScreensaverModel @Inject constructor(
 
     val clock: Flow<ClockLook> = appearance.settings.map { ClockLook(it.clockFormat, it.showDate) }
 
+    /** Said by the screen when a video has played through, or could not be played. */
+    private val videoDone = Channel<Unit>(Channel.CONFLATED)
+
+    /** Only photos until then: a video failed, and the next may fail the same way (offline, no decoder). */
+    @Volatile private var videosFrom = 0L
+
     /**
-     * A new photo every [PHOTO_MILLIS]. A photo that won't decode (a broken file) is skipped for the
-     * next one right away; null only if none of a few would, and a gradient shows instead.
+     * A new photo as often as the settings say; a video stays until it has played through
+     * ([videoEnded]), at most [VIDEO_MILLIS]. A photo that won't decode (a broken file) is skipped
+     * for the next one right away; null only if none of a few would, and a gradient shows instead.
      */
     val photos: Flow<ShownPhoto?> = flow {
         while (true) {
-            emit(nextPhoto())
-            delay(PHOTO_MILLIS)
+            val shown = nextPhoto()
+            // An end said for the video before this one is not this one's.
+            videoDone.tryReceive()
+            emit(shown)
+            if (shown?.video != null) {
+                withTimeoutOrNull(VIDEO_MILLIS) { videoDone.receive() }
+            } else {
+                delay(sleep.settings.first().screensaverChangeMinutes * MINUTE_MILLIS)
+            }
         }
+    }
+
+    fun videoEnded() {
+        videoDone.trySend(Unit)
+    }
+
+    /**
+     * The player stopped on [uri]: a photo comes now, and only photos for [VIDEO_PAUSE_MILLIS]. One of
+     * the user's own that won't play on this device is marked so and skipped from then on; after a
+     * passing failure it comes again in its turn.
+     */
+    suspend fun videoFailed(uri: String, failure: VideoFailure) {
+        log.log(TAG, "video failed: ${failure.code}${if (failure.lasting) ", marked" else ""}")
+        videosFrom = System.currentTimeMillis() + VIDEO_PAUSE_MILLIS
+        if (failure.lasting) withContext(Dispatchers.IO) { markUnplayable(uri, System.currentTimeMillis()) }
+        videoEnded()
     }
 
     private suspend fun nextPhoto(): ShownPhoto? {
         repeat(PHOTO_ATTEMPTS) {
-            val photo = backdrop.next(PHOTO_WIDTH, PHOTO_HEIGHT) ?: return null
-            decode(photo.bytes)?.let { return ShownPhoto(it, photo.credit) }
+            val photo = backdrop.next(PHOTO_WIDTH, PHOTO_HEIGHT, videos = System.currentTimeMillis() >= videosFrom)
+                ?: return null
+            when (photo) {
+                is BackdropPhoto.Video -> return ShownPhoto(null, photo.credit, video = photo.uri)
+                is BackdropPhoto.Image -> decode(photo.bytes)?.let { return ShownPhoto(it, photo.credit) }
+            }
         }
         return null
     }
 
+    // Where layers are dear, the weak boxes, memory is short too: two bytes a pixel.
     private suspend fun decode(bytes: ByteArray): ImageBitmap? = withContext(Dispatchers.Default) {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-        var sample = 1
-        while (bounds.outWidth / (sample * 2) >= PHOTO_WIDTH &&
-            bounds.outHeight / (sample * 2) >= PHOTO_HEIGHT
-        ) {
-            sample *= 2
-        }
-        val options = BitmapFactory.Options().apply { inSampleSize = sample }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)?.asImageBitmap()
+        decodeToCover(bytes, PHOTO_WIDTH, PHOTO_HEIGHT, lean = !LAYERS_ARE_CHEAP)?.asImageBitmap()
     }
 }
 
-internal const val PHOTO_MILLIS = 60_000L
+/** One way of a photo's slow zoom, there and back again for as long as it shows. */
+private const val ZOOM_MILLIS = 60_000
+private const val TAG = "screensaver"
+
+/** A long video gives way after this all the same. */
+private const val VIDEO_MILLIS = 10 * 60_000L
+private const val VIDEO_PAUSE_MILLIS = 5 * 60_000L
 private const val PHOTO_ATTEMPTS = 3
 private const val PHOTO_WIDTH = 1920
 private const val PHOTO_HEIGHT = 1080
@@ -162,9 +208,23 @@ fun Screensaver(model: ScreensaverModel, modifier: Modifier = Modifier) {
     val now = rememberMinuteClock()
     val startedAt = remember { System.currentTimeMillis() }
     val corner = cornerIndex(now, startedAt, CORNERS.size)
+    val scope = rememberCoroutineScope()
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
         Crossfade(targetState = photo, animationSpec = tween(FADE_MILLIS), label = "photo") { shown ->
-            if (shown != null) SlowZoom(shown.image) else DriftingGradient()
+            val video = shown?.video
+            val image = shown?.image
+            when {
+                video != null -> MutedVideo(
+                    video,
+                    once = true,
+                    onEnd = model::videoEnded,
+                    onError = { scope.launch { model.videoFailed(video, it) } },
+                )
+
+                image != null -> SlowZoom(image)
+
+                else -> DriftingGradient()
+            }
         }
         Box(
             modifier = Modifier.fillMaxSize().background(
@@ -183,7 +243,7 @@ private fun SlowZoom(image: ImageBitmap, modifier: Modifier = Modifier) {
         initialValue = 1f,
         targetValue = MAX_ZOOM,
         animationSpec = infiniteRepeatable(
-            tween(PHOTO_MILLIS.toInt(), easing = LinearEasing),
+            tween(ZOOM_MILLIS, easing = LinearEasing),
             RepeatMode.Reverse,
         ),
         label = "zoom",

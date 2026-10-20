@@ -27,10 +27,10 @@ class LocalAccessTest {
 
     private val ours = "dev.lumbina.tv/.Service"
 
-    private class FakeCompanion(private val missing: Boolean) : CompanionApp {
+    private class FakeCompanion(private val wanted: Boolean) : CompanionApp {
         var installs = 0
 
-        override fun missing() = missing
+        override suspend fun wanted() = wanted
 
         override suspend fun install(adb: LocalAdb): Boolean {
             installs++
@@ -66,18 +66,18 @@ class LocalAccessTest {
     }
 
     @Test
-    fun `connecting installs the companion the device misses`() = runTest {
-        val missing = FakeCompanion(missing = true)
-        val present = FakeCompanion(missing = false)
-        access(FakeAdb(AdbState.Connected), companions = listOf(missing, present)).connectAndSetUp()
-        assertEquals(1, missing.installs)
-        assertEquals(0, present.installs)
+    fun `connecting installs the companion the device wants`() = runTest {
+        val wanted = FakeCompanion(wanted = true)
+        val unwanted = FakeCompanion(wanted = false)
+        access(FakeAdb(AdbState.Connected), companions = listOf(wanted, unwanted)).connectAndSetUp()
+        assertEquals(1, wanted.installs)
+        assertEquals(0, unwanted.installs)
     }
 
     @Test
     fun `renewing sets up everything but the kept service, and only when connected`() = runTest {
         val adb = FakeAdb(AdbState.Connected)
-        val companion = FakeCompanion(missing = true)
+        val companion = FakeCompanion(wanted = true)
         assertTrue(access(adb, companions = listOf(companion)).renew())
         assertEquals(
             listOf(
@@ -88,7 +88,7 @@ class LocalAccessTest {
         )
         assertEquals(1, companion.installs)
 
-        val away = FakeCompanion(missing = true)
+        val away = FakeCompanion(wanted = true)
         assertFalse(access(FakeAdb(AdbState.NotAllowed), companions = listOf(away)).renew())
         assertEquals(0, away.installs)
     }
@@ -125,7 +125,7 @@ class LocalAccessTest {
     fun `keeping the service is the permission and the service, nothing else`() = runTest {
         val settings = FakeSecureSettings(services = ours)
         val adb = FakeAdb(AdbState.Connected)
-        val companion = FakeCompanion(missing = true)
+        val companion = FakeCompanion(wanted = true)
         assertTrue(access(adb, settings, listOf(companion)).setKeepService(true))
         assertEquals(listOf("pm grant dev.lumbina.tv android.permission.WRITE_SECURE_SETTINGS"), adb.commands)
         assertEquals(listOf("", ours), settings.writes)

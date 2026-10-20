@@ -13,7 +13,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
@@ -38,6 +41,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import dev.lumbina.tv.core.domain.app.App
+import dev.lumbina.tv.core.domain.backdrop.MediaFile
 import dev.lumbina.tv.core.domain.backdrop.WallpaperItem
 import dev.lumbina.tv.core.domain.phone.PhonePage
 import dev.lumbina.tv.core.ui.AppArtwork
@@ -55,16 +59,21 @@ import dev.lumbina.tv.core.ui.requestFocusSoon
 internal fun bannerStart(current: String?, pictures: List<WallpaperItem>): Int =
     pictures.indexOfFirst { it.uri == current }.let { if (current == null || it < 0) 0 else it + 1 }
 
+/** The user's banners, and the library's photos a banner is made of on choosing one. */
+data class BannerChoices(val banners: List<WallpaperItem>, val photos: List<MediaFile>)
+
 /**
- * The app's own banner and the user's pictures, as tiles two a line; the one the tile shows now
+ * The app's own banner and the user's banners, as tiles two a line; the one the tile shows now
  * ([current], null for the app's own) is ticked and has the focus. OK puts one on the app's tile
- * and closes the panel. Under them, how to send another picture from a phone; one sent while the
+ * and goes back ([dismiss]). Under them the media library's photos: OK on one puts a copy of it in
+ * the banners and on the tile. Last, how to send another banner from a phone; one sent while the
  * panel is open joins the tiles.
  */
 @Composable
 internal fun BannerPicker(app: App, current: String?, commands: HomeCommands, dismiss: () -> Unit) {
-    val choices = remember(commands) { commands.bannerChoices() }
-    val pictures = choices.collectAsState(null).value
+    val flow = remember(commands) { commands.bannerChoices() }
+    val choices = flow.collectAsState(null).value
+    val pictures = choices?.banners
     val phone = produceState<PhonePage?>(null) { value = commands.phonePage() }.value
     val start = remember { FocusRequester() }
     val grid = rememberLazyGridState()
@@ -77,9 +86,8 @@ internal fun BannerPicker(app: App, current: String?, commands: HomeCommands, di
         title = pageName(R.string.menu_banner),
         onDismiss = dismiss,
         path = listOf(app.label, pageName(R.string.menu_name_banner)),
-        subtitle = stringResource(R.string.banner_hint),
     ) {
-        if (pictures == null) return@SidePanel
+        if (choices == null || pictures == null) return@SidePanel
         // Once, when the pictures are first read: one sent later must not pull the focus to itself.
         val startAt = remember { bannerStart(current, pictures) }
         LazyVerticalGrid(
@@ -107,14 +115,11 @@ internal fun BannerPicker(app: App, current: String?, commands: HomeCommands, di
                     chip = picture.title,
                     chosen = picture.uri == current,
                     modifier = if (startAt == index + 1) Modifier.focusRequester(start) else Modifier,
-                ) {
-                    AsyncImage(
-                        model = picture.uri,
-                        contentDescription = picture.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
+                ) { Picture(picture.uri, picture.title) }
+            }
+            photoChoices(choices.photos) { photo ->
+                commands.bannerFromPhoto(app, photo)
+                dismiss()
             }
         }
         phone?.let { AddFromPhone(it, Modifier.padding(top = 12.dp)) }
@@ -124,6 +129,25 @@ internal fun BannerPicker(app: App, current: String?, commands: HomeCommands, di
             start.requestFocusSoon()
         }
     }
+}
+
+/** The library's [photos] under a title of their own; [pick] one to make a banner of it. */
+private fun LazyGridScope.photoChoices(photos: List<MediaFile>, pick: (MediaFile) -> Unit) {
+    if (photos.isEmpty()) return
+    item(key = PHOTOS_KEY, span = { GridItemSpan(maxLineSpan) }) { PhotosTitle() }
+    items(photos, key = { "photo:${it.id}" }) { photo ->
+        BannerChoice(onClick = { pick(photo) }, chip = null, chosen = false) { Picture(photo.uri, photo.title) }
+    }
+}
+
+@Composable
+private fun Picture(uri: String, title: String?) {
+    AsyncImage(
+        model = uri,
+        contentDescription = title,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.fillMaxSize(),
+    )
 }
 
 /**
@@ -171,6 +195,23 @@ private fun BannerChoice(
     }
 }
 
+/** Over the library's photos: what they are, and what choosing one does. */
+@Composable
+private fun PhotosTitle(modifier: Modifier = Modifier) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Bottom,
+        modifier = modifier.padding(top = 12.dp),
+    ) {
+        Text(stringResource(R.string.banner_photos), style = MaterialTheme.typography.titleMedium)
+        Text(
+            stringResource(R.string.banner_photos_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
 /** The code that opens the phone remote page, where pictures are sent from; or why there is none. */
 @Composable
 private fun AddFromPhone(page: PhonePage, modifier: Modifier = Modifier) {
@@ -205,6 +246,7 @@ private fun AddFromPhone(page: PhonePage, modifier: Modifier = Modifier) {
 private fun pageName(@StringRes entry: Int): String = stringResource(entry).removeSuffix("…")
 
 private const val ORIGINAL_KEY = "original"
+private const val PHOTOS_KEY = "photos"
 private const val CHIP_ALPHA = 0.6f
 private const val BLOCK_ALPHA = 0.06f
 

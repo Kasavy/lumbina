@@ -17,7 +17,7 @@ import dev.lumbina.tv.core.domain.app.AppId
  * Recent apps along the bottom of whatever is on screen: ◀ ▶ pick, OK opens, Back closes; holding
  * OK closes the app instead where [show] says it may ([onClose]). It also closes by itself when
  * left alone. It never takes focus — the service feeds it the remote's keys ([onKey]) — so the
- * app underneath keeps running undisturbed.
+ * app underneath keeps running undisturbed. A held ◀ or ▶ goes on by itself ([HeldArrow]).
  */
 internal class AppSwitcherOverlay(
     context: Context,
@@ -29,6 +29,11 @@ internal class AppSwitcherOverlay(
     private val views = AppSwitcherViews(context, texts)
     private val handler = Handler(Looper.getMainLooper())
     private val hideRunnable = Runnable { hide() }
+    private val arrow = HeldArrow(handler, showing = { isShowing }) { key, repeated ->
+        // Held, the ribbon keeps up with the selection rather than easing after it at every step.
+        select(if (key == KeyEvent.KEYCODE_DPAD_LEFT) selected - 1 else selected + 1, smooth = !repeated)
+        keepOpen()
+    }
     private var root: View? = null
     private var ribbon: AppSwitcherViews.Ribbon? = null
     private var apps: List<App> = emptyList()
@@ -47,6 +52,8 @@ internal class AppSwitcherOverlay(
     // Timed, not by auto-repeat: some remotes send no repeats while OK is held.
     private val longPress = Runnable {
         held = true
+        // Holding an arrow too: whichever app it went to by then is not the one meant.
+        if (arrow.isHeld) return@Runnable
         apps.getOrNull(selected)?.takeUnless { it.id in closing }?.let { app ->
             closing += app.id
             select(selected)
@@ -84,6 +91,7 @@ internal class AppSwitcherOverlay(
     }
 
     fun hide() {
+        arrow.letGo()
         handler.removeCallbacks(longPress)
         okDown = false
         held = false
@@ -106,14 +114,14 @@ internal class AppSwitcherOverlay(
     /**
      * Handles a key while showing; returns true if consumed. Pressing any other key closes the
      * switcher and is left to the caller (e.g. Home goes on to open Lumbina); releases and
-     * auto-repeats of the switcher's own keys held from before are taken and do nothing.
+     * auto-repeats of the switcher's own keys held from before are taken and do nothing (an arrow's
+     * release stops the arrow going on).
      */
     fun onKey(event: KeyEvent): Boolean {
         val down = event.action == KeyEvent.ACTION_DOWN
         when {
-            event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT -> if (down) select(selected - 1)
-
-            event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT -> if (down) select(selected + 1)
+            event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT || event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ->
+                arrow.onKey(event)
 
             event.keyCode == KeyEvent.KEYCODE_DPAD_UP || event.keyCode == KeyEvent.KEYCODE_DPAD_DOWN -> Unit
 
@@ -161,7 +169,9 @@ internal class AppSwitcherOverlay(
         if (isShowing) handler.postDelayed(hideRunnable, AUTO_HIDE_MILLIS)
     }
 
-    private fun select(index: Int) {
+    fun letGo(keyCode: Int) = arrow.letGo(keyCode)
+
+    private fun select(index: Int, smooth: Boolean = true) {
         val shown = ribbon ?: return
         if (shown.cards.isEmpty()) return
         selected = index.coerceIn(0, shown.cards.lastIndex)
@@ -172,7 +182,8 @@ internal class AppSwitcherOverlay(
             // The overlay may have closed in the meantime, taking the card off screen.
             val cell = card.parent as? View ?: return@post
             val target = cell.left - (scroller.width - cell.width) / 2
-            scroller.smoothScrollTo(target.coerceAtLeast(0), 0)
+            val x = target.coerceAtLeast(0)
+            if (smooth) scroller.smoothScrollTo(x, 0) else scroller.scrollTo(x, 0)
         }
     }
 

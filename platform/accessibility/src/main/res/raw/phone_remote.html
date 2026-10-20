@@ -50,6 +50,14 @@
   .tabs button.on { background: var(--accent); color: #000; }
   summary { color: var(--dim); font-size: 14px; padding: 2px 0; }
   details[open] summary { margin-bottom: 10px; }
+  .segments { display: flex; gap: 4px; background: var(--bg); border-radius: 14px; padding: 4px; }
+  .segments button { flex: 1; font-size: 15px; padding: 10px 0; background: transparent; color: var(--dim); }
+  .segments button.on { background: var(--key); color: var(--text); font-weight: 600; }
+  .sent { margin-top: 10px; font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
+  .sent b { display: block; font-size: 14px; }
+  .sent .good { color: var(--good); }
+  .sent .bad { color: #ff8a80; }
+  .sent .dim { color: var(--dim); }
   .hidden { display: none !important; }
   #gone { position: fixed; inset: 0; background: var(--bg); padding: 28vh 28px 0; text-align: center; }
   #gone h2 { font-size: 22px; margin: 0 0 14px; }
@@ -112,10 +120,18 @@
     <div class="hint" id="linkHint"></div>
   </section>
   <section>
-    <input id="file" type="file" accept="image/*,video/*" class="hidden">
-    <button id="pick" style="width:100%;font-size:16px" data-t="upload"></button>
-    <label><input id="asWallpaper" type="checkbox" checked><span data-t="asWallpaper"></span></label>
-    <div class="hint" id="uploadStatus"></div>
+    <div class="hint" style="margin:0 0 8px" data-t="forWhat"></div>
+    <div class="segments" id="purpose">
+      <button data-purpose="backdrop" class="on" data-t="forBackdrop"></button><button data-purpose="banner" data-t="forBanner"></button>
+    </div>
+    <input id="file" type="file" accept="image/*,video/*" multiple class="hidden">
+    <button id="pick" style="width:100%;font-size:16px;margin-top:10px"></button>
+    <div id="backdropOnly">
+      <label><input id="asWallpaper" type="checkbox" checked><span data-t="asWallpaper"></span></label>
+      <label><input id="shrink" type="checkbox" checked><span data-t="shrink"></span></label>
+    </div>
+    <div class="hint" id="uploadHint"></div>
+    <div id="sent"></div>
   </section>
   <section id="keys" class="hidden">
     <details>
@@ -141,9 +157,20 @@
     noField: 'На экране нет поля ввода',
     open: 'Открыть', linkHint: 'Ссылки YouTube откроются в приложении, выбранном для YouTube',
     opened: 'Открыто', notOpened: 'Не удалось открыть ссылку',
-    upload: 'Отправить фото или видео', asWallpaper: 'Сразу поставить на обои',
+    upload: 'Отправить фото или видео', uploadBanner: 'Отправить баннер', asWallpaper: 'Сразу поставить на обои',
+    forWhat: 'Для чего', forBackdrop: 'Обои и заставка', forBanner: 'Баннер плитки',
+    shrink: 'Уменьшать фото до размера экрана',
+    hintBackdrop: 'Пойдёт и в обои, и на заставку, это можно поменять в медиатеке на устройстве.',
+    hintBanner: 'Только фото. Будет первым в выборе баннера и не попадёт в обои и на заставку.',
     online: 'на связи', offline: 'нет связи',
-    sending: 'Отправка, ', saved: 'Сохранено', notSent: 'Не удалось отправить', failed: 'Не получилось',
+    sending: 'Отправка, ', failed: 'Не получилось',
+    waiting: 'Ждёт очереди', preparing: 'Готовится',
+    sentOk: '✓ Отправлено', shrunkTo: '✓ Отправлено, уменьшено до ',
+    badFormat: '✕ Такой файл не подходит. Подойдут фото и видео mp4, m4v, mkv, webm, mov',
+    bannerPhoto: '✕ Баннером может быть только фото',
+    noRoom: '✕ На устройстве мало места: свободно ', badVideo: '✕ Это устройство не покажет такое видео: ',
+    brokenVideo: '✕ Видео не открывается: файл повреждён или в нём нет изображения',
+    notSentLine: '✕ Не удалось отправить', mb: ' МБ', gb: ' ГБ',
     noArrows: 'Стрелки на этом устройстве не работают',
     keysTitle: 'Ключи сервисов распознавания', save: 'Сохранить',
     keysHint: 'Ключ хранится на устройстве зашифрованным и сюда не возвращается. Сервис выбирается в настройках Lumbina, в разделе «Голосовой ввод». Чтобы удалить ключ, сохраните пустое поле.',
@@ -157,9 +184,20 @@
     noField: 'There is no text field on the screen',
     open: 'Open', linkHint: 'YouTube links open in the app chosen for YouTube',
     opened: 'Opened', notOpened: 'Couldn’t open the link',
-    upload: 'Send a photo or video', asWallpaper: 'Use as wallpaper right away',
+    upload: 'Send a photo or video', uploadBanner: 'Send a banner', asWallpaper: 'Use as wallpaper right away',
+    forWhat: 'What for', forBackdrop: 'Wallpaper and screensaver', forBanner: 'Tile banner',
+    shrink: 'Shrink photos to the screen’s size',
+    hintBackdrop: 'Goes on the wallpaper and the screensaver; change that in the media library on the device.',
+    hintBanner: 'Photos only. Comes first among the banners, never on the wallpaper or screensaver.',
     online: 'connected', offline: 'no connection',
-    sending: 'Sending, ', saved: 'Saved', notSent: 'Couldn’t send', failed: 'Did not work',
+    sending: 'Sending, ', failed: 'Did not work',
+    waiting: 'Waiting', preparing: 'Getting ready',
+    sentOk: '✓ Sent', shrunkTo: '✓ Sent, shrunk to ',
+    badFormat: '✕ This file won’t do. Photos and mp4, m4v, mkv, webm, mov videos will',
+    bannerPhoto: '✕ A banner can only be a photo',
+    noRoom: '✕ Not enough room on the device: free ', badVideo: '✕ This device can’t play such a video: ',
+    brokenVideo: '✕ The video won’t open: the file is damaged or has no picture',
+    notSentLine: '✕ Couldn’t send', mb: ' MB', gb: ' GB',
     noArrows: 'Arrows don’t work on this device',
     keysTitle: 'Speech service keys', save: 'Save',
     keysHint: 'The key is kept on the device encrypted and never shown back here. Choose the service in Lumbina’s settings, under “Voice input”. To remove a key, save an empty field.',
@@ -215,6 +253,8 @@
       document.querySelector('[data-tab="pad"]').classList.add('hidden');
     }
     holdOk = !!info.holdOk;
+    if (info.screenWidth) screen = { width: info.screenWidth, height: info.screenHeight };
+    if (typeof info.room === 'number') room = info.room;
   });
   var holdOk = false;
   // "Connected" must not hang there after the device is turned off.
@@ -376,22 +416,141 @@
   $('saveOpenai').addEventListener('click', function () { saveKey('openaiKey', 'openai'); });
   $('saveYandex').addEventListener('click', function () { saveKey('yandexKey', 'yandex'); });
 
-  var file = $('file'), uploadStatus = $('uploadStatus');
-  $('pick').addEventListener('click', function () { file.click(); });
+  // Files: what for (the wallpaper and screensaver, or a tile's banner), then each file in turn
+  // with a line of its own saying how it went. Photos are made into JPEG here, to the screen's size
+  // unless asked not to: whatever this browser can open goes, HEIC from an iPhone too. A video goes
+  // as it is, and the device says whether it can play it.
+  var IMAGE_TYPES = ['jpg', 'jpeg', 'png', 'webp'], VIDEO_TYPES = ['mp4', 'webm', 'mkv', 'mov', 'm4v'];
+  var BANNER_WIDTH = 1280, BANNER_HEIGHT = 720, QUALITY = 0.9, MAX_PIXELS = 16000000;
+  var file = $('file'), sent = $('sent'), purpose = 'backdrop', busy = false;
+  function saved(name, fallback) { try { return localStorage.getItem(name) || fallback; } catch (e) { return fallback; } }
+  function save(name, value) { try { localStorage.setItem(name, value); } catch (ignored) {} }
+  $('shrink').checked = saved('lumbinaShrink', '1') === '1';
+  $('shrink').addEventListener('change', function () { save('lumbinaShrink', $('shrink').checked ? '1' : '0'); });
+  function choosePurpose(which) {
+    purpose = which;
+    document.querySelectorAll('#purpose button').forEach(function (b) { b.classList.toggle('on', b.dataset.purpose === which); });
+    var banner = which === 'banner';
+    $('pick').textContent = banner ? T.uploadBanner : T.upload;
+    $('uploadHint').textContent = banner ? T.hintBanner : T.hintBackdrop;
+    $('backdropOnly').classList.toggle('hidden', banner);
+    file.accept = banner ? 'image/*' : 'image/*,video/*';
+  }
+  document.querySelectorAll('#purpose button').forEach(function (b) {
+    b.addEventListener('click', function () { choosePurpose(b.dataset.purpose); });
+  });
+  choosePurpose('backdrop');
+
+  function extension(name) { var dot = name.lastIndexOf('.'); return dot < 0 ? '' : name.slice(dot + 1).toLowerCase(); }
+  function isVideo(f) { return f.type.indexOf('video/') === 0 || VIDEO_TYPES.indexOf(extension(f.name)) >= 0; }
+  function size(bytes) {
+    var gb = bytes / (1024 * 1024 * 1024);
+    var text = gb >= 1 ? gb.toFixed(1) + T.gb : Math.round(bytes / (1024 * 1024)) + T.mb;
+    return ru ? text.replace('.', ',') : text;
+  }
+  // A line per file in [batch]: its name, then how it goes; [cls] colors the second line.
+  function line(batch, name) {
+    var row = document.createElement('div'), title = document.createElement('b'), state = document.createElement('span');
+    row.className = 'sent';
+    title.textContent = name;
+    row.appendChild(title); row.appendChild(state);
+    batch.appendChild(row);
+    return function (text, cls) { state.textContent = text; state.className = cls || 'dim'; };
+  }
+  // The photo as JPEG (as PNG with [png], keeping what is see-through), just covering [maxW]×[maxH] as
+  // the wallpaper fills the screen (null: as big as it is); null if this browser can't open it.
+  function toPicture(f, maxW, maxH, png) {
+    return new Promise(function (resolve) {
+      var url = URL.createObjectURL(f), img = new Image();
+      img.onload = function () {
+        var w = img.naturalWidth, h = img.naturalHeight;
+        // Phones' browsers draw no bigger than about 16 megapixels: a larger photo is brought down to that.
+        var scale = Math.min(1, Math.sqrt(MAX_PIXELS / (w * h)), maxW ? Math.max(maxW / w, maxH / h) : 1);
+        var canvas = document.createElement('canvas');
+        canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(function (blob) {
+          resolve(blob ? { blob: blob, width: canvas.width, height: canvas.height, shrunk: scale < 1 } : null);
+        }, png ? 'image/png' : 'image/jpeg', QUALITY);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); resolve(null); };
+      img.src = url;
+    });
+  }
+  function renamed(name, ext) { var dot = name.lastIndexOf('.'); return (dot < 0 ? name : name.slice(0, dot)) + '.' + ext; }
+  // What goes to the device for [f]: { body, name, shrunk } or { refused } with the line to show.
+  function prepare(f) {
+    var banner = purpose === 'banner';
+    if (isVideo(f)) {
+      if (banner) return Promise.resolve({ refused: T.bannerPhoto });
+      if (VIDEO_TYPES.indexOf(extension(f.name)) < 0) return Promise.resolve({ refused: T.badFormat });
+      return Promise.resolve({ body: f, name: f.name });
+    }
+    var keep = !banner && !$('shrink').checked && IMAGE_TYPES.indexOf(extension(f.name)) >= 0;
+    if (keep) return Promise.resolve({ body: f, name: f.name });
+    var maxW = banner ? BANNER_WIDTH : ($('shrink').checked ? screen.width : null);
+    var maxH = banner ? BANNER_HEIGHT : ($('shrink').checked ? screen.height : null);
+    // A banner may be a logo on nothing: a PNG or WebP one stays PNG, its see-through parts kept.
+    var png = banner && ['png', 'webp'].indexOf(extension(f.name)) >= 0;
+    return toPicture(f, maxW, maxH, png).then(function (pic) {
+      if (!pic) return { refused: T.badFormat };
+      return { body: pic.blob, name: renamed(f.name, png ? 'png' : 'jpg'), shrunk: pic.shrunk && !banner ? pic.width + '×' + pic.height : null };
+    });
+  }
+  function send(item, wallpaper, show) {
+    return new Promise(function (resolve) {
+      var xhr = new XMLHttpRequest();
+      var query = 'name=' + encodeURIComponent(item.name) + (purpose === 'banner' ? '&for=banner' : '&wallpaper=' + (wallpaper ? '1' : '0'));
+      xhr.open('POST', '/api/upload?' + query);
+      xhr.setRequestHeader('X-Key', key);
+      xhr.upload.onprogress = function (e) { if (e.lengthComputable) show(T.sending + Math.round(e.loaded * 100 / e.total) + '%'); };
+      xhr.onload = function () { var r = {}; try { r = JSON.parse(xhr.responseText); } catch (ignored) {} resolve(r); };
+      xhr.onerror = function () { resolve({ ok: false }); };
+      xhr.send(item.body);
+    });
+  }
+  function answer(r, item) {
+    if (r.ok) return [item.shrunk ? T.shrunkTo + item.shrunk : T.sentOk, 'good'];
+    if (r.error === 'format') return [T.badFormat, 'bad'];
+    if (r.error === 'room') return [T.noRoom + size(room), 'bad'];
+    if (r.error === 'video') return [r.detail ? T.badVideo + r.detail : T.brokenVideo, 'bad'];
+    return [T.notSentLine, 'bad'];
+  }
+  // One at a time: a phone's upload is slow enough, and files sent together share its bandwidth for nothing.
+  function sendAll(files) {
+    busy = true;
+    // The newest sending on top, its files in the order they were chosen.
+    var batch = document.createElement('div');
+    sent.insertBefore(batch, sent.firstChild);
+    var shows = files.map(function (f) { var show = line(batch, f.name); show(T.waiting); return show; });
+    var first = true;
+    function next(i) {
+      if (i >= files.length) { busy = false; return; }
+      var show = shows[i];
+      show(T.preparing);
+      prepare(files[i]).then(function (item) {
+        if (item.refused) { show(item.refused, 'bad'); return next(i + 1); }
+        if (item.body.size > room) { show(T.noRoom + size(room), 'bad'); return next(i + 1); }
+        return send(item, first && $('asWallpaper').checked, show).then(function (r) {
+          var said = answer(r, item);
+          show(said[0], said[1]);
+          if (r.ok) { first = false; room -= item.body.size; }
+          return refreshRoom().then(function () { next(i + 1); });
+        });
+      });
+    }
+    next(0);
+  }
+  var room = Infinity, screen = { width: 1920, height: 1080 };
+  function refreshRoom() {
+    return call('info').then(function (info) { if (typeof info.room === 'number') room = info.room; });
+  }
+  $('pick').addEventListener('click', function () { if (!busy) file.click(); });
   file.addEventListener('change', function () {
-    var f = file.files[0];
-    if (!f) return;
-    var wallpaper = $('asWallpaper').checked ? '1' : '0';
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/upload?wallpaper=' + wallpaper + '&name=' + encodeURIComponent(f.name));
-    xhr.setRequestHeader('X-Key', key);
-    xhr.upload.onprogress = function (e) { if (e.lengthComputable) uploadStatus.textContent = T.sending + Math.round(e.loaded * 100 / e.total) + '%'; };
-    xhr.onload = function () {
-      var ok = false; try { ok = JSON.parse(xhr.responseText).ok; } catch (ignored) {}
-      uploadStatus.textContent = ok ? T.saved : T.notSent; file.value = '';
-    };
-    xhr.onerror = function () { uploadStatus.textContent = T.notSent; };
-    xhr.send(f);
+    var files = Array.prototype.slice.call(file.files);
+    file.value = '';
+    if (files.length) sendAll(files);
   });
 })();
 </script>

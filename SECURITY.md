@@ -58,7 +58,9 @@ the device's adb on the loopback address and:
 - grants itself usage access, notification access and `RECORD_AUDIO`;
 - sets the system speech recognizer;
 - stops an app you close from "Recent apps";
-- installs Lumbina TV Provider, the companion app it carries, if the device has no TV provider;
+- installs Lumbina TV Provider, the companion app it carries, if the device has no TV provider, and
+  updates an older copy of it; on Android 11 and newer it is installed visible to all apps
+  (`--force-queryable`), as the system's TV provider is, so that apps can publish channels to it;
 - turns a system app of the firmware back on when you choose "Turn on" on the diagnostics page;
 - installs a new version of Lumbina you asked it to download, without the system's question;
 - asks the shell about the device when you save a diagnostics report;
@@ -97,7 +99,10 @@ Revoke debugging authorizations in the developer options and all of this is gone
   debugging connection, it installs the package over it without the system's question (see the
   list above): the package is copied to `/data/local/tmp` for the install and removed after it.
   Otherwise, or when that fails, it hands the package to the system's installer, which asks you.
-  The system installs it only if it is signed with the same key as the installed Lumbina. Nothing
+  Where Lumbina may not install apps yet, choosing the update also opens the system's screen where
+  you allow it. The system installs it only if it is signed with the same key as the installed
+  Lumbina. A downloaded package stays in Lumbina's cache until it is installed, so a failed or
+  interrupted try does not download it again; a package of an older release is deleted. Nothing
   is checked or downloaded by itself. A build for a store would leave this permission out.
 - `INTERNET` and `ACCESS_NETWORK_STATE`: the requests listed under Network, and the connection
   icon on the home screen.

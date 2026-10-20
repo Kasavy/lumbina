@@ -31,16 +31,30 @@ import dev.lumbina.tv.core.ui.rememberServiceConsent
 internal fun SettingsPageContent(page: SettingsPage, onPreviewScreensaver: () -> Unit, openAccess: (() -> Unit)?) {
     when (page) {
         SettingsPage.Rows -> RowsPage()
+
         SettingsPage.Channels -> ChannelsPage()
+
         SettingsPage.Widgets -> WidgetsPage()
+
         SettingsPage.Wallpaper -> WallpaperPage()
+
+        SettingsPage.Media -> Unit
+
+        // opened as a screen of its own, never in the panel
         SettingsPage.Look -> LookPage()
+
         SettingsPage.Voice -> VoicePage()
+
         SettingsPage.HomeKey -> ButtonsAndKeyboard()
+
         SettingsPage.Phone -> PhonePage()
+
         SettingsPage.Sleep -> SleepPage(onPreviewScreensaver, openAccess)
+
         SettingsPage.State -> StatePage(openAccess)
+
         SettingsPage.About -> AboutPage()
+
         SettingsPage.Access -> AccessPage()
     }
 }

@@ -189,9 +189,18 @@ private fun MenuRow(entry: MenuEntry, onClick: () -> Unit, modifier: Modifier = 
     PanelRow(entry.title, onClick, modifier, entry.hint)
 }
 
-/** One row of a [SidePanel]'s list: a [title] and, on the right and dimmer, a [hint] (a tick, a value). */
+/**
+ * One row of a [SidePanel]'s list: a [title], a [subtitle] under it if given and, on the right and
+ * dimmer, a [hint] (a tick, a value).
+ */
 @Composable
-fun PanelRow(title: String, onClick: () -> Unit, modifier: Modifier = Modifier, hint: String? = null) {
+fun PanelRow(
+    title: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    hint: String? = null,
+    subtitle: String? = null,
+) {
     val scheme = MaterialTheme.colorScheme
     Surface(
         onClick = onClick,
@@ -210,13 +219,15 @@ fun PanelRow(title: String, onClick: () -> Unit, modifier: Modifier = Modifier, 
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
         ) {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            }
             hint?.let {
                 Text(it, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }

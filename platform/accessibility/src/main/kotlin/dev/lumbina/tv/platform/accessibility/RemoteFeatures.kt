@@ -165,6 +165,11 @@ internal class RemoteFeatures(
 
     fun onKey(event: KeyEvent): Boolean {
         note(event)
+        // An arrow held in an overlay goes on by itself until released: the release may be taken first.
+        if (event.action == KeyEvent.ACTION_UP) {
+            parts.quickMenu.letGo(event.keyCode)
+            parts.switching.letGo(event.keyCode)
+        }
         return offer(event)
     }
 
@@ -218,7 +223,7 @@ internal class RemoteFeatures(
 
             RemoteAction.ShowQuickMenu -> {
                 parts.switching.hide()
-                parts.quickMenu.show()
+                parts.quickMenu.toggle()
             }
 
             RemoteAction.StartVoice -> parts.micKey.pressed()
@@ -238,6 +243,7 @@ internal class RemoteFeatures(
     }
 
     /** Builds the features for a connected [AccessibilityService]; the parts share its [CoroutineScope]. */
+    @Suppress("TooManyFunctions") // one builder per part of the remote
     class Factory @Inject constructor(
         private val device: RemoteDeps.Device,
         private val apps: RemoteDeps.Apps,
@@ -310,22 +316,7 @@ internal class RemoteFeatures(
             }
             val quickMenuPorts = quickMenuPorts(otherHome, switching, say)
             val quickMenu = QuickMenu(service, stores.sleep, quickMenuPorts)
-            val phonePorts = PhoneRemote.Ports(
-                controls = controls,
-                deliver = assembly::textDelivery,
-                folder = stores.photoFolder,
-                wallpaper = stores.wallpaper,
-                speechKeys = voice.keys,
-                youTube = voice.youTube,
-                quickMenu = {
-                    switching.hide()
-                    quickMenu.show()
-                },
-                appSwitcher = switching::show,
-                overlayKey = { event -> quickMenu.onKey(event) || switching.onKey(event) },
-                holdOk = holdOk(),
-                hasMic = profile.hasRemoteMic,
-            )
+            val phonePorts = phonePorts(controls, assembly, switching, quickMenu)
             // One mic connection for everything: the remote has room for one reader only.
             val mic = profile.remoteMicAudio?.let { assembly.warm(scope, it) }
             val readiness = VoiceReadiness(voice.engine, log)
@@ -351,6 +342,30 @@ internal class RemoteFeatures(
             )
             return RemoteFeatures(parts, profile, device.lumbinaHome, stores.remote, scope, log)
         }
+
+        /** What the phone page acts on: the device, typing, files, the quick menu and recent apps. */
+        private fun phonePorts(
+            controls: ServiceDeviceControls,
+            assembly: VoiceAssembly,
+            switching: AppSwitching,
+            quickMenu: QuickMenu,
+        ) = PhoneRemote.Ports(
+            controls = controls,
+            deliver = assembly::textDelivery,
+            media = stores.media,
+            arrivals = stores.arrivals,
+            showOnWallpaper = stores.showOnWallpaper,
+            speechKeys = voice.keys,
+            youTube = voice.youTube,
+            quickMenu = {
+                switching.hide()
+                quickMenu.show()
+            },
+            appSwitcher = switching::show,
+            overlayKey = { event -> quickMenu.onKey(event) || switching.onKey(event) },
+            holdOk = holdOk(),
+            hasMic = device.profile.hasRemoteMic,
+        )
 
         /** Apps are stopped over Lumbina's own adb where it has one; its volume changes are told to [volumeHold]. */
         private fun controls(service: AccessibilityService, launchers: Set<String>, volumeHold: VolumeHold?) =

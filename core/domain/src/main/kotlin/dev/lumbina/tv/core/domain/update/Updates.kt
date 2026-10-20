@@ -17,8 +17,17 @@ sealed interface UpdateCheck {
 
 /** Where putting a release on the device is. */
 sealed interface UpdateStep {
-    /** [fraction] of the package is on the device, 0 to 1. */
-    data class Downloading(val fraction: Float) : UpdateStep
+    /**
+     * [fraction] of the package is on the device, 0 to 1. [needsPermission]: the device does not let
+     * Lumbina install apps yet, and its screen for that is open or about to open.
+     */
+    data class Downloading(val fraction: Float, val needsPermission: Boolean = false) : UpdateStep
+
+    /**
+     * Downloaded and checked, but the device does not let Lumbina install apps yet: its screen for
+     * that was opened, and the install goes on by itself once the user allows it and comes back.
+     */
+    data object NeedsPermission : UpdateStep
 
     /** Downloaded and checked; the system now asks the user, and the rest is the system's. */
     data object Installing : UpdateStep
@@ -58,8 +67,15 @@ interface AppUpdates {
 
     suspend fun check(): UpdateCheck
 
-    /** Downloads [release], checks it against its published checksum and installs it. */
+    /**
+     * Downloads [release], checks it against its published checksum and installs it. Where the
+     * device does not let Lumbina install apps yet, it asks the user for that first and waits
+     * ([UpdateStep.NeedsPermission]), then goes on by itself.
+     */
     fun install(release: Release): Flow<UpdateStep>
+
+    /** Opens the device's screen where Lumbina may be allowed to install apps, where it has one. */
+    fun askToInstallApps()
 }
 
 /**

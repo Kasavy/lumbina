@@ -18,7 +18,8 @@ import android.widget.TextView
  * panels do: ▲ ▼ pick, ◀ ▶ change a value, OK acts, Back closes; left alone it closes by itself.
  * [Item.secondary] items come last, under a line. An item may open a [Page] in place of the list;
  * Back then returns to the list. It never takes focus — the service feeds it the remote's keys —
- * so a video underneath keeps playing.
+ * so a video underneath keeps playing. A held ▲ or ▼ goes on by itself ([HeldArrow]); ◀ ▶ change a
+ * value a step per press, not racing to the end of it.
  */
 internal class QuickMenuOverlay(context: Context, private val texts: Texts) {
 
@@ -47,6 +48,11 @@ internal class QuickMenuOverlay(context: Context, private val texts: Texts) {
     private val views = QuickMenuViews(context)
     private val handler = Handler(Looper.getMainLooper())
     private val hideRunnable = Runnable { hide() }
+
+    private val arrow = HeldArrow(handler, showing = { isShowing }) { key, _ ->
+        move(key)
+        keepOpen()
+    }
     private val tick = object : Runnable {
         override fun run() {
             refresh()
@@ -74,6 +80,7 @@ internal class QuickMenuOverlay(context: Context, private val texts: Texts) {
     }
 
     fun hide() {
+        arrow.letGo()
         handler.removeCallbacks(hideRunnable)
         handler.removeCallbacks(tick)
         root?.let(windowManager::removeView)
@@ -124,15 +131,20 @@ internal class QuickMenuOverlay(context: Context, private val texts: Texts) {
 
             event.keyCode !in ARROWS && !event.isOk -> return false
 
-            // A page has nothing to pick or press: the arrows and OK just stay with the panel.
+            // A page has nothing to pick or press: the arrows and OK just stay with the panel. An
+            // arrow held from the list is let go on its release all the same ([letGo], by the service).
             page != null -> Unit
 
             event.isOk -> if (!down) activate()
 
-            down -> move(event.keyCode)
+            event.keyCode in HELD -> arrow.onKey(event)
+
+            down && event.repeatCount == 0 -> move(event.keyCode)
         }
         return true
     }
+
+    fun letGo(keyCode: Int) = arrow.letGo(keyCode)
 
     private fun move(key: Int) {
         when (key) {
@@ -151,6 +163,7 @@ internal class QuickMenuOverlay(context: Context, private val texts: Texts) {
         val item = items.getOrNull(selected) ?: return
         val opens = item.page()
         if (opens != null) {
+            arrow.letGo()
             page = opens
             return render()
         }
@@ -197,6 +210,7 @@ internal class QuickMenuOverlay(context: Context, private val texts: Texts) {
         const val AUTO_HIDE_MILLIS = 15_000L
         const val PAGE_HIDE_MILLIS = 180_000L
         const val TICK_MILLIS = 5_000L
+        val HELD = setOf(KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN)
         val ARROWS = setOf(
             KeyEvent.KEYCODE_DPAD_UP,
             KeyEvent.KEYCODE_DPAD_DOWN,

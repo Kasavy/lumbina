@@ -177,12 +177,12 @@ internal class AndroidTvChannels @Inject constructor(
     private fun TvRow.weight(): Long = long(Columns.WEIGHT) ?: 0L
 
     companion object {
-        private const val AUTHORITY = "android.media.tv"
+        const val AUTHORITY = "android.media.tv"
         val CHANNELS: Uri = Uri.parse("content://$AUTHORITY/channel")
         val PREVIEW_PROGRAMS: Uri = Uri.parse("content://$AUTHORITY/preview_program")
         private const val TAG = "channels"
         private const val READ_TV_LISTINGS = "android.permission.READ_TV_LISTINGS"
-        private const val COMPANION = "dev.lumbina.tv.tvprovider"
+        const val COMPANION = "dev.lumbina.tv.tvprovider"
         private const val DEBOUNCE_MILLIS = 500L
         private val WATCH_NEXT: Uri = Uri.parse("content://$AUTHORITY/watch_next_program")
     }

@@ -37,11 +37,14 @@ accessibility service, and any other button of the remote you choose to give som
   or newer, with debugging Lumbina can reach).
 - Voice commands: open or close an app, search, volume, playback, sleep timer. Where a name fits
   several apps, they are offered to choose from.
-- Wallpapers: your own pictures and videos, photo of the day, Projectivy wallpaper plugins, or
-  none: the theme's background.
+- Wallpapers: your own pictures and videos, photo of the day (the last ones kept for offline),
+  Projectivy wallpaper plugins, or none: the theme's background.
+- A media library for your photos and videos: which go on the wallpaper, which on the screensaver,
+  and pictures for app tiles' banners. They come from a phone, through the phone remote's page.
 - Clock, weather, notifications, now playing.
 - Dark and light themes with a choice of accent.
-- Screensaver, sleep timer, auto-sleep.
+- Screensaver with photos and videos from the same sources as the wallpaper, sleep timer,
+  auto-sleep.
 - Phone as a remote. Scan the QR code and a web page opens, nothing to install. The code can be
   shown on the screensaver, and a saved diagnostics report can be taken with the phone.
 - Checks for a new version and installs it, when you ask.
@@ -107,7 +110,8 @@ Lumbina talks to these services directly, so each of them sees your IP:
 | [ipwho.is](https://ipwho.is), [geojs.io](https://www.geojs.io) | Weather with automatic city | The request itself (city by IP) | Choose a city or hide the weather |
 | [api.met.no](https://api.met.no), [open-meteo.com](https://open-meteo.com) | Weather is on screen, every 30 min | Coordinates of the city | Hide the weather |
 | [geocoding-api.open-meteo.com](https://open-meteo.com) | You search for a city | What you typed | Don't search |
-| [picsum.photos](https://picsum.photos), [bing.com](https://www.bing.com) | Screensaver or "Photo of the day" wallpaper | Screen size | Turn off online photos, pick another wallpaper |
+| [bing.com](https://www.bing.com) | "Photo of the day" on the wallpaper or the screensaver (the screensaver's "As on the wallpaper" too, with photo of the day or no wallpaper), every few hours | The request itself | Another wallpaper, and "My photos and videos" or a plugin for the screensaver |
+| [picsum.photos](https://picsum.photos) | The screensaver's photos of the day when Bing can't be reached and none are saved yet | Screen size | As for bing.com |
 | [alphacephei.com](https://alphacephei.com), [huggingface.co](https://huggingface.co) | You download a speech model | Which model | Don't download |
 | [api.openai.com](https://openai.com), [stt.api.cloud.yandex.net](https://yandex.cloud/services/speechkit) | You chose cloud recognition | Audio of each phrase and your API key | Recognize on the device, it's the default |
 | Another app on the device, and whatever it sends on | You chose another app to recognize | Audio of each phrase | Recognize on the device, it's the default |

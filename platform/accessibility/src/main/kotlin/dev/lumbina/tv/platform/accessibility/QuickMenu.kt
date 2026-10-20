@@ -55,6 +55,8 @@ internal class QuickMenu(
     private var otherHome: HomeScreen? = null
     private var phone = PhoneRemoteSettings()
 
+    private val closedByKey = ClosedByKey()
+
     fun start(scope: CoroutineScope) {
         this.scope = scope
         scope.launch { ports.otherHome.collect { otherHome = it } }
@@ -69,12 +71,35 @@ internal class QuickMenu(
 
     fun show() = overlay.show(items())
 
+    /**
+     * The button bound to the menu: opens it, and pressed again closes it. That press has mostly
+     * closed it already, as a key the menu doesn't use ([ClosedByKey]).
+     */
+    fun toggle() {
+        when {
+            closedByKey.consume() -> Unit
+            overlay.isShowing -> overlay.hide()
+            else -> show()
+        }
+    }
+
     val isShowing: Boolean get() = overlay.isShowing
 
     /** While the menu shows, it takes the D-pad, OK and Back; true if consumed. */
-    fun onKey(event: KeyEvent): Boolean = overlay.onKey(event)
+    fun onKey(event: KeyEvent): Boolean {
+        if (!overlay.isShowing) {
+            closedByKey.seen(event.keyCode, event.action, event.repeatCount)
+            return false
+        }
+        val taken = overlay.onKey(event)
+        if (!taken && !overlay.isShowing) closedByKey.closedBy(event.keyCode)
+        return taken
+    }
 
     fun hide() = overlay.hide()
+
+    /** An arrow was released, wherever its release went: a held one stops going on. */
+    fun letGo(keyCode: Int) = overlay.letGo(keyCode)
 
     /** Debug builds: drives the menu over adb (see [debugPress]). */
     fun debug(command: String) {
@@ -87,7 +112,7 @@ internal class QuickMenu(
     private fun items(): List<QuickMenuOverlay.Item> = listOfNotNull(
         // From any app: Lumbina's "All apps" screen, over home.
         QuickMenuOverlay.Item(service.getString(R.string.quick_all_apps)) {
-            openLumbina(LumbinaActions.HOME_ALL_APPS)
+            service.openLumbina(LumbinaActions.HOME_ALL_APPS)
         },
         QuickMenuOverlay.Item(service.getString(R.string.quick_recent_apps)) { ports.recentApps() },
         QuickMenuOverlay.Item(
@@ -95,19 +120,19 @@ internal class QuickMenu(
             value = { "◀ ${sleepText()} ▶" },
             // The arrows stop at either end of the row of lengths; OK goes round, off after the longest.
             onAdjust = { step ->
-                val left = minutesLeft()
+                val left = minutesLeft
                 if (step > 0) {
                     setSleepTimer(nextSleepTimer(left) ?: SLEEP_TIMER_MINUTES.last())
                 } else if (left != null) {
                     setSleepTimer(previousSleepTimer(left))
                 }
             },
-            onOk = { setSleepTimer(nextSleepTimer(minutesLeft())) },
+            onOk = { setSleepTimer(nextSleepTimer(minutesLeft)) },
             closes = false,
         ),
         phoneItem(),
         QuickMenuOverlay.Item(service.getString(R.string.quick_lumbina_settings)) {
-            openLumbina(LumbinaActions.SETTINGS_ROOT)
+            service.openLumbina(LumbinaActions.SETTINGS_ROOT)
         },
         QuickMenuOverlay.Item(service.getString(R.string.quick_device_settings), secondary = true) {
             ports.screens.openSettings()
@@ -144,13 +169,13 @@ internal class QuickMenu(
                     )
                 }
             },
-        ) { openLumbina(LumbinaActions.SETTINGS_PAGE_PHONE) }
+        ) { service.openLumbina(LumbinaActions.SETTINGS_PAGE_PHONE) }
     }
 
-    private fun minutesLeft(): Int? = sleep.timerMinutesLeft(System.currentTimeMillis())
+    private val minutesLeft: Int? get() = sleep.timerMinutesLeft(System.currentTimeMillis())
 
     private fun sleepText(): String =
-        minutesLeft()?.let { service.getString(R.string.quick_sleep_left, it) } ?: service.getString(R.string.quick_off)
+        minutesLeft?.let { service.getString(R.string.quick_sleep_left, it) } ?: service.getString(R.string.quick_off)
 
     private fun setSleepTimer(minutes: Int?) {
         // Shown at once; the stored settings follow a moment later.
@@ -158,6 +183,4 @@ internal class QuickMenu(
         val endsAt = sleep.timerEndsAt
         scope?.launch { sleepSettings.update { it.copy(timerEndsAt = endsAt) } }
     }
-
-    private fun openLumbina(page: String) = service.openLumbina(page)
 }

@@ -10,8 +10,8 @@ android {
 
     defaultConfig {
         applicationId = "dev.lumbina.tv"
-        versionCode = 5
-        versionName = "0.0.5"
+        versionCode = 6
+        versionName = "0.0.6"
     }
 
     flavorDimensions += "services"
@@ -31,7 +31,9 @@ android {
 
 // Lumbina carries the TV Provider companion in its assets and installs it over its own adb where
 // the device has no TV provider (TvProviderCompanion). The companion is built as this variant is:
-// debug with debug, anything else with release, so both carry the same key.
+// debug with debug, anything else with release, so both carry the same key. Its version code goes
+// beside it as text, from AGP's output-metadata.json: Lumbina compares it with the installed one
+// without opening the APK.
 abstract class CopyCompanionApk : DefaultTask() {
     @get:InputDirectory
     @get:PathSensitive(PathSensitivity.RELATIVE)
@@ -46,6 +48,10 @@ abstract class CopyCompanionApk : DefaultTask() {
             ?: error("one companion APK expected in ${apks.get().asFile}")
         val target = assets.get().asFile.resolve("companion").apply { deleteRecursively() }
         apk.copyTo(target.resolve("tvprovider.apk"))
+        val metadata = apks.get().asFile.resolve("output-metadata.json").readText()
+        val version = Regex("\"versionCode\"\\s*:\\s*(\\d+)").find(metadata)?.groupValues?.get(1)
+            ?: error("no versionCode in the companion's output-metadata.json")
+        target.resolve("tvprovider.version").writeText(version)
     }
 }
 

@@ -6,8 +6,9 @@ import dev.lumbina.tv.core.domain.access.LocalAccess
 import dev.lumbina.tv.core.domain.app.AppLauncher
 import dev.lumbina.tv.core.domain.app.InstalledApps
 import dev.lumbina.tv.core.domain.app.RecentAppsRepository
-import dev.lumbina.tv.core.domain.backdrop.PhotoFolder
-import dev.lumbina.tv.core.domain.backdrop.WallpaperSettingsRepository
+import dev.lumbina.tv.core.domain.backdrop.MediaArrivalRepository
+import dev.lumbina.tv.core.domain.backdrop.MediaLibrary
+import dev.lumbina.tv.core.domain.backdrop.ShowOnWallpaper
 import dev.lumbina.tv.core.domain.device.DeviceProfile
 import dev.lumbina.tv.core.domain.device.FirmwareParts
 import dev.lumbina.tv.core.domain.home.HomeAppearanceRepository
@@ -65,8 +66,9 @@ internal object RemoteDeps {
         val remote: RemoteSettingsRepository,
         val otherHome: OtherHome,
         val phoneRemote: PhoneRemoteSettingsRepository,
-        val photoFolder: PhotoFolder,
-        val wallpaper: WallpaperSettingsRepository,
+        val media: MediaLibrary,
+        val arrivals: MediaArrivalRepository,
+        val showOnWallpaper: ShowOnWallpaper,
         val appearance: HomeAppearanceRepository,
     )
 }

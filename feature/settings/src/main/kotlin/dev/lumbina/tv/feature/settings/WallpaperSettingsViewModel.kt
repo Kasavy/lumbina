@@ -3,8 +3,8 @@ package dev.lumbina.tv.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.lumbina.tv.core.domain.backdrop.DeleteMyMedia
-import dev.lumbina.tv.core.domain.backdrop.PhotoFolder
+import dev.lumbina.tv.core.domain.backdrop.MediaLibrary
+import dev.lumbina.tv.core.domain.backdrop.MediaMarksRepository
 import dev.lumbina.tv.core.domain.backdrop.WallpaperPluginInfo
 import dev.lumbina.tv.core.domain.backdrop.WallpaperPlugins
 import dev.lumbina.tv.core.domain.backdrop.WallpaperSettings
@@ -26,7 +26,9 @@ import kotlinx.coroutines.launch
 data class WallpaperPanelState(
     val settings: WallpaperSettings,
     val plugins: List<WallpaperPluginInfo>,
+    /** The user's photos and videos, and how many of them have the wallpaper mark. */
     val myMedia: Int,
+    val onWallpaper: Int,
     /** What shows with no wallpaper; chosen with the theme. */
     val background: HomeBackground,
 )
@@ -37,7 +39,6 @@ interface WallpaperCommands {
     fun setChangeInterval(minutes: Int)
     fun toggleDimAtNight()
     fun openPluginSettings(id: String)
-    fun deleteMyMedia()
 }
 
 @HiltViewModel
@@ -45,8 +46,8 @@ class WallpaperSettingsViewModel @Inject constructor(
     private val settings: WallpaperSettingsRepository,
     appearance: HomeAppearanceRepository,
     private val plugins: WallpaperPlugins,
-    private val folder: PhotoFolder,
-    private val deleteMedia: DeleteMyMedia,
+    private val library: MediaLibrary,
+    marks: MediaMarksRepository,
 ) : ViewModel(),
     WallpaperCommands {
 
@@ -54,8 +55,16 @@ class WallpaperSettingsViewModel @Inject constructor(
         combine(
             settings.settings,
             appearance.settings.map { it.background }.distinctUntilChanged(),
-        ) { wallpaper, background ->
-            WallpaperPanelState(wallpaper, plugins.installed(), folder.count(), background)
+            marks.settings,
+        ) { wallpaper, background, marked ->
+            val files = library.files()
+            WallpaperPanelState(
+                settings = wallpaper,
+                plugins = plugins.installed(),
+                myMedia = files.size,
+                onWallpaper = files.count { marked.onWallpaper(it.id) },
+                background = background,
+            )
         }.flowOn(Dispatchers.IO)
             .stateIn(viewModelScope, WhileUiSubscribed, null)
 
@@ -67,10 +76,6 @@ class WallpaperSettingsViewModel @Inject constructor(
 
     override fun openPluginSettings(id: String) {
         plugins.openSettings(id)
-    }
-
-    override fun deleteMyMedia() {
-        viewModelScope.launch(Dispatchers.IO) { deleteMedia(now = System.currentTimeMillis()) }
     }
 
     private fun edit(transform: (WallpaperSettings) -> WallpaperSettings) {

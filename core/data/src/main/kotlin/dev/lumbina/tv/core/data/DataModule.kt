@@ -22,6 +22,10 @@ import dev.lumbina.tv.core.domain.access.AccessSettings
 import dev.lumbina.tv.core.domain.access.AccessSettingsRepository
 import dev.lumbina.tv.core.domain.app.LaunchHistory
 import dev.lumbina.tv.core.domain.app.RecentAppsRepository
+import dev.lumbina.tv.core.domain.backdrop.MediaArrival
+import dev.lumbina.tv.core.domain.backdrop.MediaArrivalRepository
+import dev.lumbina.tv.core.domain.backdrop.MediaMarks
+import dev.lumbina.tv.core.domain.backdrop.MediaMarksRepository
 import dev.lumbina.tv.core.domain.backdrop.WallpaperSettings
 import dev.lumbina.tv.core.domain.backdrop.WallpaperSettingsRepository
 import dev.lumbina.tv.core.domain.channels.ChannelSettings
@@ -119,6 +123,28 @@ internal object DataModule {
         StoredWallpaperSettings(),
         StoredWallpaperSettings::toDomain,
         WallpaperSettings::toStored,
+        multiProcess = true,
+    )
+
+    /** Multi-process: the screensaver may run apart from the settings that set the marks. */
+    @Provides
+    @Singleton
+    fun mediaMarks(@ApplicationContext context: Context): MediaMarksRepository = context.settings(
+        "media_marks",
+        StoredMediaMarks(),
+        StoredMediaMarks::toDomain,
+        MediaMarks::toStored,
+        multiProcess = true,
+    )
+
+    /** Multi-process: written as files come through the phone page's server, in the service process; home says so. */
+    @Provides
+    @Singleton
+    fun mediaArrival(@ApplicationContext context: Context): MediaArrivalRepository = context.settings(
+        "media_arrival",
+        StoredMediaArrival(),
+        StoredMediaArrival::toDomain,
+        MediaArrival::toStored,
         multiProcess = true,
     )
 

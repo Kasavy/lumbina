@@ -47,6 +47,9 @@ import dev.lumbina.tv.feature.onboarding.ServicePlateRoute
 import dev.lumbina.tv.feature.onboarding.SetupWizardRoute
 import dev.lumbina.tv.feature.onboarding.rememberSetupLeft
 import dev.lumbina.tv.feature.screensaver.ScreensaverActivity
+import dev.lumbina.tv.feature.settings.MediaFilter
+import dev.lumbina.tv.feature.settings.MediaLibraryRoute
+import dev.lumbina.tv.feature.settings.MediaView
 import dev.lumbina.tv.feature.settings.SettingsPage
 import dev.lumbina.tv.feature.settings.SettingsRoute
 import kotlinx.coroutines.delay
@@ -137,6 +140,10 @@ private fun Home(
         toAllApps = toAllApps,
         visible = visible,
         over = over,
+        openMedia = { bannersOnly ->
+            val filter = if (bannersOnly) MediaFilter.Banners else MediaFilter.All
+            navController.navigate("$MEDIA?$VIEW_ARG=${MediaView(filter = filter).encode()}")
+        },
         header = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 HomeTopBarRoute(
@@ -180,8 +187,22 @@ private fun LumbinaRoutes(navController: NavHostController, owner: ViewModelStor
                     setupLeft = setup.steps,
                     onSetup = setup.open,
                     onPreviewScreensaver = { context.startActivity(Intent(context, ScreensaverActivity::class.java)) },
+                    onOpenMedia = { navController.navigate("$MEDIA?$VIEW_ARG=${it.encode()}") },
                 )
             }
+        }
+        composable(
+            route = "$MEDIA?$VIEW_ARG={$VIEW_ARG}",
+            arguments = listOf(
+                navArgument(VIEW_ARG) {
+                    type = NavType.StringType
+                    nullable = true
+                },
+            ),
+        ) { entry ->
+            MediaLibraryRoute(MediaView.decode(entry.arguments?.getString(VIEW_ARG)), onBack = {
+                navController.popBackStack()
+            })
         }
     }
 }
@@ -189,6 +210,8 @@ private fun LumbinaRoutes(navController: NavHostController, owner: ViewModelStor
 private const val HOME = "home"
 private const val SETTINGS = "settings"
 private const val PAGE_ARG = "page"
+private const val MEDIA = "media"
+private const val VIEW_ARG = "view"
 
 /** A video wallpaper plays again this long after the last button press. */
 private const val IDLE_AFTER_KEYS_MILLIS = 2_000L

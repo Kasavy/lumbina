@@ -90,8 +90,9 @@ fun AboutPanel(
 
 /**
  * Checking for a new version and installing it, in one row: its second line says where things
- * stand, and its name says what OK does ([action]): check, download and install, try again, stop
- * waiting for the system's question, or nothing while something is under way.
+ * stand, and its name says what OK does ([action]): check, download and install, try again, open
+ * the device's screen to allow installing, stop waiting for the system's question, or nothing while
+ * something is under way.
  */
 @Composable
 private fun UpdateRow(update: UpdateUi, size: (Long) -> String, onUpdate: () -> Unit) {
@@ -100,6 +101,7 @@ private fun UpdateRow(update: UpdateUi, size: (Long) -> String, onUpdate: () -> 
         UpdateAction.Check -> R.string.update_check
         is UpdateAction.Install -> R.string.update_install
         is UpdateAction.StopWaiting -> R.string.update_stop_waiting
+        UpdateAction.AllowInstall -> R.string.update_allow
         UpdateAction.None -> R.string.update_title
     }
     SettingRow(
@@ -112,6 +114,7 @@ private fun UpdateRow(update: UpdateUi, size: (Long) -> String, onUpdate: () -> 
 }
 
 /** What the update row says under its name, and whether that is a problem; null before the first check. */
+@Suppress("CyclomaticComplexMethod") // a branch per state of the row
 @Composable
 private fun updateStatus(update: UpdateUi, size: (Long) -> String): Pair<String, Boolean>? = when (update) {
     UpdateUi.Idle -> null
@@ -125,10 +128,16 @@ private fun updateStatus(update: UpdateUi, size: (Long) -> String): Pair<String,
     is UpdateUi.Available ->
         stringResource(R.string.update_available, update.release.version, size(update.release.bytes)) to false
 
-    is UpdateUi.Downloading -> stringResource(R.string.update_downloading, update.percent) to false
+    is UpdateUi.Downloading -> if (update.needsPermission) {
+        stringResource(R.string.update_downloading_needs_permission, update.percent) to false
+    } else {
+        stringResource(R.string.update_downloading, update.percent) to false
+    }
 
     is UpdateUi.Broken ->
         stringResource(if (update.corrupt) R.string.update_corrupt else R.string.update_download_failed) to true
+
+    is UpdateUi.NeedsPermission -> stringResource(R.string.update_needs_permission) to false
 
     is UpdateUi.Installing -> stringResource(R.string.update_installing) to false
 

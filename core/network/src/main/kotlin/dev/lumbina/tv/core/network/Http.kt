@@ -8,7 +8,10 @@ import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** GETs a URL; any failure (network, HTTP status) is an [IOException]. */
+/** A server's answer other than 200: [code] says whether asking again could help (5xx) or not (most 4xx). */
+class HttpStatusException(val code: Int, url: String) : IOException("HTTP $code for $url")
+
+/** GETs a URL; any failure is an [IOException], an HTTP status other than 200 an [HttpStatusException]. */
 fun interface HttpGet {
     suspend fun bytes(url: String): ByteArray
 
@@ -25,7 +28,7 @@ class UrlConnectionGet @Inject constructor(private val log: LumbinaLog) : HttpGe
         connection.setRequestProperty("User-Agent", USER_AGENT)
         try {
             val code = connection.responseCode
-            if (code != HttpURLConnection.HTTP_OK) throw IOException("HTTP $code for ${url.substringBefore('?')}")
+            if (code != HttpURLConnection.HTTP_OK) throw HttpStatusException(code, url.substringBefore('?'))
             connection.inputStream.use { it.readBytes() }
         } catch (e: IOException) {
             log.log(TAG, "${url.substringBefore('?')}: $e")

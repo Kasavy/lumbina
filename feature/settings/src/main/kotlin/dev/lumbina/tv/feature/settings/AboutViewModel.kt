@@ -44,6 +44,8 @@ class AboutViewModel @Inject constructor(
 
             is UpdateAction.Install -> install(action.release)
 
+            UpdateAction.AllowInstall -> updates.askToInstallApps()
+
             is UpdateAction.StopWaiting -> {
                 updateJob?.cancel()
                 updateState.value = UpdateUi.Available(action.release)
@@ -53,13 +55,26 @@ class AboutViewModel @Inject constructor(
 
     /**
      * The page is left: an answer is forgotten, a version found stays offered. What is under way
-     * goes on.
+     * goes on, but for a wait for the user to let Lumbina install apps: nobody is there to come back
+     * from the device's screen and give it.
      */
     fun forgetDone() {
         updateState.value = when (val now = updateState.value) {
             UpdateUi.UpToDate, UpdateUi.CheckFailed, UpdateUi.Refused, is UpdateUi.Older -> UpdateUi.Idle
+
             is UpdateUi.Broken -> UpdateUi.Available(now.release)
+
             is UpdateUi.NotInstalled -> UpdateUi.Available(now.release)
+
+            // Waiting stops; the package, whole or not, stays for the next try.
+            is UpdateUi.NeedsPermission -> UpdateUi.Available(now.release).also { updateJob?.cancel() }
+
+            is UpdateUi.Downloading -> if (now.needsPermission) {
+                UpdateUi.Available(now.release).also { updateJob?.cancel() }
+            } else {
+                now
+            }
+
             else -> now
         }
     }
@@ -78,19 +93,30 @@ class AboutViewModel @Inject constructor(
     private fun install(release: Release) {
         updateJob?.cancel()
         // At once, before the download says anything: a second OK must find it under way.
-        updateState.value = UpdateUi.Downloading(0)
+        updateState.value = UpdateUi.Downloading(release, 0)
         updateJob = viewModelScope.launch {
             // An installer's or a server's surprise is a failed try, not a crash of the settings.
             updates.install(release).catch { emit(UpdateStep.Failed) }.collect { step ->
                 updateState.value = when (step) {
-                    is UpdateStep.Downloading -> UpdateUi.Downloading((step.fraction * PERCENT).toInt())
+                    is UpdateStep.Downloading ->
+                        UpdateUi.Downloading(release, (step.fraction * PERCENT).toInt(), step.needsPermission)
+
+                    UpdateStep.NeedsPermission -> UpdateUi.NeedsPermission(release)
+
                     UpdateStep.Installing -> UpdateUi.Installing(release)
+
                     UpdateStep.InstallingItself -> UpdateUi.InstallingItself
+
                     UpdateStep.Cancelled -> UpdateUi.Available(release)
+
                     UpdateStep.Failed -> UpdateUi.Broken(release, corrupt = false)
+
                     UpdateStep.Corrupt -> UpdateUi.Broken(release, corrupt = true)
+
                     UpdateStep.Refused -> UpdateUi.Refused
+
                     UpdateStep.Older -> UpdateUi.Older(release)
+
                     UpdateStep.NotInstalled -> UpdateUi.NotInstalled(release)
                 }
             }
@@ -125,10 +151,21 @@ sealed interface UpdateUi {
 
     data class Available(val release: Release) : UpdateUi
 
-    data class Downloading(val percent: Int) : UpdateUi
+    /**
+     * [needsPermission]: the device's screen for letting Lumbina install apps is open, or about to
+     * open; OK opens it again.
+     */
+    data class Downloading(val release: Release, val percent: Int, val needsPermission: Boolean = false) : UpdateUi
 
     /** The download failed, or what came was [corrupt]; OK tries again. */
     data class Broken(val release: Release, val corrupt: Boolean) : UpdateUi
+
+    /**
+     * Downloaded, waiting for the user to let Lumbina install apps on the device's screen for that;
+     * it goes on by itself once they come back, and OK opens that screen again. Leaving the page
+     * stops waiting, and [release] is offered again.
+     */
+    data class NeedsPermission(val release: Release) : UpdateUi
 
     /** Handed to the system, which asks the user now; OK stops waiting. */
     data class Installing(val release: Release) : UpdateUi
@@ -154,6 +191,9 @@ sealed interface UpdateAction {
 
     data class StopWaiting(val release: Release) : UpdateAction
 
+    /** Opens the device's screen where Lumbina may be allowed to install apps. */
+    data object AllowInstall : UpdateAction
+
     /** Something is under way, or an answer that stays until the page is left. */
     data object None : UpdateAction
 }
@@ -161,15 +201,11 @@ sealed interface UpdateAction {
 /** What OK does where things stand now. */
 fun UpdateUi.action(): UpdateAction = when (this) {
     UpdateUi.Idle, UpdateUi.UpToDate, UpdateUi.CheckFailed -> UpdateAction.Check
-
     is UpdateUi.Available -> UpdateAction.Install(release)
-
     is UpdateUi.Broken -> UpdateAction.Install(release)
-
     is UpdateUi.NotInstalled -> UpdateAction.Install(release)
-
     is UpdateUi.Installing -> UpdateAction.StopWaiting(release)
-
-    UpdateUi.Checking, is UpdateUi.Downloading, UpdateUi.InstallingItself, UpdateUi.Refused, is UpdateUi.Older ->
-        UpdateAction.None
+    is UpdateUi.NeedsPermission -> UpdateAction.AllowInstall
+    is UpdateUi.Downloading -> if (needsPermission) UpdateAction.AllowInstall else UpdateAction.None
+    UpdateUi.Checking, UpdateUi.InstallingItself, UpdateUi.Refused, is UpdateUi.Older -> UpdateAction.None
 }

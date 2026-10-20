@@ -9,6 +9,7 @@ dependencies {
     implementation(projects.core.common)
     implementation(projects.core.network)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.process)
     implementation(libs.kotlinx.serialization.json)
     testImplementation(projects.core.testing)
 }

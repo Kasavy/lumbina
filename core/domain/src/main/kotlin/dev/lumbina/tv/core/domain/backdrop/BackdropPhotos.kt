@@ -1,30 +1,23 @@
 package dev.lumbina.tv.core.domain.backdrop
 
 /**
- * Photos for the screensaver: the user's own first, otherwise whatever the implementation can
- * find (e.g. online). Null when there is nothing to show, e.g. offline with no photos of one's own.
+ * What the screensaver shows next, from its sources in turn
+ * ([dev.lumbina.tv.core.domain.sleep.screensaverSources]). Null when there is nothing to show, e.g.
+ * offline with no photos of one's own. Without `videos`, only photos: a video just failed to play.
  */
 fun interface BackdropPhotos {
-    suspend fun next(width: Int, height: Int): BackdropPhoto?
+    suspend fun next(width: Int, height: Int, videos: Boolean): BackdropPhoto?
 }
 
-/** An encoded image ([bytes], JPEG/PNG) and the [credit] to show with it, if its source gives one. */
-class BackdropPhoto(val bytes: ByteArray, val credit: String? = null)
+/** A photo or a video for the screensaver, with the [credit] to show, if its source gives one. */
+sealed interface BackdropPhoto {
+    val credit: String?
 
-/** Where the user's own pictures and videos live, so they can be added (e.g. from a phone) and counted. */
-interface PhotoFolder {
-    fun count(): Int
+    /** An encoded image: JPEG, PNG or WebP. */
+    class Image(val bytes: ByteArray, override val credit: String? = null) : BackdropPhoto
 
-    /**
-     * Stores a picture or video of [size] bytes read from [input] (not closed here); false if
-     * [name] isn't a picture or video, or it could not be written whole.
-     */
-    fun add(name: String, input: java.io.InputStream, size: Long): Boolean
-
-    /** True if [uri] points to a file in this folder. */
-    fun contains(uri: String): Boolean
-
-    fun clear()
+    /** A video to play through, by its URI: the user's own or a plugin's. */
+    data class Video(val uri: String, override val credit: String? = null) : BackdropPhoto
 }
 
 /**

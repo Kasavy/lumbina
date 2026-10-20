@@ -26,6 +26,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -34,11 +35,21 @@ import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.lumbina.tv.core.domain.app.AppId
+import dev.lumbina.tv.core.domain.backdrop.MediaArrival
 import dev.lumbina.tv.core.domain.home.HomeLayout
 import dev.lumbina.tv.core.domain.home.HomeRow
 
 /** What kind of thing was taken off the screen. */
-enum class UndoKind { Hidden, OutOfFavorites, OutOfCategory, FolderDissolved, RowHidden, ShortcutRemoved, NoticesMuted }
+enum class UndoKind {
+    Hidden,
+    OutOfFavorites,
+    OutOfCategory,
+    FolderDissolved,
+    RowHidden,
+    ShortcutRemoved,
+    NoticesMuted,
+    MediaArrived,
+}
 
 /**
  * Something just taken off the screen that can be put back for a few seconds: the [name] of the
@@ -55,6 +66,8 @@ data class Undo(
     internal val muted: String? = null,
     /** The app taken out of a section, by the section's id: ticking it again in that row undoes this. */
     internal val takenOut: Pair<String, AppId>? = null,
+    /** Not something to undo: files just came from a phone, and the bar's button opens the media library. */
+    internal val arrived: MediaArrival? = null,
 )
 
 /** Where the "Undo" button is, and whether the focus is on it. */
@@ -139,7 +152,7 @@ private fun UndoBar(undo: Undo?, focus: UndoFocus, onUndo: () -> Unit, modifier:
                     focusedContentColor = MaterialTheme.colorScheme.onPrimary,
                 ),
                 modifier = Modifier.focusRequester(focus.button).onFocusChanged { focus.focused = it.isFocused },
-            ) { Text(stringResource(R.string.undo)) }
+            ) { Text(stringResource(if (shown?.arrived != null) R.string.media_arrived_open else R.string.undo)) }
             Text(
                 text = stringResource(R.string.undo_keys),
                 style = MaterialTheme.typography.labelMedium,
@@ -178,4 +191,17 @@ private fun Undo.message(): String = when (kind) {
     UndoKind.RowHidden -> stringResource(R.string.undo_row_hidden, name)
     UndoKind.ShortcutRemoved -> stringResource(R.string.undo_shortcut_removed)
     UndoKind.NoticesMuted -> stringResource(R.string.undo_notices_muted, name)
+    UndoKind.MediaArrived -> arrived?.message().orEmpty()
+}
+
+/** "Photo from a phone in the media library", or how many files when several came. */
+@Composable
+private fun MediaArrival.message(): String {
+    val count = photos + videos + banners
+    return when {
+        count > 1 -> pluralStringResource(R.plurals.media_arrived_files, count, count)
+        videos == 1 -> stringResource(R.string.media_arrived_video)
+        banners == 1 -> stringResource(R.string.media_arrived_banner)
+        else -> stringResource(R.string.media_arrived_photo)
+    }
 }

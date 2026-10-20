@@ -3,15 +3,19 @@ package dev.lumbina.tv.platform.accessibility
 import android.accessibilityservice.AccessibilityService
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.hardware.display.DisplayManager
 import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
 import android.provider.Settings
+import android.view.Display
 import android.view.KeyEvent
 import dev.lumbina.tv.core.common.LumbinaLog
-import dev.lumbina.tv.core.domain.backdrop.PhotoFolder
-import dev.lumbina.tv.core.domain.backdrop.WallpaperSettingsRepository
-import dev.lumbina.tv.core.domain.backdrop.WallpaperSource
+import dev.lumbina.tv.core.domain.backdrop.MediaAdd
+import dev.lumbina.tv.core.domain.backdrop.MediaArrivalRepository
+import dev.lumbina.tv.core.domain.backdrop.MediaLibrary
+import dev.lumbina.tv.core.domain.backdrop.MediaPurpose
+import dev.lumbina.tv.core.domain.backdrop.ShowOnWallpaper
 import dev.lumbina.tv.core.domain.phone.PhoneRemoteSettings
 import dev.lumbina.tv.core.domain.phone.PhoneRemoteSettingsRepository
 import dev.lumbina.tv.core.domain.speech.SpeechKeys
@@ -43,8 +47,10 @@ internal class PhoneRemote(
     class Ports(
         val controls: DeviceControls,
         val deliver: () -> DeliverText,
-        val folder: PhotoFolder,
-        val wallpaper: WallpaperSettingsRepository,
+        val media: MediaLibrary,
+        /** Told of each file that comes, for home to say so. */
+        val arrivals: MediaArrivalRepository,
+        val showOnWallpaper: ShowOnWallpaper,
         val speechKeys: SpeechKeys,
         val youTube: YouTube,
         /** Home held on the page, as on the remote. */
@@ -64,6 +70,12 @@ internal class PhoneRemote(
 
     private val cursor by lazy { PhoneCursor(service) }
 
+    /** The display's own size in pixels, not the app's (TV firmware often lays apps out at 1080p on a 4K panel). */
+    private val screen: Pair<Int, Int> by lazy {
+        val mode = service.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY).mode
+        maxOf(mode.physicalWidth, mode.physicalHeight) to minOf(mode.physicalWidth, mode.physicalHeight)
+    }
+
     /**
      * What the page is told as it opens: the device's name (two devices in a home look alike
      * otherwise), and what this one can do, so the page shows no button that does nothing.
@@ -76,6 +88,10 @@ internal class PhoneRemote(
             .put("arrows", DPAD_ACTIONS.isNotEmpty())
             .put("holdOk", ports.holdOk != null)
             .put("mic", ports.hasMic)
+            // For files: what may still be sent, and the screen photos are made to fit.
+            .put("room", ports.media.room())
+            .put("screenWidth", screen.first)
+            .put("screenHeight", screen.second)
             .toString()
     }
 
@@ -143,6 +159,7 @@ internal class PhoneRemote(
     private suspend fun handle(request: PhoneRequest): PhoneAnswer {
         val button = request.query["b"].orEmpty()
         if (request.command == "key") onMain { keyFirst(button) }?.let { return it }
+        if (request.command == "upload") return upload(request)
         return PhoneAnswer.of(
             when (request.command) {
                 "ping" -> true
@@ -150,7 +167,6 @@ internal class PhoneRemote(
                 "move", "click", "longclick", "scroll" -> onMain { pointer(request.command.orEmpty(), request.query) }
                 "text" -> text(request)
                 "link" -> request.shortBody()?.let { link -> withContext(Dispatchers.Main) { open(link) } } ?: false
-                "upload" -> upload(request)
                 "speechkey" -> saveSpeechKey(ports.speechKeys, request.query["p"], request.shortBody(), log)
                 else -> false
             },
@@ -217,17 +233,30 @@ internal class PhoneRemote(
         }
     }
 
-    private suspend fun upload(request: PhoneRequest): Boolean {
+    /**
+     * A file from the phone, for the wallpaper and screensaver or (`for=banner`) for tiles' banners.
+     * Refused with the reason the page words: not a photo or video, no room, a video this device
+     * can't play (and what it is). With `wallpaper=1` it goes on the wallpaper now.
+     */
+    private suspend fun upload(request: PhoneRequest): PhoneAnswer {
         val name = request.query["name"].orEmpty()
-        if (request.contentLength !in 1..MAX_UPLOAD_BYTES) return false
-        val saved = withContext(Dispatchers.IO) { ports.folder.add(name, request.body, request.contentLength) }
-        log.log(TAG, "upload \"$name\" (${request.contentLength} bytes): ${if (saved) "saved" else "failed"}")
-        if (saved && request.query["wallpaper"] == "1") {
-            ports.wallpaper.update {
-                it.copy(source = WallpaperSource.MyMedia, mediaChangedAt = System.currentTimeMillis())
+        if (request.contentLength !in 1..MAX_UPLOAD_BYTES) {
+            log.log(TAG, "upload refused: ${request.contentLength} bytes")
+            val tooBig = request.contentLength > MAX_UPLOAD_BYTES
+            return if (tooBig) PhoneAnswer.refused(REFUSED_ROOM) else PhoneAnswer.Failed
+        }
+        val purpose = if (request.query["for"] == "banner") MediaPurpose.Banner else MediaPurpose.Backdrop
+        val added = withContext(Dispatchers.IO) { ports.media.add(name, request.body, request.contentLength, purpose) }
+        // The kind and size only: the log goes into reports, and a file's name may say whose it is.
+        val result = (added as? MediaAdd.Unplayable)?.let { "unplayable \"${it.what}\"" } ?: added::class.simpleName
+        log.log(TAG, "upload .${name.substringAfterLast('.', "?")} (${request.contentLength} bytes, $purpose): $result")
+        if (added is MediaAdd.Added) {
+            ports.arrivals.update { it.with(added.file, purpose, System.currentTimeMillis()) }
+            if (purpose == MediaPurpose.Backdrop && request.query["wallpaper"] == "1") {
+                ports.showOnWallpaper(added.file, now = System.currentTimeMillis())
             }
         }
-        return saved
+        return uploadAnswer(added)
     }
 
     private suspend fun <T> onMain(block: () -> T): T = withContext(Dispatchers.Main) { block() }
@@ -273,5 +302,19 @@ private suspend fun saveSpeechKey(keys: SpeechKeys, p: String?, key: String?, lo
     log.log("phone", if (key.isEmpty()) "speech key removed: $provider" else "speech key set: $provider")
     return true
 }
+
+/** What the page is told of a file: taken, or refused with the reason it words (and what a video is). */
+internal fun uploadAnswer(added: MediaAdd): PhoneAnswer = when (added) {
+    is MediaAdd.Added -> PhoneAnswer.Done
+    MediaAdd.NotMedia -> PhoneAnswer.refused(REFUSED_FORMAT)
+    MediaAdd.NoRoom -> PhoneAnswer.refused(REFUSED_ROOM)
+    is MediaAdd.Unplayable -> PhoneAnswer.refused(REFUSED_VIDEO, added.what)
+    MediaAdd.Incomplete -> PhoneAnswer.Failed
+}
+
+// Why a file was refused, in the page's terms; it says each in words of its own.
+internal const val REFUSED_FORMAT = "format"
+internal const val REFUSED_ROOM = "room"
+internal const val REFUSED_VIDEO = "video"
 
 private val SPEECH_PROVIDERS = mapOf("openai" to SpeechProvider.OpenAi, "yandex" to SpeechProvider.Yandex)

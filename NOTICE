@@ -43,15 +43,6 @@ Third-party components:
 - Golos Text (the name on the TV banner, as outlines in app/src/main/res/drawable/banner.xml)
   SIL Open Font License 1.1 — The Golos Text Project Authors (https://github.com/googlefonts/golos-text)
 
-Screensaver fallback photos (platform/wallpaper/src/main/res/raw/fallback_*.jpg), CC0 1.0,
-from Wikimedia Commons (originally Unsplash):
-- fallback_lake.jpg: "Clouds mirrored in a mountain lake", Ales Krivec
-  https://commons.wikimedia.org/wiki/File:Clouds_mirrored_in_a_mountain_lake_(Unsplash).jpg
-- fallback_forest.jpg: "Evergreen forest wreathed in fog", Milo McDowell
-  https://commons.wikimedia.org/wiki/File:Evergreen_forest_wreathed_in_fog_(Unsplash).jpg
-- fallback_sunset.jpg: "Leigh-on-Sea beach sunset", Joshua Fuller
-  https://commons.wikimedia.org/wiki/File:Leigh-on-Sea_beach_sunset_(Unsplash).jpg
-
 Speech models (Vosk small models, e.g. vosk-model-small-ru, vosk-model-small-en-us) are not
 bundled; they are downloaded at runtime from alphacephei.com (or a mirror) under their own
 licenses.
@@ -60,8 +51,9 @@ Screenshots (docs/screenshots). The posters, stills and titles in the rows are p
 apps installed on the device (through the Android TV provider): "continue watching" and the
 "Кино" row by a small demo app with posters and stills from The Movie Database (TMDB), the other
 rows by the apps they are named after. They belong to their rights holders. The wallpaper on the
-home screen is Bing's photo of the day and belongs to its author; the screensaver shows a
-fallback photo listed above. The app tiles show the names and banners of those apps, which
+home screen is Bing's photo of the day and belongs to its author; the screensaver shows
+"Leigh-on-Sea beach sunset" by Joshua Fuller, CC0 1.0, from Wikimedia Commons (originally Unsplash,
+https://commons.wikimedia.org/wiki/File:Leigh-on-Sea_beach_sunset_(Unsplash).jpg). The app tiles show the names and banners of those apps, which
 belong to their owners. All of them are shown as a launcher shows them; Lumbina is not
 affiliated with any of them, nor with TMDB.
 

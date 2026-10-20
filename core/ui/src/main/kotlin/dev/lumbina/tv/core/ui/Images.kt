@@ -12,6 +12,7 @@ import coil3.fetch.SourceFetchResult
 import coil3.memory.MemoryCache
 import coil3.request.Options
 import coil3.toAndroidUri
+import coil3.video.VideoFrameDecoder
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -38,6 +39,7 @@ fun lumbinaImageLoader(context: PlatformContext): ImageLoader = ImageLoader.Buil
     .components {
         add(UrlConnectionFetcher.Factory())
         add(ForeignContentFetcher.Factory())
+        add(VideoFrameDecoder.Factory())
     }
     .build()
 

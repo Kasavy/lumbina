@@ -8,6 +8,7 @@ import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
 import android.os.Binder
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
@@ -115,6 +116,15 @@ class CompanionTvProvider : ContentProvider() {
     }
 
     /**
+     * The end of this provider's log for Lumbina's diagnostics report (`TvProviderCensus` asks for
+     * it by [LOG_METHOD]); nothing for other apps, whose writes it names.
+     */
+    override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
+        if (method != LOG_METHOD || visibleOwner() != null) return null
+        return Bundle().apply { putString(LOG_METHOD, CompanionLog.tail(LOG_CHARS)) }
+    }
+
+    /**
      * The caller's rows the [uri] (kind, id, channel) and [selection] pick. A selection this
      * provider can't read picks none: better than updating or deleting all of the app's rows.
      */
@@ -136,8 +146,6 @@ class CompanionTvProvider : ContentProvider() {
         return if (isLumbina) null else caller
     }
 
-    private fun caller(): String = callingPackage ?: "uid:${Binder.getCallingUid()}"
-
     private fun notifyChange(uri: Uri) = requireNotNull(context).contentResolver.notifyChange(uri, null)
 
     private companion object {
@@ -148,6 +156,10 @@ class CompanionTvProvider : ContentProvider() {
         const val DISPLAY_NAME = "display_name"
         const val LOGO = "logo"
         const val LOGO_PATH_SIZE = 3
+        const val LOG_METHOD = "lumbina_log"
+
+        /** Some hundred lines: the reply waits in a binder buffer of a megabyte that all calls share. */
+        const val LOG_CHARS = 48 * 1024
     }
 }
 
@@ -163,6 +175,9 @@ private fun RowStore.ownsChannelIn(values: ContentValues, owner: String): Boolea
     val channel = values.getAsLong(CHANNEL_ID) ?: return true
     return rows(CHANNEL, owner, channel).isNotEmpty()
 }
+
+/** The calling app's package, or its uid where the system names none. */
+private fun ContentProvider.caller(): String = callingPackage ?: "uid:${Binder.getCallingUid()}"
 
 private fun kindUri(kind: String): Uri = Uri.parse("content://$AUTHORITY/$kind")
 

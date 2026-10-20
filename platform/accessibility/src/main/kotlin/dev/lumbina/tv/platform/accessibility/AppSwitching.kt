@@ -1,7 +1,6 @@
 package dev.lumbina.tv.platform.accessibility
 
 import android.accessibilityservice.AccessibilityService
-import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.inputmethod.InputMethodManager
@@ -25,6 +24,7 @@ import kotlinx.coroutines.launch
  * needed. Only launchable apps are listed; Lumbina, the stock launcher and keyboards are not.
  * Switching launches the app, which brings its existing task back where it was. Main thread.
  */
+@Suppress("TooManyFunctions") // what the service calls it for: keys, windows, its start and end
 internal class AppSwitching(
     private val service: AccessibilityService,
     private val installedApps: InstalledApps,
@@ -54,8 +54,8 @@ internal class AppSwitching(
     /** The app that was on screen when the ribbon opened. */
     private var inFront: String? = null
 
-    /** When a key that is not the ribbon's own closed it: a double Home must not open it again. */
-    private var closedByKeyAt = 0L
+    /** A key that is not the ribbon's own closed it: a double Home must not open it again. */
+    private val closedByKey = ClosedByKey()
     private var apps: Map<String, App> = emptyMap()
     private val keyboards: Set<String> by lazy {
         service.getSystemService(InputMethodManager::class.java).inputMethodList.map { it.packageName }.toSet()
@@ -146,9 +146,11 @@ internal class AppSwitching(
 
     /** The double press that opens the ribbon closes it when it shows: its first press already did. */
     fun toggle() {
-        val justClosed = SystemClock.uptimeMillis() - closedByKeyAt < DOUBLE_PRESS_MILLIS
-        closedByKeyAt = 0
-        if (!justClosed) show()
+        when {
+            closedByKey.consume() -> Unit
+            overlay.isShowing -> overlay.hide()
+            else -> show()
+        }
     }
 
     private val listed: List<App> get() = recent.recent.mapNotNull(apps::get).take(SHOWN)
@@ -181,7 +183,8 @@ internal class AppSwitching(
                     ports.home.open(toStart = false)
                 }
 
-                overlay.isShowing -> overlay.show(listed, overlay.selectedIndex, closeApps)
+                // Shown anew over itself: an OK or an arrow being held goes on being held.
+                overlay.isShowing -> overlay.show(listed, overlay.selectedIndex, closeApps, keepKeys = true)
             }
         }
     }
@@ -190,13 +193,19 @@ internal class AppSwitching(
 
     /** While the switcher shows, it takes the D-pad, OK and Back; true if consumed. */
     fun onKey(event: KeyEvent): Boolean {
-        if (!overlay.isShowing) return false
+        if (!overlay.isShowing) {
+            closedByKey.seen(event.keyCode, event.action, event.repeatCount)
+            return false
+        }
         val taken = overlay.onKey(event)
-        if (!taken && !overlay.isShowing) closedByKeyAt = SystemClock.uptimeMillis()
+        if (!taken && !overlay.isShowing) closedByKey.closedBy(event.keyCode)
         return taken
     }
 
     fun hide() = overlay.hide()
+
+    /** An arrow was released, wherever its release went: a held one stops going on. */
+    fun letGo(keyCode: Int) = overlay.letGo(keyCode)
 
     /** The service is going away. */
     fun dispose() = overlay.dispose()
@@ -215,8 +224,5 @@ internal class AppSwitching(
 
         /** As many apps as the ribbon shows. */
         const val SHOWN = 8
-
-        /** Longer than any double press: within it, the press that closed the ribbon is that gesture's first. */
-        const val DOUBLE_PRESS_MILLIS = 1_000L
     }
 }

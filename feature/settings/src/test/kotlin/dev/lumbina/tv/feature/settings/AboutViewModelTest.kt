@@ -38,6 +38,12 @@ class AboutViewModelTest {
 
         override fun install(release: Release): Flow<UpdateStep> =
             Channel<UpdateStep>(Channel.UNLIMITED).also { installs += it }.receiveAsFlow()
+
+        var askedToInstall = 0
+
+        override fun askToInstallApps() {
+            askedToInstall++
+        }
     }
 
     private val release =
@@ -61,7 +67,7 @@ class AboutViewModelTest {
         assertEquals(UpdateUi.Available(release), viewModel.now)
 
         viewModel.onUpdate()
-        assertEquals(UpdateUi.Downloading(0), viewModel.now)
+        assertEquals(UpdateUi.Downloading(release, 0), viewModel.now)
         viewModel.onUpdate()
         assertEquals(1, updates.installs.size)
     }
@@ -85,6 +91,68 @@ class AboutViewModelTest {
 
         viewModel.onUpdate()
         assertEquals(UpdateUi.Available(release), viewModel.now)
+    }
+
+    @Test
+    fun `waiting to be allowed to install, OK opens the screen again, during the download too`() = runTest {
+        val viewModel = viewModel()
+        viewModel.onUpdate()
+        viewModel.onUpdate()
+        val steps = updates.installs.single()
+        steps.send(UpdateStep.Downloading(0.5f, needsPermission = true))
+        assertEquals(UpdateUi.Downloading(release, 50, needsPermission = true), viewModel.now)
+        viewModel.onUpdate()
+        assertEquals(1, updates.askedToInstall)
+        steps.send(UpdateStep.NeedsPermission)
+        assertEquals(UpdateUi.NeedsPermission(release), viewModel.now)
+
+        viewModel.onUpdate()
+        assertEquals(2, updates.askedToInstall)
+
+        // The flow says what comes next: the row follows it.
+        steps.send(UpdateStep.Installing)
+        assertEquals(UpdateUi.Installing(release), viewModel.now)
+        assertEquals(1, updates.installs.size)
+    }
+
+    @Test
+    fun `leaving the page while waiting to be allowed stops waiting and offers the version again`() = runTest {
+        val viewModel = viewModel()
+        viewModel.onUpdate()
+        viewModel.onUpdate()
+        val steps = updates.installs.single()
+        steps.send(UpdateStep.NeedsPermission)
+
+        viewModel.forgetDone()
+        assertEquals(UpdateUi.Available(release), viewModel.now)
+        // What the install says after it was given up changes nothing.
+        steps.trySend(UpdateStep.Installing)
+        assertEquals(UpdateUi.Available(release), viewModel.now)
+    }
+
+    @Test
+    fun `leaving the page while downloading with the screen to allow it open stops it all`() = runTest {
+        val viewModel = viewModel()
+        viewModel.onUpdate()
+        viewModel.onUpdate()
+        val steps = updates.installs.single()
+        steps.send(UpdateStep.Downloading(0.2f, needsPermission = true))
+
+        viewModel.forgetDone()
+        assertEquals(UpdateUi.Available(release), viewModel.now)
+        steps.trySend(UpdateStep.NeedsPermission)
+        assertEquals(UpdateUi.Available(release), viewModel.now)
+    }
+
+    @Test
+    fun `leaving the page during a plain download lets it go on`() = runTest {
+        val viewModel = viewModel()
+        viewModel.onUpdate()
+        viewModel.onUpdate()
+        updates.installs.single().send(UpdateStep.Downloading(0.2f))
+
+        viewModel.forgetDone()
+        assertEquals(UpdateUi.Downloading(release, 20), viewModel.now)
     }
 
     @Test

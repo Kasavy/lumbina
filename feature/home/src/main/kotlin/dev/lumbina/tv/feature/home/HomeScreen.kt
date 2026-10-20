@@ -64,6 +64,7 @@ fun HomeRoute(
     visible: Boolean = true,
     over: ScreenOnTop? = null,
     header: @Composable () -> Unit = {},
+    openMedia: (bannersOnly: Boolean) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
     channelsViewModel: ChannelsViewModel = hiltViewModel(),
 ) {
@@ -97,7 +98,7 @@ fun HomeRoute(
     LaunchedEffect(lost) { if (lost) moving = null }
     val undo by viewModel.undo.collectAsStateWithLifecycle()
     var undone by remember { mutableIntStateOf(0) }
-    val onUndo = { if (viewModel.undoLast()) undone++ }
+    val onUndo = { if (viewModel.barButton(openMedia)) undone++ }
     val failed = newerOf(failedApp, failedProgram)
     // One message at a time at the bottom: the move's, a failure, then "Undo", then the hint.
     val offered = undo.takeIf { moving == null && failed == null }

@@ -3,7 +3,8 @@ package dev.lumbina.tv.core.domain.channels
 /**
  * What the TV Provider holds, app by app, for a diagnostics report: how many channels each app
  * published, how many of them the home screen leaves out and why, and how many programs. Where the
- * home screen shows no channels, this tells whether there are none or none passed.
+ * home screen shows no channels, this tells whether there are none or none passed; where Lumbina's
+ * own provider stands in, also what each app wrote to it and what it refused.
  */
 fun interface ChannelCensus {
     /**
