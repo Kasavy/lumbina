@@ -12,7 +12,7 @@ import org.junit.Test
 
 class HisenseDeviceProfileTest {
 
-    private val profile = HisenseDeviceProfile(HisenseVolume(ContextWrapper(null)))
+    private val profile = HisenseDeviceProfile(HisenseVolume(ContextWrapper(null)), HisenseInputs(ContextWrapper(null)))
 
     @Test
     fun `remote home arrives as scan 102 or bare KEYCODE_F12`() {

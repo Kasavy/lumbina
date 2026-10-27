@@ -54,6 +54,9 @@
     <string name="quick_title">Lumbina</string>
     <string name="quick_page_keys">Назад к списку</string>
     <string name="quick_sleep">Таймер сна</string>
+    <string name="quick_source">Вход</string>
+    <string name="quick_smart_tv">Smart TV</string>
+    <string name="quick_input_failed">Не удалось переключить на %1$s</string>
     <string name="quick_sleep_left">%1$d мин</string>
     <string name="quick_off">выключен</string>
     <string name="quick_no_network">нет сети</string>

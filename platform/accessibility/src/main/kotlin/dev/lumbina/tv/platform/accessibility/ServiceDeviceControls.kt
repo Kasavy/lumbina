@@ -36,6 +36,7 @@ internal class ServiceDeviceControls(
             VolumeChange.Down -> stepVolume(-1)
             VolumeChange.Mute -> adjustVolume(AudioManager.ADJUST_MUTE)
             VolumeChange.Unmute -> adjustVolume(AudioManager.ADJUST_UNMUTE)
+            VolumeChange.ToggleMute -> toggleMute()
         }
         return true
     }
@@ -83,6 +84,13 @@ internal class ServiceDeviceControls(
         val step = maxOf(1, max / STEPS)
         val level = (audio.getStreamVolume(STREAM) + direction * step).coerceIn(0, max)
         audio.setStreamVolume(STREAM, level, AudioManager.FLAG_SHOW_UI)
+    }
+
+    /** The device's own mute where it has one: Android's would leave its sound processor playing. */
+    private fun toggleMute() {
+        ownVolume()
+        if (deviceVolume?.toggleMute() == true) return
+        audio.adjustStreamVolume(STREAM, AudioManager.ADJUST_TOGGLE_MUTE, AudioManager.FLAG_SHOW_UI)
     }
 
     private fun adjustVolume(direction: Int) {

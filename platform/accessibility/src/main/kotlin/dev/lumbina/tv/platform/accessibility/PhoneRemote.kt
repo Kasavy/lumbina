@@ -202,7 +202,7 @@ internal class PhoneRemote(
         "previous" -> ports.controls.media(MediaAction.Previous)
         "volup" -> ports.controls.volume(VolumeChange.Up)
         "voldown" -> ports.controls.volume(VolumeChange.Down)
-        "mute" -> ports.controls.volume(VolumeChange.Mute)
+        "mute" -> ports.controls.volume(VolumeChange.ToggleMute)
         else -> DPAD_ACTIONS[button]?.let(service::performGlobalAction) ?: false
     }
 

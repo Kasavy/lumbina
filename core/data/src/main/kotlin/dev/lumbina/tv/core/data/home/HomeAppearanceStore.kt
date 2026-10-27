@@ -2,6 +2,8 @@ package dev.lumbina.tv.core.data.home
 
 import dev.lumbina.tv.core.domain.home.Accent
 import dev.lumbina.tv.core.domain.home.AppsOrder
+import dev.lumbina.tv.core.domain.home.BarDate
+import dev.lumbina.tv.core.domain.home.BarPlace
 import dev.lumbina.tv.core.domain.home.ClockFormat
 import dev.lumbina.tv.core.domain.home.HomeAppearance
 import dev.lumbina.tv.core.domain.home.HomeBackground
@@ -12,6 +14,7 @@ import dev.lumbina.tv.core.domain.home.RowLook
 import dev.lumbina.tv.core.domain.home.TextScale
 import dev.lumbina.tv.core.domain.home.TileNames
 import dev.lumbina.tv.core.domain.home.TileSize
+import dev.lumbina.tv.core.domain.home.TopBarLook
 import kotlinx.serialization.Serializable
 
 /** On-disk form; unknown values (from a newer version) fall back to the default. */
@@ -34,7 +37,9 @@ internal data class StoredHomeAppearance(
     val hiddenRows: List<String> = emptyList(),
     val shownRows: List<String> = emptyList(),
     val customBanners: Map<String, String> = emptyMap(),
+    /** Legacy field, kept to migrate old data: false means no date ([topBar] then absent). */
     val showDate: Boolean = true,
+    val topBar: StoredTopBar? = null,
     val clockFormat: String? = null,
     val showNowPlaying: Boolean = true,
     val appsOrder: String? = null,
@@ -43,6 +48,17 @@ internal data class StoredHomeAppearance(
     val mutedNotices: List<String> = emptyList(),
     val recommendationsView: String? = null,
     val channelOrder: List<String> = emptyList(),
+)
+
+/** The top bar's look; a value from a newer version reads as the default. */
+@Serializable
+internal data class StoredTopBar(
+    val place: String? = null,
+    val date: String? = null,
+    val notices: Boolean = true,
+    val search: Boolean = true,
+    val sleep: Boolean = true,
+    val inputs: Boolean = false,
 )
 
 /** A row's own look; a value from a newer version reads as "as by default". */
@@ -69,7 +85,14 @@ internal fun HomeAppearance.toStored() = StoredHomeAppearance(
     hiddenRows = hiddenRows.sorted(),
     shownRows = shownRows.sorted(),
     customBanners = customBanners,
-    showDate = showDate,
+    topBar = StoredTopBar(
+        place = topBar.place.name,
+        date = topBar.date.name,
+        notices = topBar.notices,
+        search = topBar.search,
+        sleep = topBar.sleep,
+        inputs = topBar.inputs,
+    ),
     clockFormat = clockFormat.name,
     showNowPlaying = showNowPlaying,
     appsOrder = appsOrder.name,
@@ -102,7 +125,7 @@ internal fun StoredHomeAppearance.toDomain() = HomeAppearance(
     hiddenRows = hiddenRows.toSet() + if (showRecentlyInstalled) emptySet() else setOf(HomeRow.Recent.key),
     shownRows = shownRows.toSet(),
     customBanners = customBanners,
-    showDate = showDate,
+    topBar = topBarLook(),
     clockFormat = ClockFormat.entries.firstOrNull { it.name == clockFormat } ?: ClockFormat.System,
     showNowPlaying = showNowPlaying,
     appsOrder = AppsOrder.entries.firstOrNull { it.name == appsOrder } ?: AppsOrder.ByUse,
@@ -113,6 +136,20 @@ internal fun StoredHomeAppearance.toDomain() = HomeAppearance(
         ?: RecommendationsView.Tabs,
     channelOrder = channelOrder,
 )
+
+/** From before the top bar had settings of its own: only the date could be switched off. */
+private fun StoredHomeAppearance.topBarLook(): TopBarLook {
+    val stored = topBar ?: return TopBarLook(date = if (showDate) BarDate.WeekdayShort else BarDate.None)
+    val default = TopBarLook()
+    return TopBarLook(
+        place = BarPlace.entries.firstOrNull { it.name == stored.place } ?: default.place,
+        date = BarDate.entries.firstOrNull { it.name == stored.date } ?: default.date,
+        notices = stored.notices,
+        search = stored.search,
+        sleep = stored.sleep,
+        inputs = stored.inputs,
+    )
+}
 
 /** From before there was a choice of names: every tile's under it, or none (still the default). */
 private fun StoredHomeAppearance.generalNames(): TileNames =

@@ -67,6 +67,7 @@ internal fun ButtonsState.actionsOf(kind: ActionKind, key: RemoteKey): List<Remo
     ActionKind.Device -> listOfNotNull(
         RemoteAction.OpenOtherHome.takeIf { otherHome != null },
         RemoteAction.OpenDeviceSettings.takeIf { deviceSettings },
+        RemoteAction.ToggleMute,
         RemoteAction.ScreenOff,
     )
 }

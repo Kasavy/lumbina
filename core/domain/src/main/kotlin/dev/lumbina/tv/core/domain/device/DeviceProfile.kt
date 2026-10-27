@@ -63,6 +63,9 @@ interface DeviceProfile {
      */
     val heldVolumeStops: Boolean get() = volume == null
 
+    /** The video inputs an app can choose between; null where there are none, or none Lumbina can reach. */
+    val inputs: InputSources? get() = null
+
     /**
      * Debugging (adb) listens on the local network without TLS pairing once the user turns it
      * on, so Lumbina can connect to it itself (see `LocalAdb`).

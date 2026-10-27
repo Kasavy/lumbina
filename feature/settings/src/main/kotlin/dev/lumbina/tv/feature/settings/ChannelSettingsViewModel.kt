@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.lumbina.tv.core.domain.app.InstalledApps
+import dev.lumbina.tv.core.domain.channels.ChannelFeed
+import dev.lumbina.tv.core.domain.channels.ChannelSettings
 import dev.lumbina.tv.core.domain.channels.ChannelSettingsRepository
 import dev.lumbina.tv.core.domain.channels.TvChannels
 import dev.lumbina.tv.core.domain.channels.TvListingsPermission
@@ -49,11 +51,7 @@ class ChannelSettingsViewModel @Inject constructor(
             ChannelsPanelState(
                 available = channels.isAvailable(),
                 missingPermission = permission.missing(),
-                channels = feeds.mapNotNull { feed ->
-                    val app = labels[feed.channel.packageName] ?: return@mapNotNull null
-                    val key = feed.channel.key
-                    ChannelChoice(key, feed.channel.name, app, feed.programs.size, key !in choice.hiddenChannels)
-                },
+                channels = feeds.choices(choice, labels),
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, null)
 
@@ -70,10 +68,15 @@ class ChannelSettingsViewModel @Inject constructor(
 
     fun toggle(key: String) {
         viewModelScope.launch {
-            settings.update {
-                val hidden = if (key in it.hiddenChannels) it.hiddenChannels - key else it.hiddenChannels + key
-                it.copy(hiddenChannels = hidden)
-            }
+            settings.update { it.withChannelToggled(key) }
         }
     }
 }
+
+/** Each channel of an installed app ([labels]) with its app's name, shown or not as [settings] say. */
+internal fun List<ChannelFeed>.choices(settings: ChannelSettings, labels: Map<String, String>): List<ChannelChoice> =
+    mapNotNull { feed ->
+        val app = labels[feed.channel.packageName] ?: return@mapNotNull null
+        val key = feed.channel.key
+        ChannelChoice(key, feed.channel.name, app, feed.programs.size, key !in settings.hiddenChannels)
+    }

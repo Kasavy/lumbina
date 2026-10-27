@@ -18,7 +18,7 @@ import kotlinx.coroutines.flow.map
 @Entity(tableName = "sections")
 internal data class SectionEntity(@PrimaryKey val id: String, val name: String, val style: String, val position: Int)
 
-/** One slot of a section: either an app or a folder. */
+/** One slot of a section: an app or a folder; the shortcut to all apps and an input stand in [appId] as marks. */
 @Entity(tableName = "section_items", primaryKeys = ["sectionId", "position"])
 internal data class SectionItemEntity(
     val sectionId: String,
@@ -173,6 +173,7 @@ internal fun HomeLayout.toRows(): LayoutRows {
                     is HomeItem.AppItem -> SectionItemEntity(section.id, i, item.app.encode(), null)
                     is HomeItem.Folder -> SectionItemEntity(section.id, i, null, item.id)
                     HomeItem.AllApps -> SectionItemEntity(section.id, i, ALL_APPS_SHORTCUT, null)
+                    is HomeItem.Input -> SectionItemEntity(section.id, i, INPUT + item.id, null)
                 }
             }
         },
@@ -181,7 +182,8 @@ internal fun HomeLayout.toRows(): LayoutRows {
             folder.apps.mapIndexed { i, app -> FolderAppEntity(folder.id, i, app.encode()) }
         },
         hidden = hidden.map { HiddenAppEntity(it.encode()) },
-        labels = labels.map { (app, label) -> AppLabelEntity(app.encode(), label) },
+        labels = labels.map { (app, label) -> AppLabelEntity(app.encode(), label) } +
+            inputLabels.map { (id, label) -> AppLabelEntity(INPUT + id, label) },
         voiceNames = voiceNames.map { (app, name) -> AppVoiceNameEntity(app.encode(), name) },
     )
 }
@@ -195,18 +197,18 @@ internal fun LayoutRows.toLayout(): HomeLayout {
     val folderApps = folderApps.groupBy { it.folderId }.mapValues { (_, rows) -> rows.mapNotNull { decode(it.appId) } }
     val folderNames = folders.associate { it.id to it.name }
     val usedFolders = mutableSetOf<String>()
-    var shortcuts = 0
     val itemsBySection = items.groupBy { it.sectionId }
     val stored = sections.map { entity ->
         val seen = mutableSetOf<AppId>()
+        val marks = mutableSetOf<String>()
         fun keep(app: AppId) = app !in hiddenApps && seen.add(app)
         val sectionItems = itemsBySection[entity.id].orEmpty().mapNotNull { row ->
+            val mark = row.appId?.let(::markOf)
             val app = row.appId?.let(::decode)
             val folderId = row.folderId
             when {
-                // Once, and in Favorites only: anything else is a damaged row.
-                row.appId == ALL_APPS_SHORTCUT ->
-                    HomeItem.AllApps.takeIf { entity.id == HomeSection.FAVORITES && shortcuts++ == 0 }
+                // Once per section: a second one is a damaged row.
+                mark != null -> mark.takeIf { marks.add(mark.key) }
 
                 app != null -> HomeItem.AppItem(app).takeIf { keep(app) }
 
@@ -226,17 +228,35 @@ internal fun LayoutRows.toLayout(): HomeLayout {
         hidden = hiddenApps,
         labels = labels.mapNotNull { row -> decode(row.appId)?.let { it to row.label } }.toMap(),
         voiceNames = voiceNames.mapNotNull { row -> decode(row.appId)?.let { it to row.name } }.toMap(),
+        inputLabels = labels.filter {
+            it.appId.startsWith(INPUT)
+        }.associate { it.appId.removePrefix(INPUT) to it.label },
     )
+}
+
+/** The shortcut to all apps or an input's tile for what stands in an item's app column; null for an app. */
+private fun markOf(value: String): HomeItem? = when {
+    value == ALL_APPS_SHORTCUT -> HomeItem.AllApps
+    value.startsWith(INPUT) && value.length > INPUT.length -> HomeItem.Input(value.removePrefix(INPUT))
+    else -> null
 }
 
 /** `package/fully.qualified.Activity`; unlike [AppId.flatten], always reversible. */
 internal fun AppId.encode(): String = "$packageName/$activityName"
 
+/** Null also for a mark ([MARK]): an input's id may hold a '/' too, and is no app. */
 internal fun decode(value: String): AppId? {
+    if (value.startsWith(MARK)) return null
     val packageName = value.substringBefore('/', missingDelimiterValue = "")
     val activityName = value.substringAfter('/', missingDelimiterValue = "")
     return if (packageName.isBlank() || activityName.isBlank()) null else AppId(packageName, activityName)
 }
 
-/** What stands in an item's app column for the shortcut to all apps: no app's id looks like this. */
-internal const val ALL_APPS_SHORTCUT = "@all-apps"
+/** How what stands in an app's column but is no app begins: no package name does. */
+private const val MARK = "@"
+
+/** What stands in an item's app column for the tile that opens all apps. */
+internal const val ALL_APPS_SHORTCUT = "${MARK}all-apps"
+
+/** What stands before an input's id in an item's app column, and in the names' table for its name. */
+internal const val INPUT = "${MARK}input:"

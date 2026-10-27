@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,9 +27,13 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -37,18 +42,21 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.IconButton
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import dev.lumbina.tv.core.domain.device.InputSource
+import dev.lumbina.tv.core.domain.home.BarPlace
 import dev.lumbina.tv.core.domain.sleep.SLEEP_TIMER_MINUTES
 import dev.lumbina.tv.core.domain.status.problem
 import dev.lumbina.tv.core.domain.text.SearchTarget
 import dev.lumbina.tv.core.domain.weather.ShownWeather
 import dev.lumbina.tv.core.ui.Choice
 import dev.lumbina.tv.core.ui.ChoiceDialog
+import dev.lumbina.tv.core.ui.LocalScreenMarks
 import dev.lumbina.tv.core.ui.NameDialog
 import dev.lumbina.tv.core.ui.PillShape
+import dev.lumbina.tv.core.ui.barDateText
 import dev.lumbina.tv.core.ui.iconRes
 import dev.lumbina.tv.core.ui.label
 import dev.lumbina.tv.core.ui.rememberMinuteClock
-import dev.lumbina.tv.core.ui.shortDateText
 import dev.lumbina.tv.core.ui.temperatureText
 import dev.lumbina.tv.core.ui.timeText
 import kotlinx.coroutines.launch
@@ -81,6 +89,7 @@ fun HomeTopBarRoute(
         onSleepTimer = viewModel::setSleepTimer,
         onSearch = { query -> viewModel.search(query) { homeViewModel.say(Failed.YouTubeSearch) } },
         onSystemSearch = { if (!viewModel.openSystemSearch()) homeViewModel.say(Failed.SystemSearch) },
+        onInput = { input -> viewModel.openInput(input) { homeViewModel.say(Failed.Input(input.name)) } },
         modifier = modifier,
         leading = { NowPlayingRoute() },
         plates = {
@@ -89,31 +98,35 @@ fun HomeTopBarRoute(
             plates()
         },
         status = {
-            StatusIcons(
-                status = status,
-                actions = StatusActions(
-                    openNotice = { notice ->
-                        statusViewModel.openNotice(notice).also { if (!it) homeViewModel.say(Failed.Notice) }
-                    },
-                    dismissNotice = statusViewModel::dismissNotice,
-                    // Home's: what is muted can be undone from its bar.
-                    muteApp = { homeViewModel.muteNotices(it.packageName, it.app) },
-                    clearNotices = statusViewModel::clearNotices,
-                    // The bell had the focus and is gone: the settings button is what stays in the capsule.
-                    noticesGone = {
-                        homeViewModel.say(Failed.NoNotices)
-                        scope.launch { focus?.focusSoon(FocusKey(FocusKey.BAR, "settings")) }
-                    },
-                ),
-            )
+            if (state.look.notices) {
+                StatusIcons(
+                    status = status,
+                    actions = StatusActions(
+                        openNotice = { notice ->
+                            statusViewModel.openNotice(notice).also { if (!it) homeViewModel.say(Failed.Notice) }
+                        },
+                        dismissNotice = statusViewModel::dismissNotice,
+                        // Home's: what is muted can be undone from its bar.
+                        muteApp = { homeViewModel.muteNotices(it.packageName, it.app) },
+                        clearNotices = statusViewModel::clearNotices,
+                        // The bell had the focus and is gone: the settings button is what stays in the capsule.
+                        noticesGone = {
+                            homeViewModel.say(Failed.NoNotices)
+                            scope.launch { focus?.focusSoon(FocusKey(FocusKey.BAR, "settings")) }
+                        },
+                    ),
+                )
+            }
         },
     )
 }
 
 /**
- * The line above the home content. At the right the capsule: the weather, the date and the time
- * (only shown, never focused), the [status] and the buttons (search, sleep timer, settings). By it
- * the [plates], which speak up only when something needs the user. At the left [leading]: what plays.
+ * The line above the home content. The capsule, at the right, the left or in the middle as the user
+ * set it: the weather, the date and the time (only shown, never focused), the [status] and the
+ * buttons (search, inputs, sleep timer, settings), in the same order wherever it stands. By it, on the
+ * side away from the screen's edge, the [plates], which speak up only when something needs the user.
+ * [leading], what plays, at the side the capsule leaves free: the left, or the right with the capsule at the left.
  */
 @Composable
 internal fun HomeTopBar(
@@ -122,6 +135,7 @@ internal fun HomeTopBar(
     onSleepTimer: (Int?) -> Unit,
     onSearch: (String) -> Unit,
     onSystemSearch: () -> Unit,
+    onInput: (InputSource) -> Unit,
     modifier: Modifier = Modifier,
     leading: @Composable () -> Unit = {},
     plates: @Composable () -> Unit = {},
@@ -129,28 +143,24 @@ internal fun HomeTopBar(
 ) {
     var choosingTimer by remember { mutableStateOf(false) }
     var searching by remember { mutableStateOf(false) }
+    var choosingInput by remember { mutableStateOf(false) }
     val settings = remember { FocusRequester() }
     // One node for the caller, dialogs and all: a dialog leaves a node of its own where it is called,
     // and in a column or a row that node would take a gap and push the rest.
     Box(modifier) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().enteredFromBelowAt(settings),
-        ) {
-            Box(Modifier.weight(1f)) { leading() }
-            plates()
+        BarLine(state.look.place, leading, plates, Modifier.fillMaxWidth().enteredFromBelowAt(settings)) {
             Capsule(state, status) {
                 TopBarActions(
-                    search = state.search,
-                    sleepMinutesLeft = state.sleepMinutesLeft,
+                    state = state,
                     onSearch = { if (state.search == SearchTarget.System) onSystemSearch() else searching = true },
+                    onInputs = { choosingInput = true },
                     onSleepTimer = { choosingTimer = true },
                     onOpenSettings = onOpenSettings,
                     settings = settings,
                 )
             }
         }
+        if (choosingInput) InputsDialog(state.inputs, onInput, onDismiss = { choosingInput = false })
         if (choosingTimer) {
             SleepTimerDialog(
                 left = state.sleepMinutesLeft,
@@ -175,6 +185,44 @@ internal fun HomeTopBar(
     }
 }
 
+/**
+ * The line laid out for the capsule's [place]: [leading] takes what room the capsule leaves at its
+ * free side, so the two never overlap; the [plates] stand by the capsule, on its side away from the
+ * edge. In the middle, room as wide is kept at either side.
+ */
+@Composable
+private fun BarLine(
+    place: BarPlace,
+    leading: @Composable () -> Unit,
+    plates: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    capsule: @Composable () -> Unit,
+) {
+    // At the left the line is laid out from the right: the capsule keeps the edge, the plates follow it.
+    val direction = if (place == BarPlace.Left) LayoutDirection.Rtl else LayoutDirection.Ltr
+    CompositionLocalProvider(LocalLayoutDirection provides direction) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = modifier,
+        ) {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                Box(
+                    contentAlignment = if (place == BarPlace.Left) Alignment.CenterEnd else Alignment.CenterStart,
+                    modifier = Modifier.weight(1f),
+                ) { leading() }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    plates()
+                    capsule()
+                }
+            }
+            if (place == BarPlace.Center) Spacer(Modifier.weight(1f))
+        }
+    }
+}
+
 /** The capsule: what is only shown, then the [status] and the [actions], which take the focus. */
 @Composable
 private fun Capsule(
@@ -183,10 +231,15 @@ private fun Capsule(
     modifier: Modifier = Modifier,
     actions: @Composable () -> Unit,
 ) {
+    val marks = LocalScreenMarks.current
     Row(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier.capsule().padding(start = 20.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+        modifier = modifier
+            // Where the bar is, for the settings that keep their panel clear of it while it is lit.
+            .onGloballyPositioned { marks.bar = it.boundsInRoot() }
+            .capsule()
+            .padding(start = 20.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
     ) {
         val now = rememberMinuteClock()
         state.weather?.let {
@@ -198,9 +251,9 @@ private fun Capsule(
             Spacer(Modifier.width(WEATHER_WIDTH))
             BarDivider()
         }
-        if (state.showDate) {
+        barDateText(now, state.look.date)?.let { date ->
             Text(
-                shortDateText(now),
+                date,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -253,19 +306,22 @@ private fun WeatherNow(shown: ShownWeather, modifier: Modifier = Modifier) {
 }
 
 /**
- * The capsule's buttons: search (left out when the device has none), the sleep timer, which says
- * how long is left while it runs, and settings, always the last on the right.
+ * The capsule's buttons, those the user keeps: search (left out also when the device has none), the
+ * inputs (where the device has them), the sleep timer, which says how long is left while it runs
+ * (then even when the user left it out), and settings, always there and the last on the right.
  */
 @Composable
 private fun TopBarActions(
-    search: SearchTarget?,
-    sleepMinutesLeft: Int?,
+    state: TopBarState,
     onSearch: () -> Unit,
+    onInputs: () -> Unit,
     onSleepTimer: () -> Unit,
     onOpenSettings: () -> Unit,
     settings: FocusRequester,
     modifier: Modifier = Modifier,
 ) {
+    val search = state.search
+    val sleepMinutesLeft = state.sleepMinutesLeft
     val focus = LocalHomeFocus.current
     Row(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -278,19 +334,27 @@ private fun TopBarActions(
                 Icon(painterResource(R.drawable.ic_search), contentDescription = stringResource(label))
             }
         }
+        if (state.look.inputs && state.inputs.isNotEmpty()) {
+            IconButton(onClick = onInputs, modifier = Modifier.homeFocus(focus, FocusKey(FocusKey.BAR, "inputs"))) {
+                Icon(
+                    painterResource(R.drawable.ic_input_hdmi),
+                    contentDescription = stringResource(R.string.home_inputs),
+                )
+            }
+        }
         val sleep = Modifier.homeFocus(focus, FocusKey(FocusKey.BAR, "sleep"))
-        if (sleepMinutesLeft == null) {
+        if (sleepMinutesLeft != null) {
+            Button(onClick = onSleepTimer, modifier = sleep) {
+                Icon(painterResource(R.drawable.ic_bedtime), contentDescription = null, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.home_sleep_minutes, sleepMinutesLeft), maxLines = 1)
+            }
+        } else if (state.look.sleep) {
             IconButton(onClick = onSleepTimer, modifier = sleep) {
                 Icon(
                     painterResource(R.drawable.ic_bedtime),
                     contentDescription = stringResource(R.string.home_sleep_timer),
                 )
-            }
-        } else {
-            Button(onClick = onSleepTimer, modifier = sleep) {
-                Icon(painterResource(R.drawable.ic_bedtime), contentDescription = null, modifier = Modifier.size(22.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.home_sleep_minutes, sleepMinutesLeft), maxLines = 1)
             }
         }
         IconButton(
@@ -300,6 +364,16 @@ private fun TopBarActions(
             Icon(painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.home_settings))
         }
     }
+}
+
+/** The inputs button's list: OK on one switches to it. */
+@Composable
+private fun InputsDialog(inputs: List<InputSource>, onInput: (InputSource) -> Unit, onDismiss: () -> Unit) {
+    ChoiceDialog(
+        title = stringResource(R.string.home_inputs),
+        choices = inputs.map { input -> Choice(input.name) { onInput(input) } },
+        onDismiss = onDismiss,
+    )
 }
 
 @Composable
@@ -320,6 +394,7 @@ internal fun SleepTimerDialog(left: Int?, onChoose: (Int?) -> Unit, onDismiss: (
 }
 
 private const val DIVIDER_ALPHA = 0.2f
+
 private const val CAPSULE_ALPHA = 0.6f
 
 /** As tall as the capsule with its buttons: what the line takes before there is anything to draw. */

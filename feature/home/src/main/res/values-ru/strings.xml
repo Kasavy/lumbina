@@ -22,6 +22,7 @@
 
     <string name="name_app">Переименовать «%1$s»</string>
     <string name="name_app_hint">Оставьте пустым, чтобы вернуть исходное название</string>
+    <string name="name_input_hint">Оставьте пустым, чтобы вернуть название входа</string>
     <string name="name_category">Новая категория</string>
     <string name="name_folder">Новая папка</string>
     <string name="name_save">Сохранить</string>
@@ -29,6 +30,7 @@
     <string name="default_category_name">Категория</string>
     <string name="default_folder_name">Папка</string>
     <string name="home_sleep_timer">Таймер сна</string>
+    <string name="home_inputs">Входы</string>
     <string name="home_sleep_in">Выключить через %1$d мин</string>
     <string name="home_sleep_cancel">Отменить таймер</string>
     <string name="home_watch_next">Продолжить просмотр</string>
@@ -41,8 +43,8 @@
     <string name="undo_notices_muted">Уведомления от «%1$s» скрыты</string>
     <string name="failed_notice">Не удалось открыть уведомление</string>
     <string name="notices_none">Уведомлений больше нет</string>
-    <string name="failed_system_search">Поиск не открылся. Смените «Где искать» в настройках, в разделе «Виджеты»</string>
-    <string name="failed_youtube_search">Не удалось открыть поиск в YouTube. Проверьте приложение для YouTube в настройках, в разделе «Виджеты»</string>
+    <string name="failed_system_search">Поиск не открылся. Смените «Где искать» в настройках, в разделе «Верхняя панель»</string>
+    <string name="failed_youtube_search">Не удалось открыть поиск в YouTube. Проверьте приложение для YouTube в настройках, в разделе «Верхняя панель»</string>
     <string name="status_no_internet">Нет интернета</string>
     <string name="home_recently_installed">Недавно установленные</string>
     <string name="menu_banner">Свой баннер…</string>
@@ -98,6 +100,7 @@
     <string name="folder_title">Папка «%1$s»</string>
     <string name="move_hint">Перемещение %1$s · ◀ ▶ сдвинуть · OK поставить · Назад отменить</string>
     <string name="failed_app">Не удалось открыть %1$s. Попробуйте ещё раз</string>
+    <string name="failed_input">Не удалось переключить на %1$s</string>
     <string name="failed_program">Не удалось открыть программу. Откройте %1$s и найдите её там</string>
     <string name="folder_rename_title">Переименовать папку</string>
     <string name="home_opened">Недавно открытые</string>
@@ -115,6 +118,8 @@
     <string name="undo_folder_dissolved">Папка «%1$s» расформирована</string>
     <string name="undo_row_hidden">Ряд «%1$s» скрыт</string>
     <string name="shortcut_hint">Открывает экран всех приложений</string>
+    <string name="input_hint">Переключает на этот вход</string>
+    <string name="menu_group_input">Вход</string>
     <string name="undo_shortcut_removed">Плитка убрана. «Все приложения» открываются и из быстрого меню</string>
     <string name="channels_need_access">Нужен доступ к каналам приложений</string>
     <string name="channels_allow">Разрешить</string>
@@ -124,11 +129,13 @@
     <string name="where_hint">Можно отметить несколько мест</string>
     <string name="pick_apps_add">Добавить приложения</string>
     <string name="pick_apps_hint">OK отмечает приложение, ряд меняется сразу</string>
+    <string name="pick_apps_hint_inputs">OK отмечает приложение или вход, ряд меняется сразу</string>
     <string name="pick_apps_title">Что показывать в «%1$s»</string>
     <string name="pick_apps_title_favorites">Что показывать в «Избранном»</string>
     <string name="pick_apps_count">выбрано %1$d</string>
     <string name="pick_apps_in_row">В ряду</string>
     <string name="pick_apps_rest">Остальные по алфавиту</string>
+    <string name="pick_apps_inputs">Входы</string>
     <string name="pick_apps_in_folder">в папке «%1$s»</string>
     <string name="name_own">Своё…</string>
     <string-array name="ready_names">

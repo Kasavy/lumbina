@@ -26,6 +26,16 @@ class ChannelRowsTest {
     }
 
     @Test
+    fun `continue watching leaves out the apps taken out of it and those not installed, yet they are watched`() {
+        val cards = listOf("tube", "kino", "tube", "gone").mapIndexed { i, app ->
+            ProgramCard(i.toLong(), app, "t$i", null, null, null, null)
+        }
+        val shown = cards.shownWatchNext(ChannelSettings(hiddenWatchNext = setOf("tube")), labels)
+        assertEquals(listOf("kino"), shown.map { it.packageName })
+        assertEquals(setOf("tube", "kino"), cards.watchedApps(labels))
+    }
+
+    @Test
     fun `channels go in the user's order, the ones it does not name after them as they came`() {
         val keys = listOf("tube/top", "kino/new", "tube/news", "kino/old")
         assertEquals(

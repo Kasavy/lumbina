@@ -11,6 +11,7 @@ import dev.lumbina.tv.core.domain.backdrop.MediaLibrary
 import dev.lumbina.tv.core.domain.backdrop.ShowOnWallpaper
 import dev.lumbina.tv.core.domain.device.DeviceProfile
 import dev.lumbina.tv.core.domain.device.FirmwareParts
+import dev.lumbina.tv.core.domain.device.InputCatalog
 import dev.lumbina.tv.core.domain.home.HomeAppearanceRepository
 import dev.lumbina.tv.core.domain.home.HomeLayoutRepository
 import dev.lumbina.tv.core.domain.phone.LocalAddress
@@ -39,6 +40,7 @@ internal object RemoteDeps {
         val log: LumbinaLog,
         val screens: DeviceScreens,
         val address: LocalAddress,
+        val inputs: InputCatalog,
     )
 
     class Apps @Inject constructor(

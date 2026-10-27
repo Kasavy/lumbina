@@ -53,6 +53,9 @@
     <string name="quick_title">Lumbina</string>
     <string name="quick_page_keys">Back to the list</string>
     <string name="quick_sleep">Sleep timer</string>
+    <string name="quick_source">Input</string>
+    <string name="quick_smart_tv">Smart TV</string>
+    <string name="quick_input_failed">Could not switch to %1$s</string>
     <string name="quick_sleep_left">%1$d min</string>
     <string name="quick_off">off</string>
     <string name="quick_no_network">no network</string>

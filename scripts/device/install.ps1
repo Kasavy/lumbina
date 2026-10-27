@@ -7,10 +7,10 @@ Push-Location $Root
 try { & .\gradlew.bat $task; if ($LASTEXITCODE) { throw "build failed" } } finally { Pop-Location }
 $apk = Get-ChildItem "$Root\app\build\outputs\apk\foss\$Type\*.apk" -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $apk) { throw "no APK in app\build\outputs\apk\foss\$Type" }
-# A build for Hisense needs the process name prefix ("Build" in the README).
+# Release APKs have a process name prefix ("Build" in the README); a build without it is not one.
 $prefixed = $env:LUMBINA_PROCESS_PREFIX -or
     (Select-String -Path "$Root\local.properties" -Pattern '^lumbina.processPrefix=' -Quiet -ErrorAction SilentlyContinue)
-if (-not $prefixed -and ((& $Adb shell pm list packages com.jamdeo.tv.vod) -match 'jamdeo')) {
+if (-not $prefixed) {
     Write-Warning 'this build has no process name prefix, see "Build" in the README'
 }
 & $Adb install -r $apk.FullName

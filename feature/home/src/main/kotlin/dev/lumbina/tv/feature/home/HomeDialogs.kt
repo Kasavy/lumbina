@@ -111,8 +111,23 @@ sealed interface HomeDialog {
 
     data class NameAndBanner(val app: App) : HomeDialog
 
-    /** The menu of the shortcut to all apps. */
-    data object ShortcutActions : HomeDialog
+    /** About the tile that opens all apps. */
+    sealed interface ShortcutDialog : HomeDialog
+
+    /** The menu of the tile that opens all apps, in the section with [sectionId]. */
+    data class ShortcutActions(val sectionId: String) : ShortcutDialog
+
+    /** The rows that have the tile that opens all apps, ticked. */
+    data object ShortcutWhere : ShortcutDialog
+
+    /** About an input's tile. */
+    sealed interface InputDialog : HomeDialog
+
+    /** The menu of an input's tile, in the section with [sectionId]. */
+    data class InputActions(val sectionId: String, val input: TileContent.InputTile) : InputDialog
+
+    /** The rows that have the tile of [input], ticked. */
+    data class InputWhere(val input: TileContent.InputTile) : InputDialog
 
     /** The apps to tick for one section, opened by its "+" tile. */
     data class PickApps(val sectionId: String) : HomeDialog
@@ -132,6 +147,8 @@ sealed interface HomeDialog {
     data class VoiceName(val app: App, val name: String) : Naming
 
     data class RenameFolder(val folderId: String, val name: String) : Naming
+
+    data class RenameInput(val input: TileContent.InputTile) : Naming
 }
 
 /** [anchor]: see [MenuState.at]; for the dialogs that name the tile. */
@@ -186,19 +203,61 @@ internal fun HomeDialogs(
 
         is HomeDialog.PickApps -> PickApps(dialog, state, commands, back)
 
-        HomeDialog.ShortcutActions -> TileMenu(
-            title = stringResource(R.string.home_all_apps),
-            entries = listOf(
-                MenuEntry(stringResource(R.string.menu_move), "◀ ▶") {
-                    startMoving(Moving(HomeSection.FAVORITES, HomeItem.AllApps.key))
-                },
-                MenuEntry(stringResource(R.string.menu_out_of_favorites)) { commands.removeShortcut() },
-            ),
-            onDismiss = done,
-            onBack = back,
-            subtitle = stringResource(R.string.shortcut_hint),
+        is HomeDialog.ShortcutDialog -> ShortcutDialogs(dialog, state, commands, menu, startMoving)
+
+        is HomeDialog.InputDialog -> InputDialogs(dialog, state, commands, menu, startMoving)
+    }
+}
+
+/** The tile that opens all apps: its menu, and the rows that have it. */
+@Composable
+private fun ShortcutDialogs(
+    dialog: HomeDialog.ShortcutDialog,
+    state: HomeUiState,
+    commands: HomeCommands,
+    menu: MenuState,
+    startMoving: (Moving) -> Unit,
+) {
+    when (dialog) {
+        is HomeDialog.ShortcutActions -> ShortcutMenu(dialog, state, commands, menu, startMoving)
+
+        HomeDialog.ShortcutWhere -> OnceTileWhere(
+            tile = stringResource(R.string.home_all_apps),
+            layout = state.layout,
+            has = state.layout::hasAllApps,
+            set = commands::setAllApps,
+            menu = menu,
+            dialog = dialog,
         )
     }
+}
+
+/** Holding OK on the tile that opens all apps: move it, the rows that have it, take it out of this one. */
+@Composable
+private fun ShortcutMenu(
+    dialog: HomeDialog.ShortcutActions,
+    state: HomeUiState,
+    commands: HomeCommands,
+    menu: MenuState,
+    startMoving: (Moving) -> Unit,
+) {
+    val section = state.layout.section(dialog.sectionId) ?: return
+    TileMenu(
+        title = stringResource(R.string.home_all_apps),
+        entries = onceTileEntries(
+            section = section,
+            layout = state.layout,
+            has = state.layout::hasAllApps,
+            onMove = { startMoving(Moving(section.id, HomeItem.AllApps.key)) },
+            onOut = { commands.removeAllApps(section.id) },
+            onWhere = { menu.show(HomeDialog.ShortcutWhere) },
+        ),
+        onDismiss = { menu.done(dialog) },
+        onBack = menu::back,
+        subtitle = stringResource(R.string.shortcut_hint),
+        focused = menu.cameBackTo,
+        onChoose = menu::chose,
+    )
 }
 
 /**
@@ -414,6 +473,15 @@ private fun NamingDialog(
             anchor = anchor,
             needsText = true,
         )
+
+        is HomeDialog.RenameInput -> Name(
+            title = stringResource(R.string.name_app, dialog.input.name),
+            initial = dialog.input.name,
+            onSave = { commands.renameInput(dialog.input.id, it) },
+            onDismiss = dismiss,
+            anchor = anchor,
+            hint = stringResource(R.string.name_input_hint),
+        )
     }
 }
 
@@ -465,4 +533,4 @@ private fun Name(
 )
 
 @Composable
-private fun HomeSection.title(): String = if (isFavorites) stringResource(R.string.home_favorites) else name
+internal fun HomeSection.title(): String = if (isFavorites) stringResource(R.string.home_favorites) else name

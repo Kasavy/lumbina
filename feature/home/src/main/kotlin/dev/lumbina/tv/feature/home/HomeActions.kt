@@ -11,7 +11,6 @@ import dev.lumbina.tv.core.domain.app.App
 import dev.lumbina.tv.core.domain.channels.ProgramCard
 import dev.lumbina.tv.core.domain.home.HomeItem
 import dev.lumbina.tv.core.domain.home.HomeRow
-import dev.lumbina.tv.core.domain.home.HomeSection
 import dev.lumbina.tv.core.domain.home.TileContent
 import dev.lumbina.tv.core.ui.TileAnchor
 
@@ -21,10 +20,14 @@ class HomeActions(
     val openFolder: (TileContent.FolderTile) -> Unit,
     val appMenu: (App, Place) -> Unit,
     val folderMenu: (String, TileContent.FolderTile) -> Unit,
-    /** Holding OK on the tile that opens all apps, in Favorites. */
-    val shortcutMenu: () -> Unit,
-    /** The "All apps" screen: from its tile in Favorites, and the last tile of "Apps". */
+    /** Holding OK on the tile that opens all apps, in the section with this id. */
+    val shortcutMenu: (String) -> Unit,
+    /** The "All apps" screen: from its tile in a row, and the last tile of "Apps". */
     val openAllApps: () -> Unit,
+    /** OK on an input's tile: the device switches to it. */
+    val openInput: (TileContent.InputTile) -> Unit,
+    /** Holding OK on an input's tile, in the section with this id. */
+    val inputMenu: (String, TileContent.InputTile) -> Unit,
     /** The "+" at the end of a row: the apps to tick for the section with this id. */
     val pickApps: (String) -> Unit,
     val move: (Int) -> Unit,
@@ -74,11 +77,16 @@ internal fun rememberHomeActions(
                 viewModel.onMenuOpened()
                 menu.open(HomeDialog.FolderActions(sectionId, folder), Moving(sectionId, folder.key))
             },
-            shortcutMenu = {
+            shortcutMenu = { sectionId ->
                 viewModel.onMenuOpened()
-                menu.open(HomeDialog.ShortcutActions, Moving(HomeSection.FAVORITES, HomeItem.AllApps.key))
+                menu.open(HomeDialog.ShortcutActions(sectionId), Moving(sectionId, HomeItem.AllApps.key))
             },
             openAllApps = openAllApps,
+            openInput = { viewModel.openInput(it.id, it.name) },
+            inputMenu = { sectionId, input ->
+                viewModel.onMenuOpened()
+                menu.open(HomeDialog.InputActions(sectionId, input), Moving(sectionId, input.key))
+            },
             pickApps = { menu.open(HomeDialog.PickApps(it)) },
             move = { by -> moving.tile?.let { viewModel.moveItem(it.sectionId, it.key, by) } },
             stopMoving = { moving.tile = null },
@@ -93,4 +101,12 @@ internal fun rememberHomeActions(
             anchor = menu.anchor,
         )
     }
+}
+
+/** OK on a tile: while it is moved, it is put down there; else [open]. */
+internal fun HomeActions.click(moving: Boolean, open: () -> Unit) = if (moving) stopMoving() else open()
+
+/** Holding OK on a tile opens its [menu], not while it is moved. */
+internal fun hold(moving: Boolean, menu: () -> Unit) {
+    if (!moving) menu()
 }

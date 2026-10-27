@@ -2,6 +2,7 @@ package dev.lumbina.tv.feature.settings
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
@@ -35,12 +36,14 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.offset
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -54,8 +57,11 @@ import dev.lumbina.tv.core.domain.health.AccessibilityHealth
 import dev.lumbina.tv.core.domain.home.RowSpotlight
 import dev.lumbina.tv.core.domain.status.DeviceScreens
 import dev.lumbina.tv.core.ui.FreshPressGuard
+import dev.lumbina.tv.core.ui.LocalPanelTop
+import dev.lumbina.tv.core.ui.LocalScreenMarks
 import dev.lumbina.tv.core.ui.SCRIM_ALPHA
 import dev.lumbina.tv.core.ui.SidePanelSurface
+import dev.lumbina.tv.core.ui.panelTopClearOf
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
@@ -104,8 +110,11 @@ class SettingsPagesViewModel @Inject constructor(
 ) : ViewModel() {
     val hidden: Set<SettingsPage> = hiddenPages(localAdb = profile.localAdb, remoteMic = profile.hasRemoteMic)
 
-    /** The row of home being worked on: home dims itself around it, so the panel lays no dimming of its own. */
-    val spotlit: StateFlow<String?> = spotlight.key
+    /**
+     * The row of home being worked on: home dims itself around it, so the panel lays no dimming of
+     * its own; for the top bar the panel also begins below it.
+     */
+    val spotlit: StateFlow<String?> = spotlight.lit
 
     val hasDeviceSettings: Boolean = device.hasSettings()
 
@@ -169,7 +178,7 @@ fun SettingsRoute(
     }
     val open = page
     val spotlit by pages.spotlit.collectAsStateWithLifecycle()
-    SettingsPanel(open, inside, park, modifier, hidden = adjusting != null, homeDims = spotlit != null) {
+    SettingsPanel(open, inside, park, modifier, hidden = adjusting != null, spotlit = spotlit) {
         if (open == null) {
             Root(
                 hidden = pages.hidden,
@@ -195,13 +204,13 @@ fun SettingsRoute(
             CompositionLocalProvider(
                 LocalSettingsLinks provides SettingsLinks(page = follow, setup = onSetup, media = onOpenMedia),
                 LocalSubPage provides { inside = it },
-                LocalAdjustSize provides { adjusting = it },
+                LocalAdjust provides { adjusting = it },
             ) {
                 SettingsPageContent(open, onPreviewScreensaver, openAccess)
             }
         }
     }
-    adjusting?.let { row -> SizeSlider(row, onDone = { adjusting = null }) }
+    adjusting?.let { key -> Adjusting(key, onDone = { adjusting = null }) }
 }
 
 /** Opens the device's own settings and says so when the device won't; null where it has none to open. */
@@ -228,7 +237,7 @@ private fun SettingsPanel(
     park: FocusRequester,
     modifier: Modifier = Modifier,
     hidden: Boolean = false,
-    homeDims: Boolean = false,
+    spotlit: String? = null,
     content: @Composable () -> Unit,
 ) {
     val rows = remember { FocusRequester() }
@@ -255,7 +264,12 @@ private fun SettingsPanel(
     val pageTitle = page?.let { stringResource(it.title) }
     // Hidden, not gone: what is open in it and where its focus is must be there when it comes back.
     // While a row of home is worked on, home dims itself with a window over that row.
-    val scrim = if (hidden || homeDims) 0f else SCRIM_ALPHA
+    val scrim = if (hidden || spotlit != null) 0f else SCRIM_ALPHA
+    // The top bar lit stays where it is set, however long its date: the panel begins below it where
+    // they would overlap. Moved as it is laid out, not composed: the page is not built again each frame.
+    val barMark = LocalScreenMarks.current
+    val belowBar = if (spotlit == RowSpotlight.TOP_BAR) panelTopClearOf(barMark.bar) else 0.dp
+    val panelTop = animateDpAsState(belowBar)
     Box(modifier.fillMaxSize().background(Color.Black.copy(alpha = scrim))) {
         SidePanelSurface(
             title = inside?.title ?: pageTitle ?: settings,
@@ -264,13 +278,22 @@ private fun SettingsPanel(
             keyHint = inside?.keys,
             modifier = Modifier
                 .align(Alignment.CenterEnd)
+                .layout { measurable, constraints ->
+                    val top = panelTop.value.roundToPx()
+                    val placeable = measurable.measure(constraints.offset(vertical = -top))
+                    layout(placeable.width, placeable.height + top) { placeable.place(0, top) }
+                }
                 .graphicsLayer { alpha = if (hidden) 0f else 1f }
                 .onPreviewKeyEvent(guard::swallow),
         ) {
             // Where the focus waits while one page's rows give way to another's: left with nothing
             // to stand on, it would jump to the home screen behind for a frame.
             Box(Modifier.focusRequester(park).focusable())
-            CompositionLocalProvider(LocalParkFocus provides { runCatching { park.requestFocus() } }) {
+            CompositionLocalProvider(
+                LocalParkFocus provides { runCatching { park.requestFocus() } },
+                // The lists a page opens begin as low as the panel.
+                LocalPanelTop provides belowBar,
+            ) {
                 Box(Modifier.fillMaxSize().focusRequester(rows).keepsArrows().focusGroup()) { content() }
             }
         }

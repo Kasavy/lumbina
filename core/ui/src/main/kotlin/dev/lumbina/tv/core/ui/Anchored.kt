@@ -82,10 +82,12 @@ private class AnchorNode(var anchor: TileAnchor) :
 
 /**
  * A panel on top of everything, under [anchor] and lined up with its left edge; above it when
- * there is no room below. Without an anchor it sits at the top in the middle. Back closes it.
+ * there is no room below. Without an anchor it sits at the top in the middle, below [LocalPanelTop].
+ * Back closes it.
  */
 @Composable
 internal fun AnchoredPanel(anchor: Rect?, width: Dp, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    val clear = LocalPanelTop.current
     Popup(onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
         Layout(
             content = {
@@ -104,7 +106,7 @@ internal fun AnchoredPanel(anchor: Rect?, width: Dp, onDismiss: () -> Unit, cont
             val y: Int
             if (anchor == null) {
                 x = (constraints.maxWidth - panel.width) / 2
-                y = margin
+                y = margin + clear.roundToPx()
             } else {
                 x =
                     anchor.left.toInt().coerceIn(

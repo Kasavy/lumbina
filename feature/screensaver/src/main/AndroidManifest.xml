@@ -13,9 +13,12 @@
             </intent-filter>
         </service>
 
+        <!-- A task of its own: leaving it goes back to the screen it covered (a button shows it over any app). -->
         <activity
             android:name=".ScreensaverActivity"
+            android:excludeFromRecents="true"
             android:exported="false"
+            android:taskAffinity=""
             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
             <intent-filter>
                 <action android:name="dev.lumbina.tv.action.SHOW_SCREENSAVER" />

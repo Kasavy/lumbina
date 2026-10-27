@@ -2,26 +2,35 @@ package dev.lumbina.tv.feature.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
+import dev.lumbina.tv.core.domain.home.BarDate
+import dev.lumbina.tv.core.domain.home.BarPlace
 import dev.lumbina.tv.core.domain.home.ClockFormat
-import dev.lumbina.tv.core.domain.home.HomeAppearance
+import dev.lumbina.tv.core.domain.home.RowSpotlight
 import dev.lumbina.tv.core.domain.text.SearchTarget
 import dev.lumbina.tv.core.domain.weather.Place
 import dev.lumbina.tv.core.ui.Choice
 import dev.lumbina.tv.core.ui.ChoiceDialog
 import dev.lumbina.tv.core.ui.NameDialog
+import dev.lumbina.tv.core.ui.barDateText
+import dev.lumbina.tv.core.ui.rememberMinuteClock
 
-/** Home screen → Widgets. */
+/** The top bar's page: where the bar stands, what it shows, then the clock, the weather, search and the rest. */
 @Composable
 fun WidgetsPanel(
     state: WidgetsState?,
@@ -34,7 +43,18 @@ fun WidgetsPanel(
     SettingsColumn(modifier) {
         Note(stringResource(R.string.widgets_note))
 
-        ClockSection(look, commands)
+        PlaceRow(look.topBar.place)
+        ShownSection(state, commands)
+
+        Header(stringResource(R.string.widgets_clock))
+        ChoiceRow(
+            title = stringResource(R.string.widgets_clock_format),
+            options = ClockFormat.entries.map { format ->
+                Choice(stringResource(format.title), chosen = format == look.clockFormat) {
+                    commands.setClockFormat(format)
+                }
+            },
+        )
 
         WeatherSection(
             show = state.weather.show,
@@ -97,14 +117,9 @@ private fun WeatherSection(
     // The "automatic" row disappears once chosen; focus moves up instead of leaving the panel.
     val cityFocus = remember { FocusRequester() }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = modifier) {
-        Header(stringResource(R.string.weather_header))
-        SwitchRow(
-            title = stringResource(R.string.widgets_show_weather),
-            hint = stringResource(R.string.widgets_weather_hint),
-            checked = show,
-            onClick = commands::toggleWeather,
-        )
+        // Switched in "what to show"; with it off there is nothing to set.
         if (!show) return@Column
+        Header(stringResource(R.string.weather_header))
         SettingRow(
             onClick = { typingCity = true },
             headlineContent = { Text(stringResource(R.string.weather_city)) },
@@ -192,21 +207,77 @@ private fun MutedNotices(muted: List<Pair<String, String>>, onMute: (String, Boo
     }
 }
 
+/** Where the bar stands; OK puts the panel away, and the bar is moved on home itself ([BarPlacer]). */
 @Composable
-private fun ClockSection(look: HomeAppearance, commands: WidgetsCommands) {
-    Header(stringResource(R.string.widgets_clock))
-    SwitchRow(
-        title = stringResource(R.string.widgets_show_date),
-        hint = null,
-        checked = look.showDate,
-        onClick = commands::toggleDate,
-    )
-    ChoiceRow(
-        title = stringResource(R.string.widgets_clock_format),
-        options = ClockFormat.entries.map { format ->
-            Choice(stringResource(format.title), chosen = format == look.clockFormat) {
-                commands.setClockFormat(format)
+private fun PlaceRow(place: BarPlace, modifier: Modifier = Modifier) {
+    val adjust = LocalAdjust.current
+    SettingRow(
+        onClick = { adjust(RowSpotlight.TOP_BAR) },
+        headlineContent = { Text(stringResource(R.string.bar_place)) },
+        modifier = modifier,
+        trailingContent = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(place.title), maxLines = 1)
+                Icon(painterResource(R.drawable.ic_chevron_right), contentDescription = null, Modifier.size(20.dp))
             }
         },
     )
 }
+
+/**
+ * What the bar shows: the weather, the date in the form chosen (each form written out as it would
+ * show today), the bell and the buttons; the inputs' only where the device has inputs.
+ */
+@Composable
+private fun ShownSection(state: WidgetsState, commands: WidgetsCommands) {
+    val bar = state.appearance.topBar
+    Header(stringResource(R.string.bar_show))
+    SwitchRow(
+        title = stringResource(R.string.weather_header),
+        hint = stringResource(R.string.widgets_weather_hint),
+        checked = state.weather.show,
+        onClick = commands::toggleWeather,
+    )
+    val now = rememberMinuteClock()
+    ChoiceRow(
+        title = stringResource(R.string.bar_date),
+        options = BarDate.entries.map { date ->
+            val label = barDateText(now, date) ?: stringResource(R.string.bar_date_none)
+            Choice(label, chosen = date == bar.date) { commands.changeTopBar { it.copy(date = date) } }
+        },
+    )
+    SwitchRow(
+        title = stringResource(R.string.bar_notices),
+        hint = stringResource(R.string.bar_notices_hint),
+        checked = bar.notices,
+        onClick = { commands.changeTopBar { it.copy(notices = !it.notices) } },
+    )
+    SwitchRow(
+        title = stringResource(R.string.bar_search),
+        hint = null,
+        checked = bar.search,
+        onClick = { commands.changeTopBar { it.copy(search = !it.search) } },
+    )
+    SwitchRow(
+        title = stringResource(R.string.bar_sleep),
+        hint = stringResource(R.string.bar_sleep_hint),
+        checked = bar.sleep,
+        onClick = { commands.changeTopBar { it.copy(sleep = !it.sleep) } },
+    )
+    if (state.inputs) {
+        SwitchRow(
+            title = stringResource(R.string.bar_inputs),
+            hint = stringResource(R.string.bar_inputs_hint),
+            checked = bar.inputs,
+            onClick = { commands.changeTopBar { it.copy(inputs = !it.inputs) } },
+        )
+    }
+    Note(stringResource(R.string.bar_settings_always))
+}
+
+internal val BarPlace.title: Int
+    get() = when (this) {
+        BarPlace.Right -> R.string.bar_place_right
+        BarPlace.Left -> R.string.bar_place_left
+        BarPlace.Center -> R.string.bar_place_center
+    }

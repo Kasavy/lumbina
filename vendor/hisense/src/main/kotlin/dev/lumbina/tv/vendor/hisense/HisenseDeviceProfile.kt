@@ -8,6 +8,7 @@ import dev.lumbina.tv.core.domain.device.DeviceFingerprint
 import dev.lumbina.tv.core.domain.device.DeviceProfile
 import dev.lumbina.tv.core.domain.device.DeviceVolume
 import dev.lumbina.tv.core.domain.device.FirmwarePart
+import dev.lumbina.tv.core.domain.device.InputSources
 import dev.lumbina.tv.core.domain.remote.KeyMap
 import dev.lumbina.tv.core.domain.remote.RemoteKey
 import dev.lumbina.tv.core.domain.speech.AudioSource
@@ -22,7 +23,8 @@ import javax.inject.Inject
  * events without a scan code (keys injected with `adb shell input keyevent` never reach the
  * accessibility service, though).
  */
-class HisenseDeviceProfile @Inject constructor(hisenseVolume: HisenseVolume) : DeviceProfile {
+class HisenseDeviceProfile @Inject constructor(hisenseVolume: HisenseVolume, hisenseInputs: HisenseInputs) :
+    DeviceProfile {
     override val id = "hisense-vidaa"
     override val priority = 100
 
@@ -62,6 +64,8 @@ class HisenseDeviceProfile @Inject constructor(hisenseVolume: HisenseVolume) : D
 
     /** The music stream stays at full; the firmware sets the level in its sound processor. */
     override val volume: DeviceVolume = hisenseVolume
+
+    override val inputs: InputSources = hisenseInputs
 
     /** "USB debugging" also opens adb on port 5555 of the network. */
     override val localAdb = true

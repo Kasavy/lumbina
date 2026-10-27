@@ -51,6 +51,5 @@ include(":vendor:hisense")
 
 include(":companion:tvprovider")
 
-// A module of local experiments, not part of the repository: built only on request and only
-// where the folder exists (./gradlew -Plab :lab:assembleDebug).
+// Local experiments: built only on request and only where the folder exists.
 if (providers.gradleProperty("lab").isPresent && file("lab").exists()) include(":lab")

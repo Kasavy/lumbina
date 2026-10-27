@@ -7,9 +7,10 @@ Lumbina asks for a lot. Here is what it does with each thing.
 Reads the remote's key presses to take over Home, the mic button, Menu on Lumbina's own screens
 and any button you gave something to do, and to notice idle time for the screensaver and
 auto-sleep. A button nothing is set on goes on to the device untouched. Knows which app is on
-screen: for recent apps, and to tell its own screens from another app's. Performs system actions:
+screen: for recent apps, to tell its own screens from another app's, and to bring you back to
+Lumbina with Back from an input you opened from it. Performs system actions:
 Back, arrows from the phone remote, standby; and what you set on a button: opening an app or a
-screen of Lumbina's, the player's keys, turning the screen off. Shows the quick menu, recent apps
+screen of Lumbina's, the player's keys, muting, the screensaver, turning the screen off. Shows the quick menu, recent apps
 and the voice overlay. Opens Lumbina when the device turns on, if you asked for that, and right
 after Lumbina is updated, if the update left the home screen in front.
 

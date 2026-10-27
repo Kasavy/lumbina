@@ -3,6 +3,7 @@ package dev.lumbina.tv.core.data.home
 import androidx.room.Room
 import dev.lumbina.tv.core.data.LumbinaDatabase
 import dev.lumbina.tv.core.domain.app.AppId
+import dev.lumbina.tv.core.domain.home.HomeItem
 import dev.lumbina.tv.core.domain.home.HomeLayout
 import dev.lumbina.tv.core.domain.home.HomeSection.Companion.FAVORITES
 import dev.lumbina.tv.core.domain.home.SectionStyle
@@ -34,8 +35,8 @@ class RoomHomeLayoutRepositoryTest {
     fun close() = database.close()
 
     @Test
-    fun `an empty database is a new layout, with the all-apps shortcut in favorites`() = runTest {
-        assertEquals(HomeLayout().withAllAppsShortcut(true), repository.layout.first())
+    fun `an empty database is a new layout, with the all-apps tile in favorites`() = runTest {
+        assertEquals(HomeLayout().withAllApps(FAVORITES, true), repository.layout.first())
     }
 
     @Test
@@ -45,8 +46,22 @@ class RoomHomeLayoutRepositoryTest {
             .addCategory("films", "Films").setStyle("films", SectionStyle.Grid)
             .add("films", b).add("films", a).createFolder("films", "f1", "Folder", a)
             .hide(c).rename(b, "Bee").voiceName(a, "эй")
+            .withAllApps("films", true)
+            .withInput(FAVORITES, "1281", true).withInput("films", "1281", true).renameInput("1281", "Приставка")
         repository.update { expected }
         assertEquals(expected, repository.layout.first())
+    }
+
+    @Test
+    fun `an input whose id has slashes in it is no app, and the layout saves again after it is named`() = runTest {
+        val hdmi = "com.tv.inputs/.HdmiService/HW5"
+        val named = HomeLayout().withInput(FAVORITES, hdmi, true).renameInput(hdmi, "Приставка")
+        repository.update { named }
+        repository.update { it.add(FAVORITES, a) }
+        val layout = repository.layout.first()
+        assertEquals(mapOf(hdmi to "Приставка"), layout.inputLabels)
+        assertEquals(emptyMap<AppId, String>(), layout.labels)
+        assertEquals(listOf(HomeItem.Input(hdmi), HomeItem.AppItem(a)), layout.favorites.items)
     }
 
     @Test
@@ -58,6 +73,11 @@ class RoomHomeLayoutRepositoryTest {
                 SectionItemEntity("films", 1, a.encode(), null),
                 SectionItemEntity("films", 2, c.encode(), null),
                 SectionItemEntity("films", 3, null, "empty"),
+                SectionItemEntity("films", 4, ALL_APPS_SHORTCUT, null),
+                SectionItemEntity("films", 5, ALL_APPS_SHORTCUT, null),
+                SectionItemEntity("films", 6, INPUT + "1281", null),
+                SectionItemEntity("films", 7, INPUT + "1281", null),
+                SectionItemEntity("films", 8, INPUT, null),
             ),
             folders = listOf(FolderEntity("empty", "Empty")),
             folderApps = emptyList(),
@@ -68,6 +88,10 @@ class RoomHomeLayoutRepositoryTest {
         val layout = rows.toLayout()
         assertEquals(listOf(FAVORITES, "films"), layout.sections.map { it.id })
         assertEquals(listOf(a), layout.section("films")!!.apps)
+        assertEquals(
+            listOf(HomeItem.AppItem(a), HomeItem.AllApps, HomeItem.Input("1281")),
+            layout.section("films")!!.items,
+        )
         assertEquals(SectionStyle.Row, layout.section("films")!!.style)
     }
 

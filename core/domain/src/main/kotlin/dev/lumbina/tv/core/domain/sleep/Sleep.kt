@@ -1,5 +1,6 @@
 package dev.lumbina.tv.core.domain.sleep
 
+import dev.lumbina.tv.core.domain.MILLIS_PER_MINUTE
 import dev.lumbina.tv.core.domain.MILLIS_PER_SECOND
 import dev.lumbina.tv.core.domain.settings.SettingsRepository
 
@@ -60,13 +61,11 @@ fun previousSleepTimer(minutesLeft: Int): Int? = SLEEP_TIMER_MINUTES.lastOrNull 
 
 /** Whole minutes (rounded up) until the sleep timer ends, or null when none runs. */
 fun SleepSettings.timerMinutesLeft(now: Long): Int? =
-    timerEndsAt?.let { ((it - now + MINUTE_MILLIS - 1) / MINUTE_MILLIS).toInt() }?.takeIf { it > 0 }
+    timerEndsAt?.let { ((it - now + MILLIS_PER_MINUTE - 1) / MILLIS_PER_MINUTE).toInt() }?.takeIf { it > 0 }
 
 /** A sleep timer ending [minutes] after [now]; null switches it off. */
 fun SleepSettings.withTimer(minutes: Int?, now: Long): SleepSettings =
-    copy(timerEndsAt = minutes?.let { now + it * MINUTE_MILLIS })
-
-private const val MINUTE_MILLIS = 60_000L
+    copy(timerEndsAt = minutes?.let { now + it * MILLIS_PER_MINUTE })
 
 typealias SleepSettingsRepository = SettingsRepository<SleepSettings>
 
@@ -169,6 +168,5 @@ class SleepClock(private val now: () -> Long, private val warnMillis: Long = DEF
     companion object {
         private const val STALE_TIMER_MILLIS = 30_000L
         private const val DEFAULT_WARN_MILLIS = 60_000L
-        private const val MILLIS_PER_MINUTE = 60_000L
     }
 }

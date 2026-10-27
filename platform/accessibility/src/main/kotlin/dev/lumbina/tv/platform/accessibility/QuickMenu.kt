@@ -4,6 +4,8 @@ import android.accessibilityservice.AccessibilityService
 import android.view.KeyEvent
 import dev.lumbina.tv.core.common.LumbinaActions
 import dev.lumbina.tv.core.domain.app.AppLauncher
+import dev.lumbina.tv.core.domain.device.InputCatalog
+import dev.lumbina.tv.core.domain.device.InputSources
 import dev.lumbina.tv.core.domain.phone.LocalAddress
 import dev.lumbina.tv.core.domain.phone.PhoneRemoteSettings
 import dev.lumbina.tv.core.domain.phone.phoneRemoteAddress
@@ -22,9 +24,10 @@ import kotlinx.coroutines.launch
 
 /**
  * The quick menu (long press on Home), only what the remote doesn't have: all apps, recent apps, the
- * sleep timer right there, the phone remote's code, and Lumbina's settings; under a line, the ways
- * out of Lumbina: the device's own settings and the other home screen (the device's own launcher
- * unless the user chose another). Volume, picture and power are the remote's own buttons. Main thread.
+ * video input where the device has inputs, the sleep timer right there, the phone remote's code, and
+ * Lumbina's settings; under a line, the ways out of Lumbina: the device's own settings and the other
+ * home screen (the device's own launcher unless the user chose another). Volume, picture and power
+ * are the remote's own buttons. Main thread.
  */
 internal class QuickMenu(
     private val service: AccessibilityService,
@@ -34,11 +37,16 @@ internal class QuickMenu(
     /** What the menu's items open or act on. */
     class Ports(
         val otherHome: Flow<HomeScreen?>,
+        /** The other home screen was opened from the menu: on purpose, so nothing covers it. */
+        val otherHomeOpened: () -> Unit,
         val launcher: AppLauncher,
         val recentApps: () -> Unit,
         val phone: Flow<PhoneRemoteSettings>,
         val address: LocalAddress,
         val screens: DeviceScreens,
+        /** The device's video inputs; null where it has none Lumbina reaches. */
+        val inputs: InputSources?,
+        val inputCatalog: InputCatalog,
         /** Says something at the bottom of the screen: what did not open. */
         val say: (String) -> Unit,
     )
@@ -55,12 +63,15 @@ internal class QuickMenu(
     private var otherHome: HomeScreen? = null
     private var phone = PhoneRemoteSettings()
 
+    private val source = ports.inputs?.let { QuickMenuSource(service, it, ports.inputCatalog, ports.say) }
+
     private val closedByKey = ClosedByKey()
 
     fun start(scope: CoroutineScope) {
         this.scope = scope
         scope.launch { ports.otherHome.collect { otherHome = it } }
         scope.launch { ports.phone.collect { phone = it } }
+        source?.start(scope)
         scope.launch {
             sleepSettings.settings.collect {
                 sleep = it
@@ -69,7 +80,10 @@ internal class QuickMenu(
         }
     }
 
-    fun show() = overlay.show(items())
+    fun show() {
+        overlay.show(items())
+        source?.shown { if (overlay.isShowing) overlay.refresh() }
+    }
 
     /**
      * The button bound to the menu: opens it, and pressed again closes it. That press has mostly
@@ -115,6 +129,7 @@ internal class QuickMenu(
             service.openLumbina(LumbinaActions.HOME_ALL_APPS)
         },
         QuickMenuOverlay.Item(service.getString(R.string.quick_recent_apps)) { ports.recentApps() },
+        source?.item(),
         QuickMenuOverlay.Item(
             label = service.getString(R.string.quick_sleep),
             value = { "◀ ${sleepText()} ▶" },
@@ -139,6 +154,7 @@ internal class QuickMenu(
         }.takeIf { hasSettings },
         otherHome?.let { home ->
             QuickMenuOverlay.Item(home.label, secondary = true) {
+                ports.otherHomeOpened()
                 if (!ports.launcher.launch(home.id)) ports.say(service.getString(R.string.quick_launcher_failed))
             }
         },

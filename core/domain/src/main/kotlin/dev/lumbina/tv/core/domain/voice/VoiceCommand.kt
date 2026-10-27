@@ -21,7 +21,7 @@ sealed interface VoiceCommand {
     data class Sleep(val minutes: Int?) : VoiceCommand
 }
 
-enum class VolumeChange { Up, Down, Mute, Unmute }
+enum class VolumeChange { Up, Down, Mute, Unmute, ToggleMute }
 
 enum class MediaAction { Play, Pause, PlayPause, Next, Previous }
 

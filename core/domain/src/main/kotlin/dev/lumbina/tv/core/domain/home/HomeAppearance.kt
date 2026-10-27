@@ -68,6 +68,27 @@ enum class TextScale { Normal, Large }
 /** Clock format: as the device has it, or always 24 or 12 hours. */
 enum class ClockFormat { System, H24, H12 }
 
+/** Where the top bar stands in its line. */
+enum class BarPlace { Right, Left, Center }
+
+/** The date in the top bar: none, "ср, 7 окт.", "7 окт." or "среда, 7 октября". */
+enum class BarDate { None, WeekdayShort, DayMonth, Long }
+
+/**
+ * The line at the top of home: where it stands, how it writes the date and which of its parts
+ * show. The weather has its own switch ([dev.lumbina.tv.core.domain.weather.WeatherSettings]),
+ * the time and the settings button always show; [inputs] only where the device has inputs.
+ */
+data class TopBarLook(
+    val place: BarPlace = BarPlace.Right,
+    val date: BarDate = BarDate.WeekdayShort,
+    /** The bell, while there are notifications. */
+    val notices: Boolean = true,
+    val search: Boolean = true,
+    val sleep: Boolean = true,
+    val inputs: Boolean = false,
+)
+
 /** How "All apps" is sorted: the most opened first (then by name), or by name only. */
 enum class AppsOrder { ByUse, ByName }
 
@@ -92,8 +113,7 @@ data class HomeAppearance(
     val shownRows: Set<String> = emptySet(),
     /** The user's own banners: app id ([dev.lumbina.tv.core.domain.app.AppId.flatten]) to a picture URI. */
     val customBanners: Map<String, String> = emptyMap(),
-    /** The date under the clock. */
-    val showDate: Boolean = true,
+    val topBar: TopBarLook = TopBarLook(),
     val clockFormat: ClockFormat = ClockFormat.System,
     /** "Now playing" with its buttons while an app plays something. */
     val showNowPlaying: Boolean = true,
@@ -108,6 +128,9 @@ data class HomeAppearance(
     /** Channel keys ([dev.lumbina.tv.core.domain.channels.TvChannel.key]) as the user ordered their rows. */
     val channelOrder: List<String> = emptyList(),
 ) {
+    /** Whether the top bar and the screensaver show the date. */
+    val showDate: Boolean get() = topBar.date != BarDate.None
+
     /** How big tiles are in the row [key]: its own size, or its default ([defaultTileSizeOf]). */
     fun tileSizeOf(key: String): TileSize = rowLooks[key]?.tileSize ?: defaultTileSizeOf(key)
 

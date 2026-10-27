@@ -79,7 +79,22 @@ fun interface ProgramLauncher {
     fun open(card: ProgramCard): Boolean
 }
 
-/** Which channel rows the user wants on the home screen. */
-data class ChannelSettings(val hiddenChannels: Set<String> = emptySet())
+/**
+ * Which channel rows the user wants on the home screen, and the apps (package names) whose programs
+ * stay out of "continue watching".
+ */
+data class ChannelSettings(
+    val hiddenChannels: Set<String> = emptySet(),
+    val hiddenWatchNext: Set<String> = emptySet(),
+) {
+    /** The channel [key] shown again if hidden, else hidden. */
+    fun withChannelToggled(key: String): ChannelSettings = copy(hiddenChannels = hiddenChannels.toggled(key))
+
+    /** The app's programs back in "continue watching", or taken out of it. */
+    fun withWatchNextToggled(packageName: String): ChannelSettings =
+        copy(hiddenWatchNext = hiddenWatchNext.toggled(packageName))
+}
+
+private fun <T> Set<T>.toggled(item: T): Set<T> = if (item in this) this - item else this + item
 
 typealias ChannelSettingsRepository = SettingsRepository<ChannelSettings>

@@ -17,6 +17,7 @@ import dev.lumbina.tv.core.domain.channels.inChannelOrder
 import dev.lumbina.tv.core.domain.home.HomeRow
 import dev.lumbina.tv.core.domain.home.HomeSection
 import dev.lumbina.tv.core.domain.home.RecommendationsView
+import dev.lumbina.tv.core.domain.home.RowSpotlight
 import dev.lumbina.tv.core.domain.home.TileSize
 import dev.lumbina.tv.core.domain.home.channelRowKey
 import dev.lumbina.tv.core.ui.PivotScrolling
@@ -72,7 +73,7 @@ internal fun HomeGrid(
             verticalArrangement = Arrangement.spacedBy(GRID_SPACING),
             modifier = modifier.fillMaxSize().paceHeldSteps(),
         ) {
-            fullWidth("header") { header() }
+            fullWidth(RowSpotlight.TOP_BAR) { header() }
             if (state == null) {
                 homeLoading(favoritesTitle, size)
                 return@LazyVerticalGrid

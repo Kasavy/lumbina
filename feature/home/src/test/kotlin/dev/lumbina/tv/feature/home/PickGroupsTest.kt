@@ -63,6 +63,14 @@ class PickGroupsTest {
     }
 
     @Test
+    fun `the window starts on the all-apps tile in the row, the row's apps, else the inputs, else that tile`() {
+        assertEquals(PickStart.Shortcut, pickStart(shortcutInRow = true, rowEmpty = true, hasInputs = true))
+        assertEquals(PickStart.Apps, pickStart(shortcutInRow = false, rowEmpty = false, hasInputs = true))
+        assertEquals(PickStart.Inputs, pickStart(shortcutInRow = false, rowEmpty = true, hasInputs = true))
+        assertEquals(PickStart.Shortcut, pickStart(shortcutInRow = false, rowEmpty = true, hasInputs = false))
+    }
+
+    @Test
     fun `an app inside a folder of the row is said to be in it`() {
         assertEquals("Kino", folderOf(films, smart.id))
         assertNull(folderOf(films, wink.id))

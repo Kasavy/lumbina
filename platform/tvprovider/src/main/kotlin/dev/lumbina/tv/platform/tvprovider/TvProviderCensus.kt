@@ -25,7 +25,7 @@ internal class TvProviderCensus @Inject constructor(
                 arrayOf(Columns.PACKAGE, Columns.BROWSABLE, Columns.DISPLAY_NAME),
                 census::channel,
             ),
-            read(AndroidTvChannels.PREVIEW_PROGRAMS, arrayOf(Columns.PACKAGE), census::program),
+            read(AndroidTvChannels.PREVIEW_PROGRAMS, arrayOf(Columns.PACKAGE, Columns.BROWSABLE), census::program),
         )
         val rows = census.lines().ifEmpty { if (failed.isEmpty()) listOf("no rows") else emptyList() }
         // A provider that is on the device but turned off reads as none: the package tells.

@@ -40,7 +40,7 @@ Third-party components:
   Apache License 2.0 / LGPL 2.1 (used under Apache 2.0) — the JNA authors
 - Projectivy wallpaper-provider plugin API
   Apache License 2.0 — spocky (https://github.com/spocky/projectivy-plugin-wallpaper-provider)
-- Golos Text (the name on the TV banner, as outlines in app/src/main/res/drawable/banner.xml)
+- Golos Text (the name on the TV banner, app/src/main/res/drawable-*dpi/banner.png)
   SIL Open Font License 1.1 — The Golos Text Project Authors (https://github.com/googlefonts/golos-text)
 
 Speech models (Vosk small models, e.g. vosk-model-small-ru, vosk-model-small-en-us) are not

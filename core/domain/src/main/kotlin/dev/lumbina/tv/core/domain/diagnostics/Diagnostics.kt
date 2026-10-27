@@ -1,5 +1,6 @@
 package dev.lumbina.tv.core.domain.diagnostics
 
+import dev.lumbina.tv.core.domain.MILLIS_PER_MINUTE
 import dev.lumbina.tv.core.domain.device.DeviceAnswer
 import dev.lumbina.tv.core.domain.device.FirmwarePart
 import dev.lumbina.tv.core.domain.device.PackageState
@@ -147,6 +148,8 @@ data class DiagnosticsSnapshot(
     val firmware: List<FirmwarePackage>,
     /** Those of them a feature rests on that are turned off, see `FirmwareParts`. */
     val partsOff: List<FirmwarePart>,
+    /** The video inputs Lumbina can switch to, each "name (id)"; empty where there are none it reaches. */
+    val inputs: List<String> = emptyList(),
 ) {
     /**
      * Plain-text report (English, for whoever helps), followed by what the device [answered] when
@@ -158,6 +161,7 @@ data class DiagnosticsSnapshot(
             line("Version", system.appVersion + if (system.debugBuild) " (debug)" else "")
             line("Device profile", deviceProfile)
             line("Stock launcher", stockLauncher ?: "none")
+            line("Inputs", inputs.joinToString().ifEmpty { "none" })
         }
         device()
         remote()
@@ -247,6 +251,5 @@ data class DiagnosticsSnapshot(
 
     private companion object {
         const val BYTES_PER_MIB = 1024 * 1024
-        const val MILLIS_PER_MINUTE = 60_000
     }
 }

@@ -38,6 +38,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.lumbina.tv.core.common.LumbinaLog
+import dev.lumbina.tv.core.domain.MILLIS_PER_MINUTE
 import dev.lumbina.tv.core.domain.backdrop.BackdropPhoto
 import dev.lumbina.tv.core.domain.backdrop.BackdropPhotos
 import dev.lumbina.tv.core.domain.backdrop.MarkUnplayable
@@ -56,7 +57,6 @@ import dev.lumbina.tv.core.ui.CREDIT_MAX_LINES
 import dev.lumbina.tv.core.ui.CreditLineBreak
 import dev.lumbina.tv.core.ui.GradientTones
 import dev.lumbina.tv.core.ui.LAYERS_ARE_CHEAP
-import dev.lumbina.tv.core.ui.MINUTE_MILLIS
 import dev.lumbina.tv.core.ui.MutedVideo
 import dev.lumbina.tv.core.ui.QrCode
 import dev.lumbina.tv.core.ui.VideoFailure
@@ -144,7 +144,7 @@ class ScreensaverModel @Inject constructor(
             if (shown?.video != null) {
                 withTimeoutOrNull(VIDEO_MILLIS) { videoDone.receive() }
             } else {
-                delay(sleep.settings.first().screensaverChangeMinutes * MINUTE_MILLIS)
+                delay(sleep.settings.first().screensaverChangeMinutes * MILLIS_PER_MINUTE)
             }
         }
     }
@@ -350,7 +350,7 @@ private fun TimeAndWeather(
 
 /** The corner shown at [now]: the first one for the first few minutes after [startedAt], then the next. */
 internal fun cornerIndex(now: Long, startedAt: Long, corners: Int): Int =
-    ((maxOf(0L, now - startedAt) / (MINUTE_MILLIS * MINUTES_PER_CORNER)) % corners).toInt()
+    ((maxOf(0L, now - startedAt) / (MILLIS_PER_MINUTE * MINUTES_PER_CORNER)) % corners).toInt()
 
 // Each corner's opposite is two places on: the clock and the phone remote's code stand across from each other.
 private val CORNERS = listOf(Alignment.BottomStart, Alignment.BottomEnd, Alignment.TopEnd, Alignment.TopStart)

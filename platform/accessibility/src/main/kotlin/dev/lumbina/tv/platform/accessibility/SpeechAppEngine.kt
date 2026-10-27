@@ -54,6 +54,9 @@ class SpeechAppEngine @Inject internal constructor(
 
     @Volatile private var app: SpeechApp? = null
 
+    /** The app chosen by the last [prepare], to be fed by a helper starting now; null before one. */
+    internal val chosen: String? get() = app?.packageName
+
     @Volatile override var languages: List<String> = emptyList()
         private set
 

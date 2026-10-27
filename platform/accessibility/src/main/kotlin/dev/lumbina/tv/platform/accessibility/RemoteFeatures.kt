@@ -51,6 +51,8 @@ internal class RemoteFeatures(
         val forApps: ForApps,
         val switching: AppSwitching,
         val powerOn: PowerOnWatcher,
+        /** Null where the device has no inputs Lumbina opens, or no home screen of its own. */
+        val inputExit: InputExitWatcher?,
         val quickMenu: QuickMenu,
         val sleep: SleepWatcher,
         val phoneRemote: PhoneRemote,
@@ -121,6 +123,7 @@ internal class RemoteFeatures(
             start(forApps)
             switching.start(scope)
             powerOn.start(scope)
+            inputExit?.start(scope)
             quickMenu.start(scope)
             sleep.start(scope)
             phoneRemote.start(scope)
@@ -179,6 +182,7 @@ internal class RemoteFeatures(
         if (parts.capture.onKey(event, parts.inLumbina)) return true
         if (parts.quickMenu.onKey(event) || parts.switching.onKey(event)) return true
         if (parts.voice.onKey(event) || parts.debug?.onKey(event) == true) return true
+        if (parts.inputExit?.onKey(event) == true) return true
         val action = when (event.action) {
             KeyEvent.ACTION_DOWN -> KeyAction.Down
             KeyEvent.ACTION_UP -> KeyAction.Up
@@ -211,6 +215,7 @@ internal class RemoteFeatures(
         parts.volumeHold?.onAccessibilityEvent(event)
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             parts.powerOn.onWindow(event.packageName, event.className)
+            parts.inputExit?.onWindow(event.packageName, event.className)
             parts.forApps.micPrompt?.onWindowChanged()
         }
         parts.sleep.onWindowChanged()
@@ -260,16 +265,23 @@ internal class RemoteFeatures(
         private fun keyOf(profile: DeviceProfile, event: KeyEvent): RemoteKey =
             profile.keyMap.map(event.scanCode, event.keyCode) ?: RemoteKey.of(event.scanCode, event.keyCode)
 
-        private fun quickMenuPorts(otherHome: Flow<HomeScreen?>, switching: AppSwitching, say: (String) -> Unit) =
-            QuickMenu.Ports(
-                otherHome = otherHome,
-                launcher = apps.launcher,
-                recentApps = switching::show,
-                phone = stores.phoneRemote.settings,
-                address = device.address,
-                screens = device.screens,
-                say = say,
-            )
+        private fun quickMenuPorts(
+            otherHome: Flow<HomeScreen?>,
+            switching: AppSwitching,
+            inputExit: InputExitWatcher?,
+            say: (String) -> Unit,
+        ) = QuickMenu.Ports(
+            otherHome = otherHome,
+            otherHomeOpened = { inputExit?.leftByUser() },
+            launcher = apps.launcher,
+            recentApps = switching::show,
+            phone = stores.phoneRemote.settings,
+            address = device.address,
+            screens = device.screens,
+            inputs = device.profile.inputs,
+            inputCatalog = device.inputs,
+            say = say,
+        )
 
         private fun switching(
             service: AccessibilityService,
@@ -314,7 +326,8 @@ internal class RemoteFeatures(
                 home?.let { launchers += it.id.packageName }
                 launchers.retainAll(own + listOfNotNull(home?.id?.packageName))
             }
-            val quickMenuPorts = quickMenuPorts(otherHome, switching, say)
+            val inputExit = inputExit(service)
+            val quickMenuPorts = quickMenuPorts(otherHome, switching, inputExit, say)
             val quickMenu = QuickMenu(service, stores.sleep, quickMenuPorts)
             val phonePorts = phonePorts(controls, assembly, switching, quickMenu)
             // One mic connection for everything: the remote has room for one reader only.
@@ -331,6 +344,7 @@ internal class RemoteFeatures(
                 forApps = forApps,
                 switching = switching,
                 powerOn = powerOn(service),
+                inputExit = inputExit,
                 quickMenu = quickMenu,
                 sleep = sleep,
                 phoneRemote = PhoneRemote(service, stores.phoneRemote, phonePorts, log),
@@ -393,6 +407,19 @@ internal class RemoteFeatures(
             micServiceOff = { device.firmware.isOff(FirmwarePart.Feature.RemoteMic) },
         )
 
+        private fun inputExit(service: AccessibilityService): InputExitWatcher? {
+            val inputs = device.profile.inputs ?: return null
+            if (device.profile.stockLauncher == null) return null
+            return InputExitWatcher(
+                inputs,
+                device.profile::isHomeScreen,
+                own = service.packageName,
+                front = { service.rootInActiveWindow },
+                open = { device.lumbinaHome.open(toStart = false) },
+                log = device.log,
+            )
+        }
+
         private fun powerOn(service: AccessibilityService) = PowerOnWatcher(
             service,
             apps.accessSettings,
@@ -440,6 +467,8 @@ internal class RemoteFeatures(
                 prompt?.let { MicInjection(service, apps.localAccess, apps.accessSettings, it::ask, log) }
             micInjection?.let { injection -> prompt.started = { injection.outcomes.first() } }
             val speech = micInjection?.speech
+            // Chosen already (the service connected again): fed from the helper's first start.
+            voice.appSpeech.chosen?.let { speech?.feedFromStart(it) }
             voice.appSpeech.feed = speech
             val detach = { if (voice.appSpeech.feed === speech) voice.appSpeech.feed = null }
             return ForApps(recognizerSetup, micInjection, prompt, mic, detach)

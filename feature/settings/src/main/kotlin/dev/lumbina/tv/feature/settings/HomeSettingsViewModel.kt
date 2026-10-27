@@ -7,11 +7,15 @@ import dev.lumbina.tv.core.domain.app.App
 import dev.lumbina.tv.core.domain.app.AppUsage
 import dev.lumbina.tv.core.domain.app.InstalledApps
 import dev.lumbina.tv.core.domain.app.labelsByPackage
+import dev.lumbina.tv.core.domain.channels.ChannelSettings
 import dev.lumbina.tv.core.domain.channels.ChannelSettingsRepository
+import dev.lumbina.tv.core.domain.channels.ProgramCard
 import dev.lumbina.tv.core.domain.channels.TvChannels
+import dev.lumbina.tv.core.domain.channels.TvListingsPermission
 import dev.lumbina.tv.core.domain.channels.byAppUse
 import dev.lumbina.tv.core.domain.channels.inChannelOrder
 import dev.lumbina.tv.core.domain.channels.movedChannel
+import dev.lumbina.tv.core.domain.channels.watchedApps
 import dev.lumbina.tv.core.domain.home.Accent
 import dev.lumbina.tv.core.domain.home.HomeAppearance
 import dev.lumbina.tv.core.domain.home.HomeAppearanceRepository
@@ -32,6 +36,7 @@ import dev.lumbina.tv.core.domain.home.movedRow
 import dev.lumbina.tv.core.domain.locale.AppLanguage
 import dev.lumbina.tv.core.ui.UNDO_MILLIS
 import dev.lumbina.tv.core.ui.WhileUiSubscribed
+import java.text.Collator
 import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
@@ -44,6 +49,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -59,7 +65,17 @@ data class HomeSettingsState(
     val removed: RemovedCategory? = null,
     val favorites: HomeSection = HomeSection.emptyFavorites(),
     val channels: List<ChannelChoice> = emptyList(),
+    /** The apps in "continue watching", or taken out of it, by name. */
+    val watchNextApps: List<WatchNextChoice> = emptyList(),
+    /** Why there are none: no provider, no access to it; null when the row simply has nothing yet. */
+    val watchNextMissing: WatchNextMissing? = null,
 )
+
+/** What keeps "continue watching" empty, said where its apps would be listed. */
+enum class WatchNextMissing { Provider, Access }
+
+/** An app [shown] in "continue watching" or not, with how many [programs] it has there now. */
+data class WatchNextChoice(val packageName: String, val app: String, val programs: Int, val shown: Boolean)
 
 /**
  * A category just removed: where it stood among the sections ([at]) and among the rows listed
@@ -105,6 +121,9 @@ interface HomeSettingsCommands {
     /** Shows the channel if it is hidden, hides it otherwise: the same switch as on the "Channels" page. */
     fun toggleChannel(key: String)
 
+    /** Shows the app's programs in "continue watching", or takes them out. */
+    fun toggleWatchNextApp(packageName: String)
+
     /** Shows the row [key]'s heading, or hides it. */
     fun toggleRowTitle(key: String)
 
@@ -117,8 +136,8 @@ interface HomeSettingsCommands {
 
     fun setStyle(sectionId: String, style: SectionStyle)
 
-    /** Whether Favorites has the tile that opens all apps. */
-    fun setShortcut(shown: Boolean)
+    /** Whether the section has the tile that opens all apps. */
+    fun setShortcut(sectionId: String, shown: Boolean)
 
     /** Moves a row [by] places. */
     fun moveRow(key: String, by: Int)
@@ -156,16 +175,23 @@ class HomeSettingsViewModel @Inject constructor(
     private val appearance: HomeAppearanceRepository,
     private val appLanguage: AppLanguage,
     private val spotlight: RowSpotlight,
-    channels: TvChannels,
+    private val channels: TvChannels,
     private val channelSettings: ChannelSettingsRepository,
     usage: AppUsage,
+    private val listings: TvListingsPermission,
 ) : ViewModel(),
     HomeSettingsCommands {
 
     private val removed = MutableStateFlow<RemovedCategory?>(null)
+
+    /** Apps switched in "continue watching" while the settings are open: listed still, though they have nothing. */
+    private val switched = MutableStateFlow(emptySet<String>())
     private var forgetting: Job? = null
 
-    /** Every channel, shown or not, in the order home has them by default: see ChannelsViewModel. */
+    /**
+     * Every channel, shown or not, in the order home has them by default (see ChannelsViewModel),
+     * and the apps of "continue watching".
+     */
     private val channelChoices = combine(
         channels.channels(),
         channels.watchNext(),
@@ -174,12 +200,22 @@ class HomeSettingsViewModel @Inject constructor(
         usage.recent(),
     ) { feeds, watchNext, choice, apps, used ->
         val labels = labelsByPackage(apps)
-        val watching = watchNext.filter { it.packageName in labels }.map { it.packageName }.toSet()
-        feeds.byAppUse(used, watching).mapNotNull { feed ->
-            val app = labels[feed.channel.packageName] ?: return@mapNotNull null
-            val key = feed.channel.key
-            ChannelChoice(key, feed.channel.name, app, feed.programs.size, key !in choice.hiddenChannels)
-        }
+        Channels(feeds.byAppUse(used, watchNext.watchedApps(labels)).choices(choice, labels), watchNext, choice, labels)
+    }.combine(switched) { found, switched ->
+        found to watchNextChoices(found.watchNext, found.choice.hiddenWatchNext + switched, found.choice, found.labels)
+    }
+
+    private class Channels(
+        val all: List<ChannelChoice>,
+        val watchNext: List<ProgramCard>,
+        val choice: ChannelSettings,
+        val labels: Map<String, String>,
+    )
+
+    private fun watchNextMissing(): WatchNextMissing? = when {
+        !channels.isAvailable() -> WatchNextMissing.Provider
+        listings.missing() != null -> WatchNextMissing.Access
+        else -> null
     }
 
     val state: StateFlow<HomeSettingsState?> =
@@ -193,8 +229,12 @@ class HomeSettingsViewModel @Inject constructor(
                 layout.favorites,
             )
         }
-            .combine(channelChoices) { state, all ->
-                state.copy(channels = all.inChannelOrder(state.appearance.channelOrder) { it.key })
+            .combine(channelChoices) { state, (found, watchNext) ->
+                state.copy(
+                    channels = found.all.inChannelOrder(state.appearance.channelOrder) { it.key },
+                    watchNextApps = watchNext,
+                    watchNextMissing = watchNextMissing().takeIf { watchNext.isEmpty() },
+                )
             }
             // Arranging sorts every app by name: off the main thread.
             .flowOn(Dispatchers.Default)
@@ -220,7 +260,7 @@ class HomeSettingsViewModel @Inject constructor(
     fun spotlight(key: String?) = spotlight.show(key)
 
     /** The row lit now, to put back when something lights another for a while (the size slider). */
-    val spotlit: String? get() = spotlight.key.value
+    val spotlit: String? get() = spotlight.lit.value
 
     override fun setRowNames(key: String, names: TileNames) =
         look { it.withRowLook(key) { row -> row.copy(names = names) } }
@@ -237,7 +277,7 @@ class HomeSettingsViewModel @Inject constructor(
     override fun moveChannel(key: String, by: Int) {
         viewModelScope.launch {
             // The channels as listed on the page; asked anew only when the page has none yet.
-            val all = (state.value?.channels ?: channelChoices.first()).map { it.key }
+            val all = (state.value?.channels ?: channelChoices.first().first.all).map { it.key }
             // From the order as stored now, not as last shown: quick presses each move one place.
             appearance.update {
                 val order = all.inChannelOrder(it.channelOrder) { channel -> channel }
@@ -250,11 +290,13 @@ class HomeSettingsViewModel @Inject constructor(
 
     override fun toggleChannel(key: String) {
         viewModelScope.launch {
-            channelSettings.update {
-                val hidden = if (key in it.hiddenChannels) it.hiddenChannels - key else it.hiddenChannels + key
-                it.copy(hiddenChannels = hidden)
-            }
+            channelSettings.update { it.withChannelToggled(key) }
         }
+    }
+
+    override fun toggleWatchNextApp(packageName: String) {
+        switched.update { it + packageName }
+        viewModelScope.launch { channelSettings.update { it.withWatchNextToggled(packageName) } }
     }
 
     // "Shown" is how a row starts: only "off" is kept.
@@ -270,7 +312,7 @@ class HomeSettingsViewModel @Inject constructor(
 
     override fun setStyle(sectionId: String, style: SectionStyle) = edit { it.setStyle(sectionId, style) }
 
-    override fun setShortcut(shown: Boolean) = edit { it.withAllAppsShortcut(shown) }
+    override fun setShortcut(sectionId: String, shown: Boolean) = edit { it.withAllApps(sectionId, shown) }
 
     override fun moveRow(key: String, by: Int) = rows { look, rows -> look.copy(rowOrder = rows.movedRow(key, by)) }
 
@@ -349,4 +391,24 @@ class HomeSettingsViewModel @Inject constructor(
     private fun look(transform: (HomeAppearance) -> HomeAppearance) {
         viewModelScope.launch { appearance.update(transform) }
     }
+}
+
+/**
+ * The installed apps ([labels]) of "continue watching" by name: those with programs there now, and
+ * those [listed] all the same (taken out of it, or switched on this visit), so a switch never
+ * leaves the list under the focus.
+ */
+internal fun watchNextChoices(
+    watchNext: List<ProgramCard>,
+    listed: Set<String>,
+    settings: ChannelSettings,
+    labels: Map<String, String>,
+    locale: Locale = Locale.getDefault(),
+): List<WatchNextChoice> {
+    val counts = watchNext.groupingBy { it.packageName }.eachCount()
+    val names = Collator.getInstance(locale).apply { strength = Collator.SECONDARY }
+    return (counts.keys + listed).mapNotNull { packageName ->
+        val app = labels[packageName] ?: return@mapNotNull null
+        WatchNextChoice(packageName, app, counts[packageName] ?: 0, packageName !in settings.hiddenWatchNext)
+    }.sortedWith(compareBy(names) { it.app })
 }

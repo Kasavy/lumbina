@@ -14,10 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
@@ -27,8 +24,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicText
-import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,36 +34,24 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.FilterChip
-import androidx.tv.material3.Icon
-import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.lumbina.tv.core.domain.channels.ChannelRow
 import dev.lumbina.tv.core.domain.home.HomeRow
-import dev.lumbina.tv.core.ui.BANNER_ASPECT
 import dev.lumbina.tv.core.ui.EdgeScrolling
-import dev.lumbina.tv.core.ui.NameOnTile
 import dev.lumbina.tv.core.ui.PillShape
-import dev.lumbina.tv.core.ui.TileCard
-import dev.lumbina.tv.core.ui.TileName
 import dev.lumbina.tv.core.ui.line
-import dev.lumbina.tv.core.ui.onTile
 import dev.lumbina.tv.core.ui.opensOnRest
 import dev.lumbina.tv.core.ui.rememberOpenOnRest
 
@@ -160,88 +143,6 @@ internal val PLATE_INSET = 16.dp
 private val PLATE_CORNER = 24.dp
 private const val PLATE_ALPHA = 0.4f
 private const val PLATE_EDGE_ALPHA = 0.22f
-
-/**
- * The tile that opens the "All apps" screen: in Favorites, where the user moves it or takes it out
- * ([onLongClick]), and at the end of "Apps" ([label] "See all"). Its [label] is on it, under its
- * icon; where the row's names are shown ([name]), it stands where every tile's name does, in the
- * same type: under the tile, or at its bottom. [highlighted] while it is moved or its menu is open.
- */
-@Composable
-internal fun AllAppsTile(
-    onClick: () -> Unit,
-    label: String,
-    name: TileName,
-    modifier: Modifier = Modifier,
-    onLongClick: (() -> Unit)? = null,
-    highlighted: Boolean = false,
-) {
-    var focused by remember { mutableStateOf(false) }
-    val onTile = !name.under && name.shown(focused)
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = modifier) {
-        TileCard(
-            onClick = onClick,
-            onLongClick = onLongClick,
-            highlighted = highlighted,
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = TILE_ALPHA),
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(BANNER_ASPECT)
-                .onFocusChanged { focused = it.isFocused },
-        ) {
-            if (onTile) {
-                // As any tile's name: at its bottom, the icon alone above it.
-                Icon(
-                    painterResource(R.drawable.ic_apps),
-                    contentDescription = null,
-                    modifier = Modifier.align(Alignment.Center).offset(y = (-12).dp).size(36.dp),
-                )
-                NameOnTile(label)
-            } else {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    Icon(painterResource(R.drawable.ic_apps), contentDescription = null, Modifier.size(36.dp))
-                    if (!name.under) FittedLabel(label)
-                }
-            }
-        }
-        if (name.under) {
-            Text(
-                label,
-                style = MaterialTheme.typography.labelLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 4.dp).drawWithContent {
-                    if (name.shown(focused)) drawContent()
-                },
-            )
-        }
-    }
-}
-
-/**
- * One line that shrinks to the tile: "Все приложения" is wider than it, more so with large text.
- * Cut with "…" only if even the smallest size does not fit.
- */
-@Composable
-private fun FittedLabel(text: String) {
-    val type = MaterialTheme.typography
-    BasicText(
-        text = text,
-        style = type.titleMedium.copy(color = LocalContentColor.current, textAlign = TextAlign.Center).onTile(),
-        maxLines = 1,
-        softWrap = false,
-        overflow = TextOverflow.Ellipsis,
-        autoSize = TextAutoSize.StepBased(
-            minFontSize = type.labelSmall.fontSize,
-            maxFontSize = type.titleMedium.fontSize,
-        ),
-        modifier = Modifier.padding(horizontal = 4.dp),
-    )
-}
 
 /**
  * All the channels apps publish as one block: its [title] (none when switched off), a tab per
@@ -370,9 +271,6 @@ internal fun HoldOkHint(visible: Boolean, modifier: Modifier = Modifier) {
 internal fun ChannelRow.title(): String = line(app, channel)
 
 private const val HINT_ALPHA = 0.94f
-
-/** How much of the backdrop the "All apps" tile lets through: none quite, a little of a photo. */
-private const val TILE_ALPHA = 0.85f
 
 /** How long switching tabs of recommendations takes: the height and the fade of the new programs. */
 private const val TAB_SWITCH_MS = 220

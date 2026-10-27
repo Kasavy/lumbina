@@ -23,6 +23,9 @@ internal sealed interface Failed {
     /** The app called [name] did not start. */
     data class App(val name: String) : Failed
 
+    /** The device did not switch to the input called [name]. */
+    data class Input(val name: String) : Failed
+
     /** A program of the app called [app] did not open, and neither did the app. */
     data class Program(val app: String) : Failed
 
@@ -78,6 +81,7 @@ internal fun newerOf(first: Failed?, second: Failed?): Failed? {
 @Composable
 internal fun Failed.message(): String = when (this) {
     is Failed.App -> stringResource(R.string.failed_app, name)
+    is Failed.Input -> stringResource(R.string.failed_input, name)
     is Failed.Program -> stringResource(R.string.failed_program, app)
     Failed.Notice -> stringResource(R.string.failed_notice)
     Failed.NoNotices -> stringResource(R.string.notices_none)

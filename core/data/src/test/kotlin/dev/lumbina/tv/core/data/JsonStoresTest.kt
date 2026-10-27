@@ -1,6 +1,7 @@
 package dev.lumbina.tv.core.data
 
 import androidx.datastore.core.DataStoreFactory
+import dev.lumbina.tv.core.domain.channels.ChannelSettings
 import dev.lumbina.tv.core.domain.phone.PhoneRemoteSettings
 import dev.lumbina.tv.core.domain.sleep.ScreensaverPhotos
 import dev.lumbina.tv.core.domain.sleep.SleepSettings
@@ -9,6 +10,7 @@ import dev.lumbina.tv.core.domain.weather.WeatherSettings
 import java.io.File
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -39,6 +41,14 @@ class JsonStoresTest {
         val old = StoredSleepSettings(screensaverPhotos = "Online").toDomain()
         assertEquals(ScreensaverPhotos.PhotoOfTheDay, old.screensaverPhotos)
         assertEquals(1, old.screensaverChangeMinutes)
+    }
+
+    @Test
+    fun `channel settings round-trip, and an old file without the watch-next apps reads`() {
+        val settings = ChannelSettings(hiddenChannels = setOf("a/x"), hiddenWatchNext = setOf("kino"))
+        assertEquals(settings, settings.toStored().toDomain())
+        val old = Json.decodeFromString<StoredChannelSettings>("""{"hiddenChannels":["a/x"]}""")
+        assertEquals(ChannelSettings(hiddenChannels = setOf("a/x")), old.toDomain())
     }
 
     @Test

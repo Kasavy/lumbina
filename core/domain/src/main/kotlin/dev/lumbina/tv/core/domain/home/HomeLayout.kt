@@ -2,11 +2,12 @@ package dev.lumbina.tv.core.domain.home
 
 import dev.lumbina.tv.core.domain.app.App
 import dev.lumbina.tv.core.domain.app.AppId
+import dev.lumbina.tv.core.domain.device.InputSource
 import java.text.Collator
 import java.util.Locale
 import kotlinx.coroutines.flow.Flow
 
-/** Something placed in a section: an app, a folder of apps, or the shortcut to all apps. */
+/** Something placed in a section: an app, a folder of apps, the shortcut to all apps or a video input. */
 sealed interface HomeItem {
     /** Identifies the item within its section, e.g. for moving it. */
     val key: String
@@ -20,11 +21,19 @@ sealed interface HomeItem {
     }
 
     /**
-     * The tile that opens the "All apps" screen. It stands in Favorites, where the user moves it
-     * like a tile and can switch it off; the "Apps" row's "See all" opens the screen as well.
+     * The tile that opens the "All apps" screen. Any row may have it, once: the user puts it in,
+     * moves it like a tile and takes it out; the "Apps" row's "See all" opens the screen as well.
      */
     data object AllApps : HomeItem {
         override val key: String = "all-apps"
+    }
+
+    /**
+     * A tile that switches to the device's video input [id] ([InputSource.id]). Any row may have
+     * each input once, as [AllApps]; one the device lacks is not shown.
+     */
+    data class Input(val id: String) : HomeItem {
+        override val key: String get() = "input:$id"
     }
 }
 
@@ -58,7 +67,7 @@ data class HomeSection(
 private fun HomeItem.apps(): List<AppId> = when (this) {
     is HomeItem.AppItem -> listOf(app)
     is HomeItem.Folder -> apps
-    HomeItem.AllApps -> emptyList()
+    HomeItem.AllApps, is HomeItem.Input -> emptyList()
 }
 
 /**
@@ -76,6 +85,8 @@ data class HomeLayout(
     val labels: Map<AppId, String> = emptyMap(),
     /** Names to call apps by in voice commands, besides the ones on screen. */
     val voiceNames: Map<AppId, String> = emptyMap(),
+    /** Names the user gave video inputs, by [InputSource.id], instead of the firmware's. */
+    val inputLabels: Map<String, String> = emptyMap(),
 ) {
     init {
         require(sections.firstOrNull()?.isFavorites == true) { "favorites must come first" }
@@ -83,9 +94,10 @@ data class HomeLayout(
         val folders = sections.flatMap { it.items }.filterIsInstance<HomeItem.Folder>()
         require(folders.map { it.id }.distinct().size == folders.size) { "duplicate folder ids" }
         require(folders.none { it.apps.isEmpty() }) { "empty folder" }
-        require(categories.none { HomeItem.AllApps in it.items }) { "the all-apps shortcut outside favorites" }
-        require(favorites.items.count { it == HomeItem.AllApps } <= 1) { "two all-apps shortcuts" }
         sections.forEach { section ->
+            require(section.items.count { it == HomeItem.AllApps } <= 1) { "two all-apps tiles in ${section.id}" }
+            val inputs = section.items.filterIsInstance<HomeItem.Input>()
+            require(inputs.distinct().size == inputs.size) { "duplicate input in ${section.id}" }
             require(section.apps.distinct().size == section.apps.size) { "duplicate app in ${section.id}" }
             require(section.apps.none { it in hidden }) { "hidden app in ${section.id}" }
         }
@@ -123,15 +135,31 @@ data class HomeLayout(
             copy(sections = sections.toMutableList().apply { add(at.coerceIn(1, size), category) })
         }
 
-    /** Whether Favorites has the shortcut to all apps. */
-    val hasAllAppsShortcut: Boolean get() = HomeItem.AllApps in favorites.items
+    /** Whether the section has the tile that opens all apps. */
+    fun hasAllApps(sectionId: String): Boolean = hasTile(sectionId, HomeItem.AllApps)
 
-    /** Puts the shortcut at the end of Favorites, or takes it out. */
-    fun withAllAppsShortcut(shown: Boolean): HomeLayout = when {
-        shown == hasAllAppsShortcut -> this
-        shown -> updateSection(HomeSection.FAVORITES) { it.copy(items = it.items + HomeItem.AllApps) }
-        else -> updateSection(HomeSection.FAVORITES) { it.copy(items = it.items - HomeItem.AllApps) }
+    /** Puts the tile that opens all apps at the end of the section, or takes it out. */
+    fun withAllApps(sectionId: String, shown: Boolean): HomeLayout = withTile(sectionId, HomeItem.AllApps, shown)
+
+    /** Whether the section has the tile of input [id]. */
+    fun hasInput(sectionId: String, id: String): Boolean = hasTile(sectionId, HomeItem.Input(id))
+
+    /** Puts the tile of input [id] at the end of the section, or takes it out. */
+    fun withInput(sectionId: String, id: String, shown: Boolean): HomeLayout =
+        withTile(sectionId, HomeItem.Input(id), shown)
+
+    /** Whether the section has [tile], one a row may have once and that is no app or folder. */
+    private fun hasTile(sectionId: String, tile: HomeItem): Boolean = section(sectionId)?.items?.contains(tile) == true
+
+    private fun withTile(sectionId: String, tile: HomeItem, shown: Boolean): HomeLayout = when {
+        section(sectionId) == null || shown == hasTile(sectionId, tile) -> this
+        shown -> updateSection(sectionId) { it.copy(items = it.items + tile) }
+        else -> updateSection(sectionId) { it.copy(items = it.items - tile) }
     }
+
+    /** Gives input [id] a name of the user's; a blank [label] brings back the firmware's. */
+    fun renameInput(id: String, label: String): HomeLayout =
+        copy(inputLabels = if (label.isBlank()) inputLabels - id else inputLabels + (id to label.trim()))
 
     // --- Apps in sections ---
 
@@ -227,16 +255,21 @@ data class HomeLayout(
 
     /**
      * What the home screen shows for [installed] apps (custom names applied): each section
-     * with its installed items, every visible app (TV apps first, then by name in [locale]'s
-     * alphabet, ё with е) and the hidden ones, which "All apps" shows when asked.
+     * with its installed items and the device's [inputs], every visible app (TV apps first, then
+     * by name in [locale]'s alphabet, ё with е) and the hidden ones, which "All apps" shows when asked.
      */
-    fun arrange(installed: List<App>, locale: Locale): HomeContent {
+    fun arrange(installed: List<App>, locale: Locale, inputs: List<InputSource> = emptyList()): HomeContent {
         val byId = installed.associate { it.id to it.copy(label = labels[it.id] ?: it.label) }
         val names = Collator.getInstance(locale).apply { strength = Collator.SECONDARY }
         val byName = compareBy<App, String>(names) { it.label }
         return HomeContent(
             sections = sections.map { section ->
-                SectionContent(section.id, section.name, section.style, section.items.mapNotNull { it.resolve(byId) })
+                SectionContent(
+                    section.id,
+                    section.name,
+                    section.style,
+                    section.items.mapNotNull { it.resolve(byId, inputs) },
+                )
             },
             apps = byId.values.filterNot { it.id in hidden }
                 .sortedWith(compareByDescending<App> { it.isTvApp }.then(byName)),
@@ -244,14 +277,19 @@ data class HomeLayout(
         )
     }
 
-    private fun HomeItem.resolve(byId: Map<AppId, App>): TileContent? = when (this) {
+    private fun HomeItem.resolve(byId: Map<AppId, App>, inputs: List<InputSource>): TileContent? = when (this) {
         is HomeItem.AppItem -> byId[app]?.let { TileContent.AppTile(it, key) }
 
         is HomeItem.Folder ->
             apps.mapNotNull(byId::get).takeIf { it.isNotEmpty() }?.let { TileContent.FolderTile(id, name, it, key) }
 
         HomeItem.AllApps -> TileContent.AllAppsTile
+
+        is HomeItem.Input -> inputs.firstOrNull { it.id == id }?.let { TileContent.InputTile(id, nameOf(it), key) }
     }
+
+    /** [input]'s name on screen: the user's, else the firmware's. */
+    fun nameOf(input: InputSource): String = inputLabels[input.id] ?: input.name
 
     private fun sectionOf(folderId: String): String? =
         sections.firstOrNull { section -> section.items.any { it is HomeItem.Folder && it.id == folderId } }?.id
@@ -269,7 +307,7 @@ private fun HomeSection.without(app: AppId): HomeSection = copy(
         when (item) {
             is HomeItem.AppItem -> item.takeIf { it.app != app }
             is HomeItem.Folder -> item.copy(apps = item.apps - app).takeIf { it.apps.isNotEmpty() }
-            HomeItem.AllApps -> item
+            HomeItem.AllApps, is HomeItem.Input -> item
         }
     },
 )
@@ -303,6 +341,9 @@ sealed interface TileContent {
     data object AllAppsTile : TileContent {
         override val key: String = HomeItem.AllApps.key
     }
+
+    /** A video input, under [name] (the user's or the firmware's). */
+    data class InputTile(val id: String, val name: String, override val key: String) : TileContent
 }
 
 /** Persisted [HomeLayout]. */

@@ -20,15 +20,18 @@ accessibility service, and any other button of the remote you choose to give som
   device's own launcher, or one you choose), Lumbina's settings. On Lumbina's own screens the Menu
   button opens that menu too.
 - Remote buttons are yours to set: a press, a double press and a hold of a button can each open
-  an app or one of Lumbina's screens, control the player, turn the screen off, or do nothing. A
+  an app or one of Lumbina's screens, control the player, mute or unmute, start the screensaver,
+  turn the screen off, or do nothing. A
   button can be Lumbina's only on its own screens and stay the app's everywhere else.
 - Search from the home screen goes to the system's search or to YouTube, as you choose.
 - Home screen with favorites, rows and folders, and a row of your apps ending in "See all": every
-  app, with search and filters, on a screen of its own. Rows can be reordered, resized, hidden and
+  app, with search and filters, on a screen of its own. The "All apps" tile can stand in any row. Rows can be reordered, resized, hidden and
   put on a glass backing, with app names on the tiles, under them or none; apps renamed and hidden.
 - A setup that walks through what a fresh install needs, a step at a time; any step can wait.
-- "Continue watching" and the channels apps publish. If the firmware has no TV provider, Lumbina
-  installs its own.
+- "Continue watching" and the channels apps publish, Google TV included: every app's channels
+  are shown, and you hide the rows you don't want in "Channels". An app can be taken out of
+  "Continue watching" on that row's page. If the firmware has no TV provider, Lumbina installs its
+  own.
 - Voice input from the remote's mic into any text field. Offline (Vosk, Russian and English),
   through OpenAI or Yandex SpeechKit with your own key, or by another app on the device that
   recognizes speech for apps (experimental: on Hisense, Android 13 or newer, with debugging
@@ -41,10 +44,13 @@ accessibility service, and any other button of the remote you choose to give som
   Projectivy wallpaper plugins, or none: the theme's background.
 - A media library for your photos and videos: which go on the wallpaper, which on the screensaver,
   and pictures for app tiles' banners. They come from a phone, through the phone remote's page.
-- Clock, weather, notifications, now playing.
+- A top bar with the clock, weather, notifications and now playing, at the right, left or in
+  the middle, with the parts you want.
+- HDMI and other inputs, where the device lets apps reach them: as tiles in any row, in the quick
+  menu, and as a button in the top bar.
 - Dark and light themes with a choice of accent.
-- Screensaver with photos and videos from the same sources as the wallpaper, sleep timer,
-  auto-sleep.
+- Screensaver with photos and videos from the same sources as the wallpaper, from a minute idle,
+  over Lumbina's own screens only, so it never covers a video. Sleep timer, auto-sleep.
 - Phone as a remote. Scan the QR code and a web page opens, nothing to install. The code can be
   shown on the screensaver, and a saved diagnostics report can be taken with the phone.
 - Checks for a new version and installs it, when you ask.
@@ -90,9 +96,8 @@ bash scripts/device/enable-a11y.sh     # if the firmware hides the accessibility
 
 There are PowerShell versions of the scripts next to them.
 
-One thing about release APKs. They are built with a process name prefix that is set outside this
-repository. Everything else in them comes from this source. On Hisense your own build may work
-worse than a release.
+One thing about release APKs. They are built with one setting that lives outside this
+repository, a process name prefix. Everything else in them comes from this source.
 
 ## Code
 

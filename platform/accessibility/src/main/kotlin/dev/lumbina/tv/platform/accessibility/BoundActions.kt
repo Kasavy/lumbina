@@ -9,6 +9,7 @@ import dev.lumbina.tv.core.domain.remote.RemoteAction
 import dev.lumbina.tv.core.domain.status.DeviceScreens
 import dev.lumbina.tv.core.domain.voice.DeviceControls
 import dev.lumbina.tv.core.domain.voice.MediaAction
+import dev.lumbina.tv.core.domain.voice.VolumeChange
 
 /**
  * What a button the user gave an action to does, besides what Home and the mic do by themselves:
@@ -38,6 +39,7 @@ internal class BoundActions(
             RemoteAction.OpenOtherHome -> openOtherHome()
             RemoteAction.OpenDeviceSettings -> screens.openSettings()
             RemoteAction.ScreenOff -> controls.standby()
+            RemoteAction.ToggleMute -> controls.volume(VolumeChange.ToggleMute)
             RemoteAction.Nothing -> Unit
             else -> return false
         }

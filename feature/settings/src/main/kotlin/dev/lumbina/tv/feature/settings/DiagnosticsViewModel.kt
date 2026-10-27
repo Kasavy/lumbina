@@ -162,6 +162,7 @@ class DiagnosticsViewModel @Inject constructor(
                 )
                 .map { FirmwarePackage(it, system.packageVersion(it), packages.of(it)) },
             partsOff = firmware.off(),
+            inputs = profile.inputs?.list().orEmpty().map { "${it.name} (${it.id})" },
         )
     }.flowOn(Dispatchers.IO)
 

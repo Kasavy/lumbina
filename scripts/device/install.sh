@@ -7,9 +7,8 @@ Type="$(tr '[:lower:]' '[:upper:]' <<< "${type:0:1}")${type:1}"
 (cd "$ROOT" && ./gradlew ":app:assembleFoss$Type")
 apks=("$ROOT"/app/build/outputs/apk/foss/"$type"/*.apk)
 [ -f "${apks[0]}" ] || { echo "no APK in app/build/outputs/apk/foss/$type" >&2; exit 1; }
-# A build for Hisense needs the process name prefix ("Build" in the README).
-if "$ADB" shell pm list packages com.jamdeo.tv.vod | grep -q jamdeo &&
-  ! grep -qs '^lumbina.processPrefix=' "$ROOT/local.properties" && [ -z "${LUMBINA_PROCESS_PREFIX:-}" ]; then
+# Release APKs have a process name prefix ("Build" in the README); a build without it is not one.
+if ! grep -qs '^lumbina.processPrefix=' "$ROOT/local.properties" && [ -z "${LUMBINA_PROCESS_PREFIX:-}" ]; then
   echo "warning: this build has no process name prefix, see 'Build' in the README" >&2
 fi
 "$ADB" install -r "$(host_path "${apks[0]}")"

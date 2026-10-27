@@ -20,6 +20,20 @@ fun List<ChannelFeed>.visibleRows(settings: ChannelSettings, labels: Map<String,
 }
 
 /**
+ * "Continue watching" as home shows it: programs of installed apps ([labels], package to name) the
+ * user did not take out of it.
+ */
+fun List<ProgramCard>.shownWatchNext(settings: ChannelSettings, labels: Map<String, String>): List<ProgramCard> =
+    filter { it.packageName in labels && it.packageName !in settings.hiddenWatchNext }
+
+/**
+ * The installed apps with programs in "continue watching", taken out of the row or not: they are
+ * being watched all the same, which puts their channels first ([byAppUse]).
+ */
+fun List<ProgramCard>.watchedApps(labels: Map<String, String>): Set<String> =
+    mapNotNullTo(mutableSetOf()) { card -> card.packageName.takeIf { it in labels } }
+
+/**
  * The channels in the user's [order] (their keys), as when each has a row of its own; the ones it
  * does not name keep the order they came in, after the others.
  */

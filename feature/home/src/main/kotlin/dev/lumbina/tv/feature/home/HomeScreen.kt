@@ -193,6 +193,7 @@ internal fun HomeScreen(
     RestoreFocus(focus, state, channels, grid, refocus, visible, apps)
     // The settings are working on a row: it is shown here as it changes.
     LaunchedEffect(spotlight) { spotlight?.let { grid.showRow(it) } }
+    HeadingKeptInView(grid, spotlight, spotlight?.let { state?.appearance?.showTitleIn(it) })
     FocusOnUndone(focus, menuTile != null, undo, undone)
     FocusOnNeighbour(focus, shown)
     HomeBack(visible && moving == null, grid, focus, shown)
@@ -348,8 +349,8 @@ private fun SectionTile(
             is TileContent.AppTile -> AppCard(
                 app = tile.app,
                 banner = actions.banner(tile.app),
-                onClick = { if (isMoving) actions.stopMoving() else actions.open(tile.app) },
-                onLongClick = { if (!isMoving) actions.appMenu(tile.app, Place.InSection(sectionId)) },
+                onClick = { actions.click(isMoving) { actions.open(tile.app) } },
+                onLongClick = { hold(isMoving) { actions.appMenu(tile.app, Place.InSection(sectionId)) } },
                 highlighted = marked,
                 name = name,
                 modifier = lifted,
@@ -358,17 +359,26 @@ private fun SectionTile(
             is TileContent.FolderTile -> FolderCard(
                 name = tile.name,
                 apps = tile.apps,
-                onClick = { if (isMoving) actions.stopMoving() else actions.openFolder(tile) },
-                onLongClick = { if (!isMoving) actions.folderMenu(sectionId, tile) },
+                onClick = { actions.click(isMoving) { actions.openFolder(tile) } },
+                onLongClick = { hold(isMoving) { actions.folderMenu(sectionId, tile) } },
                 highlighted = marked,
                 names = name,
                 modifier = lifted,
             )
 
             TileContent.AllAppsTile -> AllAppsTile(
-                onClick = { if (isMoving) actions.stopMoving() else actions.openAllApps() },
-                onLongClick = { if (!isMoving) actions.shortcutMenu() },
+                onClick = { actions.click(isMoving) { actions.openAllApps() } },
+                onLongClick = { hold(isMoving) { actions.shortcutMenu(sectionId) } },
                 label = stringResource(R.string.home_all_apps),
+                name = name,
+                highlighted = marked,
+                modifier = lifted,
+            )
+
+            is TileContent.InputTile -> InputTile(
+                onClick = { actions.click(isMoving) { actions.openInput(tile) } },
+                onLongClick = { hold(isMoving) { actions.inputMenu(sectionId, tile) } },
+                label = tile.name,
                 name = name,
                 highlighted = marked,
                 modifier = lifted,

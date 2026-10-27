@@ -59,7 +59,7 @@ class SleepSettingsViewModel @Inject constructor(
     private val sleep: SleepSettingsRepository,
     private val screensaver: ScreensaverSetup,
     private val library: MediaLibrary,
-    private val marks: MediaMarksRepository,
+    marks: MediaMarksRepository,
     private val plugins: WallpaperPlugins,
     wallpaper: WallpaperSettingsRepository,
     @Named(OUR_SCREENSAVER) screensaverComponent: String,

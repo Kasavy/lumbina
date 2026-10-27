@@ -9,6 +9,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLocale
+import dev.lumbina.tv.core.domain.MILLIS_PER_MINUTE
+import dev.lumbina.tv.core.domain.home.BarDate
 import dev.lumbina.tv.core.domain.home.ClockFormat
 import java.util.Date
 import java.util.Locale
@@ -20,7 +22,7 @@ fun rememberMinuteClock(): Long {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
-            delay(MINUTE_MILLIS - System.currentTimeMillis() % MINUTE_MILLIS)
+            delay(MILLIS_PER_MINUTE - System.currentTimeMillis() % MILLIS_PER_MINUTE)
             now = System.currentTimeMillis()
         }
     }
@@ -46,11 +48,20 @@ fun dateText(time: Long): String {
     return DateFormat.format(pattern, time).toString().asHeading(locale)
 }
 
-/** [time]'s date in short, to stand in a line with other things: "Sun, Sep 27". */
+/**
+ * [time]'s date as the top bar writes it, in the UI language: "Sun, Sep 27", "Sep 27" or "Sunday,
+ * September 27"; null for [BarDate.None].
+ */
 @Composable
-fun shortDateText(time: Long): String {
+fun barDateText(time: Long, format: BarDate): String? {
+    val skeleton = when (format) {
+        BarDate.None -> return null
+        BarDate.WeekdayShort -> "EEEdMMM"
+        BarDate.DayMonth -> "dMMM"
+        BarDate.Long -> "EEEEdMMMM"
+    }
     val locale = LocalLocale.current.platformLocale
-    val pattern = remember(locale) { DateFormat.getBestDateTimePattern(locale, "EEEdMMM") }
+    val pattern = remember(locale, skeleton) { DateFormat.getBestDateTimePattern(locale, skeleton) }
     return DateFormat.format(pattern, time).toString()
 }
 
@@ -60,5 +71,3 @@ fun shortDateText(time: Long): String {
  */
 internal fun String.asHeading(locale: Locale): String =
     replaceFirstChar { if (it.isLowerCase()) it.titlecase(locale) else it.toString() }
-
-const val MINUTE_MILLIS = 60_000L

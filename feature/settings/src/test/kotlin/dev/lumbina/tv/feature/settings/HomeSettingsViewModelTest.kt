@@ -7,6 +7,7 @@ import dev.lumbina.tv.core.domain.channels.ChannelSettings
 import dev.lumbina.tv.core.domain.channels.ProgramCard
 import dev.lumbina.tv.core.domain.channels.TvChannel
 import dev.lumbina.tv.core.domain.channels.TvChannels
+import dev.lumbina.tv.core.domain.channels.TvListingsPermission
 import dev.lumbina.tv.core.domain.home.HomeAppearance
 import dev.lumbina.tv.core.domain.home.HomeLayout
 import dev.lumbina.tv.core.domain.home.HomeLayoutRepository
@@ -66,6 +67,7 @@ class HomeSettingsViewModelTest {
             },
             FakeSettings(ChannelSettings()),
             { flowOf(emptyMap()) },
+            Granted,
         )
 
     private fun channelsOf(feeds: List<ChannelFeed>) = object : TvChannels {
@@ -157,6 +159,7 @@ class HomeSettingsViewModelTest {
             channelsOf(feeds),
             FakeSettings(ChannelSettings()),
             { flowOf(emptyMap()) },
+            Granted,
         )
         val shown = channels.state.first { it?.channels?.size == 3 }!!.channels.map { it.key }
 
@@ -178,6 +181,7 @@ class HomeSettingsViewModelTest {
             channelsOf(emptyList()),
             FakeSettings(ChannelSettings()),
             { flowOf(emptyMap()) },
+            Granted,
         )
         val key = HomeRow.Recent.key
         val sizes = TileSize.entries.sortedByDescending { it.perRow }
@@ -193,5 +197,46 @@ class HomeSettingsViewModelTest {
         assertEquals(sizes[start + 2], now.tileSizeOf(key))
         assertEquals(true, now.showTitleIn(key))
         assertEquals(true, now.plateIn(key))
+    }
+
+    @Test
+    fun `an app shown again in continue watching stays listed, though it has nothing there`() = runTest {
+        val apps = listOf("kino", "tube").map { App(AppId(it, "$it.Main"), it.replaceFirstChar(Char::uppercase), true) }
+        val settings = FakeSettings(ChannelSettings(hiddenWatchNext = setOf("kino")))
+        val viewModel = HomeSettingsViewModel(
+            { flowOf(apps) },
+            Layouts(HomeLayout()),
+            FakeSettings(HomeAppearance()),
+            language,
+            RowSpotlight(),
+            watching(ProgramCard(1, "tube", "t", null, null, null, null)),
+            settings,
+            { flowOf(emptyMap()) },
+            Granted,
+        )
+        assertEquals(
+            listOf(WatchNextChoice("kino", "Kino", 0, false), WatchNextChoice("tube", "Tube", 1, true)),
+            viewModel.state.first { it?.watchNextApps?.isNotEmpty() == true }!!.watchNextApps,
+        )
+
+        viewModel.toggleWatchNextApp("kino")
+
+        assertEquals(emptySet<String>(), settings.settings.first().hiddenWatchNext)
+        val shownAgain = viewModel.state.first { state -> state?.watchNextApps?.all { it.shown } == true }!!
+        assertEquals(listOf("kino", "tube"), shownAgain.watchNextApps.map { it.packageName })
+    }
+
+    private fun watching(vararg cards: ProgramCard) = object : TvChannels {
+        override fun provider(): String? = "org.provider"
+
+        override fun channels() = flowOf(emptyList<ChannelFeed>())
+
+        override fun watchNext() = flowOf(cards.toList())
+    }
+
+    private object Granted : TvListingsPermission {
+        override fun missing(): String? = null
+
+        override fun onGranted() = Unit
     }
 }

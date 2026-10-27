@@ -1,8 +1,11 @@
 package dev.lumbina.tv.feature.home
 
+import dev.lumbina.tv.core.domain.app.App
+import dev.lumbina.tv.core.domain.app.AppId
 import dev.lumbina.tv.core.domain.channels.ChannelFeed
 import dev.lumbina.tv.core.domain.channels.ChannelSettings
 import dev.lumbina.tv.core.domain.channels.ProgramCard
+import dev.lumbina.tv.core.domain.channels.TvChannel
 import dev.lumbina.tv.core.domain.channels.TvChannels
 import dev.lumbina.tv.core.domain.channels.TvListingsPermission
 import dev.lumbina.tv.core.testing.FakeSettings
@@ -72,6 +75,36 @@ class ChannelsViewModelTest {
         permission.onGranted()
 
         assertNull(viewModel.state.value.missingPermission)
+    }
+
+    @Test
+    fun `an app taken out of continue watching leaves the row, its channels keep their place`() = runTest {
+        val apps = listOf("kino", "tube").map { App(AppId(it, "$it.Main"), it, isTvApp = true) }
+        fun feed(app: String) = ChannelFeed(
+            TvChannel(app.length.toLong(), app, "top", null, null),
+            listOf(ProgramCard(app.length.toLong(), app, "p", null, null, null, null)),
+        )
+        val watching = object : TvChannels {
+            override fun provider() = "org.provider"
+
+            override fun channels(): Flow<List<ChannelFeed>> = flowOf(listOf(feed("tube"), feed("kino")))
+
+            override fun watchNext(): Flow<List<ProgramCard>> =
+                flowOf(listOf(ProgramCard(9, "kino", "film", null, null, null, null)))
+        }
+        val viewModel = ChannelsViewModel(
+            channels = watching,
+            settings = FakeSettings(ChannelSettings(hiddenWatchNext = setOf("kino"))),
+            installedApps = { flowOf(apps) },
+            usage = { flowOf(emptyMap()) },
+            launcher = { false },
+            permission = permission,
+        )
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.state.collect {} }
+
+        assertEquals(emptyList<ProgramCard>(), viewModel.state.value.watchNext)
+        // Watched all the same: Kino's channel still comes first, after the mix.
+        assertEquals(listOf("kino", "tube"), viewModel.state.value.rows.drop(1).map { it.app })
     }
 
     private companion object {

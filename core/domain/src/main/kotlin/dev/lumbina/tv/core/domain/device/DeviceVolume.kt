@@ -11,4 +11,7 @@ fun interface DeviceVolume {
      * firmware has no such volume after all, so the caller uses Android's.
      */
     fun change(percent: Int): Boolean
+
+    /** Turns the sound off, or back on when it is off, as the remote's mute key; false: Android's. */
+    fun toggleMute(): Boolean = false
 }

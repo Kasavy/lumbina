@@ -4,8 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.lumbina.tv.core.domain.app.InstalledApps
+import dev.lumbina.tv.core.domain.device.InputCatalog
+import dev.lumbina.tv.core.domain.device.InputSource
 import dev.lumbina.tv.core.domain.home.ClockFormat
 import dev.lumbina.tv.core.domain.home.HomeAppearanceRepository
+import dev.lumbina.tv.core.domain.home.TopBarLook
 import dev.lumbina.tv.core.domain.sleep.SleepSettingsRepository
 import dev.lumbina.tv.core.domain.sleep.timerMinutesLeft
 import dev.lumbina.tv.core.domain.sleep.withTimer
@@ -37,16 +40,21 @@ import kotlinx.coroutines.launch
 /**
  * [weather]: null while unknown or switched off; [weatherAwaited]: it is on and still unknown, so
  * its place is kept for it. [sleepMinutesLeft]: minutes until the sleep
- * timer turns the device off, null with no timer. [search]: null hides the search button.
+ * timer turns the device off, null with no timer. [search]: null hides the search button. [inputs]:
+ * the device's inputs under the user's names, for the inputs button where [look] has it.
  */
 data class TopBarState(
     val weather: ShownWeather? = null,
     val weatherAwaited: Boolean = false,
     val sleepMinutesLeft: Int? = null,
     val search: SearchTarget? = null,
-    val showDate: Boolean = true,
+    val look: TopBarLook = TopBarLook(),
     val clockFormat: ClockFormat = ClockFormat.System,
+    val inputs: List<InputSource> = emptyList(),
 )
+
+/** What the top bar takes from the look and the layout. */
+private data class BarLooks(val look: TopBarLook, val clockFormat: ClockFormat, val inputs: List<InputSource>)
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -57,7 +65,13 @@ class TopBarViewModel @Inject constructor(
     installedApps: InstalledApps,
     private val sleep: SleepSettingsRepository,
     private val search: Search,
+    private val inputs: InputCatalog,
 ) : ViewModel() {
+
+    /** The bar as the user set it. */
+    private val looks = combine(appearance.settings, inputs.inputs) { look, inputs ->
+        BarLooks(look.topBar, look.clockFormat, inputs)
+    }.distinctUntilChanged()
 
     /** Minutes left on the sleep timer, counting down only while one runs. */
     private val sleepMinutesLeft = sleep.settings.flatMapLatest { settings ->
@@ -96,15 +110,16 @@ class TopBarViewModel @Inject constructor(
         weatherSettings.settings,
         sleepMinutesLeft,
         searchTarget,
-        appearance.settings,
-    ) { (answers, report), weatherChoice, minutes, search, look ->
+        looks,
+    ) { (answers, report), weatherChoice, minutes, search, looks ->
         TopBarState(
             weather = shownWeather(report, weatherChoice),
             weatherAwaited = weatherChoice.show && report == null && answers == 0,
             sleepMinutesLeft = minutes,
-            search = search,
-            showDate = look.showDate,
-            clockFormat = look.clockFormat,
+            search = search.takeIf { looks.look.search },
+            look = looks.look,
+            clockFormat = looks.clockFormat,
+            inputs = looks.inputs,
         )
     }.stateIn<TopBarState?>(viewModelScope, WhileUiSubscribed, null)
 
@@ -120,6 +135,11 @@ class TopBarViewModel @Inject constructor(
 
     /** Opens the device's own search; false when it did not open. */
     fun openSystemSearch(): Boolean = search.openSystem()
+
+    /** Switches to [input] and shows it full screen; [onFailed] when it could not. */
+    fun openInput(input: InputSource, onFailed: () -> Unit) {
+        viewModelScope.launch { if (!inputs.open(input.id)) onFailed() }
+    }
 
     /** Turns the device off in [minutes]; null cancels the timer. */
     fun setSleepTimer(minutes: Int?) {

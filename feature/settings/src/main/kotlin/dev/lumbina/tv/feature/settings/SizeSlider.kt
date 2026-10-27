@@ -47,9 +47,9 @@ import dev.lumbina.tv.core.ui.FreshPressGuard
 import dev.lumbina.tv.core.ui.PillShape
 import kotlin.math.abs
 
-/** Opens the size slider on the row with this key: the panel steps aside for it. */
+/** Sets something on home itself as the panel steps aside ([Adjusting]): a row's size, or the bar's place. */
 @Suppress("CompositionLocalAllowlist")
-internal val LocalAdjustSize = staticCompositionLocalOf<(String) -> Unit> { {} }
+internal val LocalAdjust = staticCompositionLocalOf<(String) -> Unit> { {} }
 
 /** The sizes the row can have, the smallest tiles first: every size for app tiles, three for cards of programs. */
 internal fun RowPageOf.sizes(): List<TileSize> =
@@ -112,6 +112,7 @@ internal fun SizeSlider(start: String, onDone: () -> Unit, viewModel: HomeSettin
             at = sizes.nearest(now),
             usual = sizes.nearest(HomeAppearance().defaultTileSizeOf(page.key)),
             count = sizes.size,
+            keys = stringResource(R.string.slider_keys),
             onKey = { pressed ->
                 when (pressed) {
                     Key.DirectionLeft -> step(-1)
@@ -130,17 +131,18 @@ internal fun SizeSlider(start: String, onDone: () -> Unit, viewModel: HomeSettin
 internal fun List<TileSize>.nearest(size: TileSize): Int = indices.minBy { abs(this[it].perRow - size.perRow) }
 
 /**
- * The card: the row's name, the size in words, the scale with the current size marked and a dot
- * under the [usual] one (what a row has until it is set), and the keys.
+ * The card: what is set ([title]), the value in words, the scale with the current value marked and
+ * a dot under the [usual] one (what there is until it is set), and the [keys].
  */
 @Composable
-private fun SliderCard(
+internal fun SliderCard(
     title: String,
     note: String?,
     value: String,
     at: Int,
     usual: Int,
     count: Int,
+    keys: String,
     onKey: (Key) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -190,7 +192,7 @@ private fun SliderCard(
             Text(value, style = MaterialTheme.typography.titleMedium)
         }
         Text(
-            stringResource(R.string.slider_keys),
+            keys,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

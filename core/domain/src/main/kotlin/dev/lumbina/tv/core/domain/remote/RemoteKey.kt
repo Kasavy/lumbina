@@ -147,6 +147,9 @@ sealed interface RemoteAction {
     data object OpenDeviceSettings : RemoteAction
     data object ScreenOff : RemoteAction
 
+    /** The sound off, or back on: what a remote's mute key does. */
+    data object ToggleMute : RemoteAction
+
     /** The button does nothing: to disarm one that is pressed by accident. */
     data object Nothing : RemoteAction
 }

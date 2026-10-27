@@ -22,6 +22,7 @@
 
     <string name="name_app">Rename “%1$s”</string>
     <string name="name_app_hint">Leave it empty to bring back the app’s own name</string>
+    <string name="name_input_hint">Leave it empty to bring back the input’s own name</string>
     <string name="name_category">New category</string>
     <string name="name_folder">New folder</string>
     <string name="name_save">Save</string>
@@ -29,6 +30,7 @@
     <string name="default_category_name">Category</string>
     <string name="default_folder_name">Folder</string>
     <string name="home_sleep_timer">Sleep timer</string>
+    <string name="home_inputs">Inputs</string>
     <string name="home_sleep_in">Turn off in %1$d min</string>
     <string name="home_sleep_cancel">Cancel the timer</string>
     <string name="home_watch_next">Continue watching</string>
@@ -41,8 +43,8 @@
     <string name="undo_notices_muted">Notifications from “%1$s” are hidden</string>
     <string name="failed_notice">Couldn’t open the notification</string>
     <string name="notices_none">No more notifications</string>
-    <string name="failed_system_search">The search didn’t open. Change “Where to search” in the settings, under “Widgets”</string>
-    <string name="failed_youtube_search">Couldn’t open the search in YouTube. Check the app for YouTube in the settings, under “Widgets”</string>
+    <string name="failed_system_search">The search didn’t open. Change “Where to search” in the settings, under “Top bar”</string>
+    <string name="failed_youtube_search">Couldn’t open the search in YouTube. Check the app for YouTube in the settings, under “Top bar”</string>
     <string name="status_no_internet">No internet</string>
     <string name="home_recently_installed">Recently installed</string>
     <string name="menu_banner">Own banner…</string>
@@ -100,6 +102,7 @@
     <string name="folder_title">Folder “%1$s”</string>
     <string name="move_hint">Moving %1$s · ◀ ▶ shift · OK put down · Back cancel</string>
     <string name="failed_app">Couldn’t open %1$s. Try again</string>
+    <string name="failed_input">Couldn’t switch to %1$s</string>
     <string name="failed_program">Couldn’t open the program. Open %1$s and find it there</string>
     <string name="folder_rename_title">Rename folder</string>
     <string name="home_opened">Recently opened</string>
@@ -117,6 +120,8 @@
     <string name="undo_folder_dissolved">The folder “%1$s” is ungrouped</string>
     <string name="undo_row_hidden">The row “%1$s” is hidden</string>
     <string name="shortcut_hint">Opens the screen of all apps</string>
+    <string name="input_hint">Switches to this input</string>
+    <string name="menu_group_input">Input</string>
     <string name="undo_shortcut_removed">The tile is gone. “All apps” opens from the quick menu too</string>
     <string name="channels_need_access">Lumbina needs access to the channels apps publish</string>
     <string name="channels_allow">Allow</string>
@@ -126,11 +131,13 @@
     <string name="where_hint">You can tick several places</string>
     <string name="pick_apps_add">Add apps</string>
     <string name="pick_apps_hint">OK ticks an app, the row changes at once</string>
+    <string name="pick_apps_hint_inputs">OK ticks an app or an input, the row changes at once</string>
     <string name="pick_apps_title">What to show in “%1$s”</string>
     <string name="pick_apps_title_favorites">What to show in Favorites</string>
     <string name="pick_apps_count">%1$d chosen</string>
     <string name="pick_apps_in_row">In the row</string>
     <string name="pick_apps_rest">The rest, alphabetical</string>
+    <string name="pick_apps_inputs">Inputs</string>
     <string name="pick_apps_in_folder">in folder “%1$s”</string>
     <string name="name_own">My own…</string>
     <string-array name="ready_names">

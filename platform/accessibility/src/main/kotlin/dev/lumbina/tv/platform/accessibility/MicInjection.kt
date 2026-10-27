@@ -104,6 +104,14 @@ internal class MicInjection(
     val speech = Speech()
 
     inner class Speech {
+        /**
+         * The app [SpeechAppEngine] chose before this connection, fed from the helper's first start:
+         * told by [alsoFeed] a moment later, it would start the helper twice.
+         */
+        fun feedFromStart(app: String) {
+            extra = extra + app
+        }
+
         /** Gives [app] a feed too from now on; true if the helper starts again to take it in. */
         fun alsoFeed(app: String): Boolean {
             if (app in extra) return false

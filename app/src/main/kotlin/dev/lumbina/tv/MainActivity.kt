@@ -9,9 +9,11 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
@@ -27,12 +29,16 @@ import dev.lumbina.tv.core.domain.home.TextScale
 import dev.lumbina.tv.core.domain.input.InputSettings
 import dev.lumbina.tv.core.domain.input.InputSettingsRepository
 import dev.lumbina.tv.core.domain.theme.Themes
+import dev.lumbina.tv.core.ui.LocalScreenMarks
 import dev.lumbina.tv.core.ui.LocalUseLumbinaKeyboard
 import dev.lumbina.tv.core.ui.LocalVoiceInput
+import dev.lumbina.tv.core.ui.ScreenMarks
 import javax.inject.Inject
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -44,6 +50,8 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var appearance: HomeAppearanceRepository
 
     @Inject lateinit var log: LumbinaLog
+
+    private var backToAndroid: Job? = null
 
     private val quietSemantics by lazy { QuietSemantics(this, log) }
 
@@ -66,6 +74,7 @@ class MainActivity : ComponentActivity() {
                 CompositionLocalProvider(
                     LocalUseLumbinaKeyboard provides input.useLumbinaKeyboard,
                     LocalVoiceInput provides voiceInput,
+                    LocalScreenMarks provides remember { ScreenMarks() },
                 ) {
                     // Surface provides the default content color; the wallpaper is the background.
                     Surface(
@@ -99,9 +108,14 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         returns.resumed()
         quietSemantics.start(window.decorView)
+        // Lumbina comes back on Android's own picture; not once it is left again (an input opened meanwhile).
+        backToAndroid = lifecycleScope.launch {
+            if (profile.inputs?.showAndroid() == true) log.log(TAG, "another input was chosen: back to Android's")
+        }
     }
 
     override fun onPause() {
+        backToAndroid?.cancel()
         quietSemantics.stop()
         super.onPause()
     }
@@ -133,6 +147,8 @@ class MainActivity : ComponentActivity() {
     private companion object {
         /** Whether this process has created the activity before; not, when state comes from a killed one. */
         var createdInThisProcess = false
+
+        const val TAG = "MainActivity"
     }
 }
 

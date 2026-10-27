@@ -109,7 +109,10 @@ internal object DataModule {
         context,
         LumbinaDatabase::class.java,
         "lumbina.db",
-    ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()
+    ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        // The remote's service has its own copy in its own process: it hears of changes made in the UI's.
+        .enableMultiInstanceInvalidation()
+        .build()
 
     @Provides
     @Singleton

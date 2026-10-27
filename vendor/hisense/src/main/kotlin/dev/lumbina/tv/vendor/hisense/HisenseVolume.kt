@@ -49,6 +49,14 @@ class HisenseVolume @Inject constructor(@ApplicationContext private val context:
         return true
     }
 
+    /** As the remote's mute key; false where nothing takes it. */
+    override fun toggleMute(): Boolean {
+        val intent = Intent(SYSTEM_KEY).putExtra(Intent.EXTRA_KEY_EVENT, KEYCODE_MUTE)
+        if (context.packageManager.queryBroadcastReceivers(intent, 0).isEmpty()) return false
+        context.sendOrderedBroadcast(intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND), null)
+        return true
+    }
+
     internal companion object {
         const val PACKAGE = "com.hisense.tv.baseservice"
         private const val ACTION = "com.hisense.tv.aiot.VOLUME"
@@ -56,5 +64,7 @@ class HisenseVolume @Inject constructor(@ApplicationContext private val context:
         private const val RAISE = 5012
         private const val LOWER = 5013
         private const val ASK_AGAIN_MILLIS = 5_000L
+        private const val SYSTEM_KEY = "tv.policy.SYSTEM_KEY"
+        private const val KEYCODE_MUTE = 164
     }
 }

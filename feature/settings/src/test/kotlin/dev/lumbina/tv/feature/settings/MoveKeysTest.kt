@@ -3,6 +3,7 @@ package dev.lumbina.tv.feature.settings
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -16,9 +17,9 @@ class MoveKeysTest {
     private fun up(key: Key) = keys.handle(KeyEventType.KeyUp, key, 0, acted::add)
 
     @Test
-    fun `the release of the OK held to pick the row up does nothing`() {
-        down(Key.DirectionCenter, repeat = 3)
-        up(Key.DirectionCenter)
+    fun `the release of the OK held to pick the row up does nothing, and the row gets it`() {
+        assertTrue(down(Key.DirectionCenter, repeat = 3))
+        assertFalse(up(Key.DirectionCenter))
 
         assertEquals(emptyList<Key>(), acted)
     }
@@ -51,9 +52,18 @@ class MoveKeysTest {
     }
 
     @Test
-    fun `every key is taken while moving`() {
+    fun `the release of an arrow or Back pressed before the move goes on and does nothing`() {
+        assertFalse(up(Key.DirectionDown))
+        assertFalse(up(Key.Back))
+
+        assertEquals(emptyList<Key>(), acted)
+    }
+
+    @Test
+    fun `every press is taken while moving, with its release`() {
         assertTrue(down(Key.DirectionLeft))
         assertTrue(up(Key.DirectionLeft))
-        assertTrue(up(Key.DirectionCenter))
+        assertTrue(down(Key.Back))
+        assertTrue(up(Key.Back))
     }
 }

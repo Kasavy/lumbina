@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,8 +34,9 @@ import androidx.tv.material3.Text
 /**
  * The panel everything about one app, folder, row or setting opens in: on the right, over the
  * screen it was opened from, which stays in sight (dimmed) and alive. [path] names the pages above
- * this one, nearest last. Back closes it; presses still down when it appears (OK held to open it) are ignored. With
- * [fitContent] it is only as tall as what it holds, from the top: for a short list that comes and goes.
+ * this one, nearest last. Back closes it; presses still down when it appears (OK held to open it) are
+ * ignored. With [fitContent] it is only as tall as what it holds, from the top: for a short list that
+ * comes and goes. It begins [LocalPanelTop] down, without dimming what it leaves in sight.
  */
 @Composable
 fun SidePanel(
@@ -47,10 +49,12 @@ fun SidePanel(
     fitContent: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    PanelWindow(onDismiss, modifier) { guarded ->
+    // Read here: the window may be laid out elsewhere, with the locals of that place.
+    val top = LocalPanelTop.current
+    PanelWindow(onDismiss, modifier, dim = top == 0.dp) { guarded ->
         SidePanelSurface(
             title = title,
-            modifier = guarded.align(if (fitContent) Alignment.TopEnd else Alignment.CenterEnd),
+            modifier = guarded.align(if (fitContent) Alignment.TopEnd else Alignment.CenterEnd).padding(top = top),
             path = path,
             subtitle = subtitle,
             width = width,
@@ -139,11 +143,12 @@ fun CenteredPanel(
 private fun PanelWindow(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    dim: Boolean = true,
     panel: @Composable BoxScope.(guarded: Modifier) -> Unit,
 ) {
     val guard = remember { FreshPressGuard() }
     val window: @Composable () -> Unit = {
-        Box(modifier.fillMaxSize().background(Color.Black.copy(alpha = SCRIM_ALPHA))) {
+        Box(modifier.fillMaxSize().background(Color.Black.copy(alpha = if (dim) SCRIM_ALPHA else 0f))) {
             panel(Modifier.onPreviewKeyEvent(guard::swallow))
         }
     }
@@ -236,11 +241,18 @@ fun PanelGroup(title: String, modifier: Modifier = Modifier) {
  */
 val PANEL_WIDTH = 440.dp
 
+/**
+ * How far down the side panels opened here begin, for what on the screen behind must stay in sight
+ * over them (the top bar while its settings are open, see [ScreenMarks]); they leave it undimmed.
+ */
+@Suppress("CompositionLocalAllowlist")
+val LocalPanelTop = compositionLocalOf { 0.dp }
+
 /** 1360×880 px on a 1080p screen: room for a grid of app tiles, and home still in sight around it. */
 private val CENTERED_WIDTH = 680.dp
 private val CENTERED_HEIGHT = 440.dp
 
-private val PANEL_MARGIN = 20.dp
+internal val PANEL_MARGIN = 20.dp
 private val PANEL_CORNER = 22.dp
 
 /** The path shows the parent and the page above it; a longer one would wrap. */

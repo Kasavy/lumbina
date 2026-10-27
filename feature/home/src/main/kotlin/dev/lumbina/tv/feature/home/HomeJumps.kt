@@ -6,7 +6,9 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.withFrameNanos
@@ -50,15 +52,68 @@ internal fun rowId(rowKey: String): String = rowKey.removePrefix(CATEGORY_PREFIX
 /**
  * Brings the row [rowKey] (as the settings name it) to the top of the screen, from wherever home
  * is. A row that shows nothing now (no programs, nothing opened yet) is not on home at all: then
- * home stays where it was.
+ * home stays where it was. A row in view already, even in part, is brought up from its own start
+ * (a grid's first line, the first channel), with no run through the rows above.
  */
 internal suspend fun LazyGridState.showRow(rowKey: String) {
     val id = rowId(rowKey)
+    val inView = layoutInfo.visibleItemsInfo.firstOrNull { isOfRow(it.key, id) }?.index
+    if (inView != null) {
+        scrollToItem(rowStart(inView, id))
+        return
+    }
     val index = firstVisibleItemIndex
     val offset = firstVisibleItemScrollOffset
     scrollToItem(0)
     if (!bringToTop(forward = true) { isOfRow(it, id) }) scrollToItem(index, offset)
 }
+
+/** The first item of the row [id] that has the item [from]: looked for a page at a time above it. */
+private suspend fun LazyGridState.rowStart(from: Int, id: String): Int {
+    scrollToItem(from)
+    repeat(MAX_PAGES) {
+        withFrameNanos { }
+        val before = layoutInfo.visibleItemsInfo.filter {
+            it.index < from && !isOfRow(it.key, id)
+        }.maxOfOrNull { it.index }
+        if (before != null) return before + 1
+        if (scrollBy(-layoutInfo.viewportSize.height * PAGE) == 0f) return firstVisibleItemIndex
+    }
+    return from
+}
+
+/**
+ * The lit row's heading switched back on comes in at the top of the screen with the row, in the
+ * same frame. Left alone, the grid would keep the row where it stands and the heading above the
+ * screen, and bringing it down after would show as a jump. A row that could not be brought to the
+ * top (one of the last) is brought up again instead: the heading pushed it down.
+ */
+@Composable
+internal fun HeadingKeptInView(grid: LazyGridState, rowKey: String?, titled: Boolean?) {
+    val seen = remember(rowKey) { Seen(titled) }
+    val scope = rememberCoroutineScope()
+    // After composition, so the next measure has the heading among the grid's items already.
+    SideEffect {
+        if (rowKey != null && titled == true && seen.titled == false) {
+            // The item the grid stands on; the row above may still show in the padding over it.
+            val index = grid.firstVisibleItemIndex
+            val first = grid.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
+            // The heading takes the row's first place, so the row starting the screen keeps it for it.
+            if (first != null && isOfRow(first.key, rowId(rowKey))) {
+                grid.requestScrollToItem(index, grid.firstVisibleItemScrollOffset)
+            } else {
+                scope.launch {
+                    withFrameNanos { }
+                    grid.showRow(rowKey)
+                }
+            }
+        }
+        seen.titled = titled
+    }
+}
+
+/** Whether the lit row had its heading at the last composition. */
+private class Seen(var titled: Boolean?)
 
 private const val CATEGORY_PREFIX = "category:"
 

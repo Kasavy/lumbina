@@ -45,14 +45,19 @@ internal object Columns {
     )
 }
 
-/** Hidden by its app, or shown to nobody yet: the home screen leaves such a row out. */
+/**
+ * Marked not to show: a program the user removed in Android TV's launcher, or a channel no launcher
+ * let show (Google TV's lets none). The program is left out; the channel is only counted.
+ */
 private fun TvRow.notBrowsable(): Boolean = long(Columns.BROWSABLE) == 0L
 
 private fun TvRow.channelName(): String? = string(Columns.DISPLAY_NAME)?.takeIf { it.isNotBlank() }
 
-/** A browsable channel, or null for one hidden by its app or missing required fields. */
+/**
+ * A channel, or null for one missing required fields. Its browsable mark is not asked: Google TV's
+ * launcher gives it to no app, and which rows show is the user's choice in Lumbina, as in other launchers.
+ */
 internal fun channelOf(row: TvRow, logoUri: (Long) -> String): TvChannel? {
-    if (row.notBrowsable()) return null
     val id = row.long(Columns.ID) ?: return null
     val name = row.channelName() ?: return null
     return TvChannel(
@@ -83,7 +88,7 @@ internal fun feedsOf(channels: List<TvChannel>, programs: List<ChannelProgram>):
     }
 }
 
-/** A preview or watch-next program, or null when it has no title or was hidden by its app. */
+/** A preview or watch-next program, or null when it has no title or is marked not to show. */
 internal fun programOf(row: TvRow): ProgramCard? {
     if (row.notBrowsable()) return null
     val title = row.string(Columns.TITLE)?.takeIf { it.isNotBlank() }
@@ -133,10 +138,16 @@ private fun progressOf(position: Long?, duration: Long?): Float? {
 
 /**
  * The provider's rows counted app by app for a diagnostics report, with the channels [channelOf]
- * leaves out, by its own rules.
+ * leaves out (unnamed) and what is marked not browsable.
  */
 internal class ProviderCensus {
-    private class App(var channels: Int = 0, var notBrowsable: Int = 0, var unnamed: Int = 0, var programs: Int = 0)
+    private class App(
+        var channels: Int = 0,
+        var notBrowsable: Int = 0,
+        var unnamed: Int = 0,
+        var programs: Int = 0,
+        var programsNotBrowsable: Int = 0,
+    )
 
     private val apps = sortedMapOf<String, App>()
 
@@ -150,11 +161,13 @@ internal class ProviderCensus {
     }
 
     fun program(row: TvRow) {
-        appOf(row).programs++
+        val app = appOf(row)
+        app.programs++
+        if (row.notBrowsable()) app.programsNotBrowsable++
     }
 
     fun lines(): List<String> = apps.map { (name, app) ->
         val left = "${app.notBrowsable} not browsable, ${app.unnamed} unnamed"
-        "$name: ${app.channels} channels ($left), ${app.programs} programs"
+        "$name: ${app.channels} channels ($left), ${app.programs} programs (${app.programsNotBrowsable} not browsable)"
     }
 }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -22,7 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -31,10 +32,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Button
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.FilterChip
+import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.lumbina.tv.core.domain.backdrop.MediaKind
 import dev.lumbina.tv.core.ui.ConfirmDialog
+import dev.lumbina.tv.core.ui.FreshPressGuard
 import dev.lumbina.tv.core.ui.requestFocusSoon
 import kotlinx.coroutines.delay
 
@@ -74,8 +77,20 @@ fun MediaLibraryRoute(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     BackHandler(onBack = onBack)
-    Box(modifier.fillMaxSize().background(Color.Black.copy(alpha = SCRIM_ALPHA))) {
-        state?.let { MediaLibrary(it, view, viewModel) }
+    // Opened by holding OK on the source's row, it appears while OK is still down: its repeats and
+    // release are not for the first tile, which they would tick or clear.
+    val guard = remember { FreshPressGuard() }
+    val scheme = MaterialTheme.colorScheme
+    Box(
+        modifier
+            .fillMaxSize()
+            .background(scheme.background.copy(alpha = SCRIM_ALPHA))
+            .onPreviewKeyEvent(guard::swallow),
+    ) {
+        // Its own text color: over the theme's background, not the home screen's.
+        CompositionLocalProvider(LocalContentColor provides scheme.onBackground) {
+            state?.let { MediaLibrary(it, view, viewModel) }
+        }
     }
 }
 

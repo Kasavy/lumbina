@@ -90,4 +90,11 @@ class ScreensaverActivity : ComponentActivity() {
         finish()
         return true
     }
+
+    // In a task of its own, it would otherwise stay behind what the service opened over it (Home, a
+    // button's app, a voice command take the key before it) and come back later.
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) finish()
+    }
 }

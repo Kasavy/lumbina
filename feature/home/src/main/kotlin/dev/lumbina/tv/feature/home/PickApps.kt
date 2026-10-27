@@ -36,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.lumbina.tv.core.domain.app.App
-import dev.lumbina.tv.core.domain.app.AppId
 import dev.lumbina.tv.core.domain.home.HomeItem
 import dev.lumbina.tv.core.domain.home.HomeSection
 import dev.lumbina.tv.core.ui.AppCard
@@ -45,6 +44,7 @@ import dev.lumbina.tv.core.ui.CenteredPanel
 import dev.lumbina.tv.core.ui.PanelGroup
 import dev.lumbina.tv.core.ui.TICK
 import dev.lumbina.tv.core.ui.TileCard
+import dev.lumbina.tv.core.ui.TileName
 import dev.lumbina.tv.core.ui.onTile
 import dev.lumbina.tv.core.ui.requestFocusSoon
 import java.util.Locale
@@ -82,36 +82,11 @@ internal fun PlusTile(onClick: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
-/** The window's two groups: the apps the row shows, in its order, then the rest by name. */
-internal data class PickGroups(val inRow: List<App>, val rest: List<App>) {
-    val first: App? get() = inRow.firstOrNull() ?: rest.firstOrNull()
-}
-
-/**
- * [apps]: every app that can be picked; one of the section's that is not among them (not
- * installed, or hidden) is left out. The rest go by name alone in [locale], TV apps among the others.
- */
-internal fun pickGroups(section: HomeSection, apps: List<App>, locale: Locale): PickGroups {
-    val byId = apps.associateBy { it.id }
-    val inRow = section.apps.mapNotNull(byId::get)
-    val taken = inRow.mapTo(HashSet()) { it.id }
-    return PickGroups(inRow, apps.filterNot { it.id in taken }.sortedWith(appsByName(locale)))
-}
-
-/** How many of [apps] (those the window shows) [section] has: one not installed or hidden is not counted. */
-internal fun chosenCount(section: HomeSection, apps: List<App>): Int {
-    val shown = apps.mapTo(HashSet()) { it.id }
-    return section.apps.toSet().count { it in shown }
-}
-
-/** The name of the folder of [section] that holds [app]; null when the app stands in the row itself or not at all. */
-internal fun folderOf(section: HomeSection, app: AppId): String? =
-    section.items.firstNotNullOfOrNull { item -> (item as? HomeItem.Folder)?.takeIf { app in it.apps }?.name }
-
 /**
  * Every app as a tile, ticked if the section shows it (in the row or in a folder of it): first
- * those in the row, in its order, then the rest. OK puts an app in or takes it out at once. The
- * groups stay as they were when the window opened, so a tile never runs away from the focus.
+ * those in the row, in its order, then the rest; the tile that opens all apps leads the group it
+ * was in. OK puts a tile in or takes it out at once. The groups stay as they were when the window
+ * opened, so a tile never runs away from the focus.
  */
 @Composable
 internal fun PickApps(dialog: HomeDialog.PickApps, state: HomeUiState, commands: HomeCommands, dismiss: () -> Unit) {
@@ -126,6 +101,9 @@ internal fun PickApps(dialog: HomeDialog.PickApps, state: HomeUiState, commands:
     val shown = remember(section) { section.apps.toSet() }
     val count = remember(section, apps) { chosenCount(section, apps) }
     val first = remember { FocusRequester() }
+    val shortcutInRow = remember(dialog) { HomeItem.AllApps in opened.items }
+    val start = pickStart(shortcutInRow, groups.inRow.isEmpty(), state.inputs.isNotEmpty())
+    val focusIf = { at: PickStart -> if (start == at) Modifier.focusRequester(first) else Modifier }
     val title = if (section.isFavorites) {
         stringResource(R.string.pick_apps_title_favorites)
     } else {
@@ -135,7 +113,9 @@ internal fun PickApps(dialog: HomeDialog.PickApps, state: HomeUiState, commands:
         title = title,
         onDismiss = dismiss,
         titleEnd = stringResource(R.string.pick_apps_count, count),
-        subtitle = stringResource(R.string.pick_apps_hint),
+        subtitle = stringResource(
+            if (state.inputs.isEmpty()) R.string.pick_apps_hint else R.string.pick_apps_hint_inputs,
+        ),
     ) {
         val tiles: LazyGridScope.(List<App>) -> Unit = { apps ->
             items(apps, key = { app -> app.id.flatten() }) { app ->
@@ -147,7 +127,7 @@ internal fun PickApps(dialog: HomeDialog.PickApps, state: HomeUiState, commands:
                     onClick = { commands.toggle(section.id, app, inIt, inFolder = folder != null) },
                     banner = state.appearance.customBanners[app.id.flatten()],
                     folder = folder,
-                    modifier = if (app == groups.first) Modifier.focusRequester(first) else Modifier,
+                    modifier = if (app == groups.first) focusIf(PickStart.Apps) else Modifier,
                 )
             }
         }
@@ -159,17 +139,58 @@ internal fun PickApps(dialog: HomeDialog.PickApps, state: HomeUiState, commands:
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 12.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            if (groups.inRow.isNotEmpty()) {
-                group(R.string.pick_apps_in_row)
-                tiles(groups.inRow)
-            }
-            if (groups.rest.isNotEmpty()) {
-                group(R.string.pick_apps_rest)
-                tiles(groups.rest)
-            }
+            pickGrid(
+                groups,
+                shortcutInRow,
+                shortcut = { shortcutItem(section, commands, focusIf(PickStart.Shortcut)) },
+                inputs = { inputItems(state, section, commands, focusIf(PickStart.Inputs)) },
+                tiles = tiles,
+            )
         }
     }
     LaunchedEffect(Unit) { first.requestFocusSoon() }
+}
+
+/**
+ * The two groups, the tile that opens all apps leading the one it was in ([shortcutInRow]), and
+ * the device's [inputs] between them.
+ */
+private fun LazyGridScope.pickGrid(
+    groups: PickGroups,
+    shortcutInRow: Boolean,
+    shortcut: LazyGridScope.() -> Unit,
+    inputs: LazyGridScope.() -> Unit,
+    tiles: LazyGridScope.(List<App>) -> Unit,
+) {
+    if (shortcutInRow || groups.inRow.isNotEmpty()) {
+        group(R.string.pick_apps_in_row)
+        if (shortcutInRow) shortcut()
+        tiles(groups.inRow)
+    }
+    inputs()
+    if (!shortcutInRow || groups.rest.isNotEmpty()) {
+        group(R.string.pick_apps_rest)
+        if (!shortcutInRow) shortcut()
+        tiles(groups.rest)
+    }
+}
+
+/**
+ * The tile that opens all apps, with its badge as [PickTile] has: ticked if [section] has it; OK
+ * puts it in or takes it out.
+ */
+private fun LazyGridScope.shortcutItem(section: HomeSection, commands: HomeCommands, modifier: Modifier) {
+    item(key = HomeItem.AllApps.key) {
+        val inIt = HomeItem.AllApps in section.items
+        Box(modifier) {
+            AllAppsTile(
+                onClick = { commands.setAllApps(section.id, !inIt) },
+                label = stringResource(R.string.home_all_apps),
+                name = TileName.None,
+            )
+            TickBadge(inIt, Modifier.align(Alignment.TopEnd).offset(x = BADGE_OUT, y = -BADGE_OUT))
+        }
+    }
 }
 
 /**
@@ -184,7 +205,7 @@ private fun HomeCommands.toggle(sectionId: String, app: App, ticked: Boolean, in
 }
 
 /** A caption across the whole width of the grid. */
-private fun LazyGridScope.group(@StringRes title: Int) {
+internal fun LazyGridScope.group(@StringRes title: Int) {
     item(key = "group:$title", span = { GridItemSpan(maxLineSpan) }) { PanelGroup(stringResource(title)) }
 }
 

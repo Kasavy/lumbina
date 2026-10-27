@@ -81,6 +81,11 @@ private fun WidgetsPage(viewModel: WidgetsSettingsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val citySearch by viewModel.citySearch.collectAsStateWithLifecycle()
     DisposableEffect(viewModel) { onDispose(viewModel::closeSearch) }
+    // The bar itself shows what is changed: lit, the panel below it.
+    DisposableEffect(viewModel) {
+        viewModel.lightTopBar(true)
+        onDispose { viewModel.lightTopBar(false) }
+    }
     WidgetsPanel(state = state, citySearch = citySearch, commands = viewModel)
 }
 

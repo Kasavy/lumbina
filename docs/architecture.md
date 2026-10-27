@@ -56,7 +56,7 @@ whether it matches the running device (`DeviceFingerprint`: manufacturer, model,
 packages). `DeviceProfileResolver` picks the matching profile with the highest priority; the
 generic profile matches everything. The profile supplies the remote's key map, the stock
 launcher (the first of the home screens the quick menu can lead to) and, if the vendor exposes
-it, the remote-mic audio source. Adding a device family means adding one module and one line in `:app`.
+them, the remote-mic audio source, the device's own volume and the video inputs. Adding a device family means adding one module and one line in `:app`.
 
 ## Processes
 

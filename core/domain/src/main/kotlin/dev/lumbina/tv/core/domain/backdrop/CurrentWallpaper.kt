@@ -1,5 +1,6 @@
 package dev.lumbina.tv.core.domain.backdrop
 
+import dev.lumbina.tv.core.domain.MILLIS_PER_MINUTE
 import java.io.IOException
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -113,7 +114,6 @@ class CurrentWallpaper @Inject constructor(
     }
 
     private companion object {
-        const val MILLIS_PER_MINUTE = 60_000L
-        const val RETRY_MILLIS = 5 * 60_000L
+        const val RETRY_MILLIS = 5 * MILLIS_PER_MINUTE
     }
 }

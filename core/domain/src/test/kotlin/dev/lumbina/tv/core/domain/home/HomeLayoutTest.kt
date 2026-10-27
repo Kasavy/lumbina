@@ -2,6 +2,7 @@ package dev.lumbina.tv.core.domain.home
 
 import dev.lumbina.tv.core.domain.app.App
 import dev.lumbina.tv.core.domain.app.AppId
+import dev.lumbina.tv.core.domain.device.InputSource
 import dev.lumbina.tv.core.domain.home.HomeItem.AppItem
 import dev.lumbina.tv.core.domain.home.HomeItem.Folder
 import dev.lumbina.tv.core.domain.home.HomeSection.Companion.FAVORITES
@@ -154,16 +155,64 @@ class HomeLayoutTest {
     }
 
     @Test
-    fun `the all-apps shortcut is a tile of favorites that moves, goes and comes back`() {
+    fun `the all-apps tile moves, goes and comes back like a tile`() {
         val a = AppId("pkg.a", "A")
-        val layout = HomeLayout().add(HomeSection.FAVORITES, a).withAllAppsShortcut(true)
+        val layout = HomeLayout().add(HomeSection.FAVORITES, a).withAllApps(HomeSection.FAVORITES, true)
         assertEquals(listOf(HomeItem.AppItem(a), HomeItem.AllApps), layout.favorites.items)
         val moved = layout.moveItem(HomeSection.FAVORITES, HomeItem.AllApps.key, -1)
         assertEquals(listOf(HomeItem.AllApps, HomeItem.AppItem(a)), moved.favorites.items)
         // Hiding an app, or taking it out, leaves the shortcut where it is.
         assertEquals(listOf(HomeItem.AllApps), moved.hide(a).favorites.items)
-        assertEquals(layout, layout.withAllAppsShortcut(true))
-        assertEquals(listOf<HomeItem>(HomeItem.AppItem(a)), layout.withAllAppsShortcut(false).favorites.items)
+        assertEquals(layout, layout.withAllApps(HomeSection.FAVORITES, true))
+        val out = layout.withAllApps(HomeSection.FAVORITES, false)
+        assertEquals(listOf<HomeItem>(HomeItem.AppItem(a)), out.favorites.items)
         assertEquals(listOf(a), layout.favorites.apps)
+    }
+
+    @Test
+    fun `any row may have the all-apps tile, once`() {
+        val layout = HomeLayout().addCategory("games", "Games")
+            .withAllApps(HomeSection.FAVORITES, true).withAllApps("games", true)
+        assertTrue(layout.hasAllApps(HomeSection.FAVORITES))
+        assertEquals(listOf<HomeItem>(HomeItem.AllApps), layout.section("games")!!.items)
+        assertEquals(layout, layout.withAllApps("games", true))
+        assertEquals(layout, layout.withAllApps("missing", true))
+        assertFalse(layout.withAllApps("games", false).hasAllApps("games"))
+        assertTrue(layout.withAllApps("games", false).hasAllApps(HomeSection.FAVORITES))
+        assertThrows<IllegalArgumentException> {
+            layout.copy(sections = layout.sections.map { it.copy(items = it.items + HomeItem.AllApps) })
+        }
+    }
+
+    @Test
+    fun `each input's tile stands once per row, and shows only where the device has it`() {
+        val layout = HomeLayout().add(
+            FAVORITES,
+            a,
+        ).withInput(FAVORITES, "1281", true).withInput(FAVORITES, "1282", true)
+        assertEquals(listOf(AppItem(a), HomeItem.Input("1281"), HomeItem.Input("1282")), layout.items())
+        assertEquals(layout, layout.withInput(FAVORITES, "1281", true))
+        assertEquals(listOf(a), layout.favorites.apps)
+        assertEquals(listOf(AppItem(a), HomeItem.Input("1281"), HomeItem.Input("1282")), layout.hide(b).items())
+        assertFalse(layout.withInput(FAVORITES, "1281", false).hasInput(FAVORITES, "1281"))
+        assertThrows<IllegalArgumentException> {
+            layout.copy(sections = layout.sections.map { it.copy(items = it.items + HomeItem.Input("1281")) })
+        }
+        val tiles = layout.arrange(
+            listOf(App(a, "A", isTvApp = true)),
+            Locale.ENGLISH,
+            listOf(InputSource("1281", "HDMI 1")),
+        )
+            .sections.single().tiles
+        assertEquals(listOf("app:${a.packageName}/${a.activityName}", "input:1281"), tiles.map { it.key })
+    }
+
+    @Test
+    fun `an input takes the user's name, and a blank one brings back the device's`() {
+        val hdmi = InputSource("1281", "HDMI 1")
+        val named = HomeLayout().withInput(FAVORITES, hdmi.id, true).renameInput(hdmi.id, " Приставка ")
+        val tile = named.arrange(emptyList(), Locale.ENGLISH, listOf(hdmi)).sections.single().tiles.single()
+        assertEquals(TileContent.InputTile("1281", "Приставка", "input:1281"), tile)
+        assertEquals("HDMI 1", named.renameInput(hdmi.id, "").nameOf(hdmi))
     }
 }

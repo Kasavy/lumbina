@@ -73,6 +73,7 @@ internal val ACTION_NAMES: Map<RemoteAction, Int> = mapOf(
     RemoteAction.OpenOtherHome to R.string.action_other_home,
     RemoteAction.OpenDeviceSettings to R.string.action_device_settings,
     RemoteAction.ScreenOff to R.string.action_screen_off,
+    RemoteAction.ToggleMute to R.string.action_mute,
     RemoteAction.Nothing to R.string.action_nothing,
 )
 

@@ -20,6 +20,8 @@ import dev.lumbina.tv.core.domain.backdrop.MediaLibrary
 import dev.lumbina.tv.core.domain.backdrop.SeparateBanners
 import dev.lumbina.tv.core.domain.backdrop.toWallpaperItem
 import dev.lumbina.tv.core.domain.device.DeviceProfile
+import dev.lumbina.tv.core.domain.device.InputCatalog
+import dev.lumbina.tv.core.domain.device.InputSource
 import dev.lumbina.tv.core.domain.home.AppsOrder
 import dev.lumbina.tv.core.domain.home.HomeAppearance
 import dev.lumbina.tv.core.domain.home.HomeAppearanceRepository
@@ -68,6 +70,8 @@ data class HomeUiState(
     val usage: Map<String, Long> = emptyMap(),
     /** Whether apps can be called by voice here: the device has a remote Lumbina hears. */
     val voice: Boolean = false,
+    /** The device's video inputs that tiles can switch to; empty where it has none Lumbina reaches. */
+    val inputs: List<InputSource> = emptyList(),
 )
 
 private const val FREQUENT_MAX = 6
@@ -100,8 +104,23 @@ interface HomeCommands {
 
     fun moveItem(sectionId: String, key: String, by: Int)
 
-    /** Takes the shortcut to all apps out of Favorites; said on screen and undoable for a few seconds. */
-    fun removeShortcut()
+    /** Puts the tile that opens all apps in the section, at its end, or takes it out. */
+    fun setAllApps(sectionId: String, shown: Boolean)
+
+    /** Takes the tile that opens all apps out of the section; said on screen and undoable for a few seconds. */
+    fun removeAllApps(sectionId: String)
+
+    /** Puts the tile of [input] in the section, at its end, or takes it out. */
+    fun setInput(sectionId: String, input: String, shown: Boolean)
+
+    /** Takes the tile of [input] out of the section, said on screen and undoable; [name] as it is shown. */
+    fun removeInput(sectionId: String, input: String, name: String)
+
+    /** A name of the user's for [input]; blank brings back the device's own. */
+    fun renameInput(input: String, label: String)
+
+    /** Switches to [input] and shows it full screen; [name] as it is shown, for saying it failed. */
+    fun openInput(input: String, name: String)
 
     fun createFolder(sectionId: String, name: String, app: App)
 
@@ -155,13 +174,14 @@ class HomeViewModel @Inject constructor(
     usage: AppUsage,
     recentApps: RecentAppsRepository,
     profile: DeviceProfile,
+    private val inputs: InputCatalog,
     spotlight: RowSpotlight,
     private val phoneLink: PhoneRemoteLink,
 ) : ViewModel(),
     HomeCommands {
 
     /** The row the settings are working on now: home brings it into view and keeps it lit. */
-    val spotlight: StateFlow<String?> = spotlight.key
+    val spotlight: StateFlow<String?> = spotlight.lit
 
     init {
         // Banners from before they had a folder of their own move there, once.
@@ -202,13 +222,13 @@ class HomeViewModel @Inject constructor(
     /** Null until apps and the layout are loaded. */
     val state: StateFlow<HomeUiState?> =
         combine(
-            installedApps.observe(),
+            combine(installedApps.observe(), inputs.inputs, ::Pair),
             layouts.layout,
             appearance.settings,
             usage.recent(),
             recentApps.recent,
-        ) { apps, layout, look, used, opened ->
-            val content = layout.arrange(apps, Locale.getDefault())
+        ) { (apps, inputs), layout, look, used, opened ->
+            val content = layout.arrange(apps, Locale.getDefault(), inputs)
             val rows = look.rows(layout.categories.map { it.id }).filter { it.visible }.map { it.row }
             HomeUiState(
                 content = content,
@@ -220,6 +240,7 @@ class HomeViewModel @Inject constructor(
                 opened = recentlyOpened(content.apps, opened),
                 usage = used,
                 voice = profile.hasRemoteMic,
+                inputs = inputs,
             )
         }
             // Arranging sorts every app by name: off the main thread.
@@ -299,7 +320,25 @@ class HomeViewModel @Inject constructor(
 
     override fun moveItem(sectionId: String, key: String, by: Int) = edit { it.moveItem(sectionId, key, by) }
 
-    override fun removeShortcut() = editUndoable(UndoKind.ShortcutRemoved, "") { it.withAllAppsShortcut(false) }
+    override fun setAllApps(sectionId: String, shown: Boolean) = edit { it.withAllApps(sectionId, shown) }
+
+    override fun removeAllApps(sectionId: String) =
+        editUndoable(UndoKind.ShortcutRemoved, "") { it.withAllApps(sectionId, false) }
+
+    override fun setInput(sectionId: String, input: String, shown: Boolean) =
+        edit { it.withInput(sectionId, input, shown) }
+
+    override fun removeInput(sectionId: String, input: String, name: String) {
+        val section = state.value?.layout?.section(sectionId)
+        val kind = if (section == null || section.isFavorites) UndoKind.OutOfFavorites else UndoKind.OutOfCategory
+        editUndoable(kind, name, section?.name.orEmpty()) { it.withInput(sectionId, input, false) }
+    }
+
+    override fun renameInput(input: String, label: String) = edit { it.renameInput(input, label) }
+
+    override fun openInput(input: String, name: String) {
+        viewModelScope.launch { if (!inputs.open(input)) failures.say(Failed.Input(name)) }
+    }
 
     /** Puts a tile being moved back where it started ([Moving.from]). */
     fun putBack(tile: Moving) {

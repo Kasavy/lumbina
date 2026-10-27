@@ -7,17 +7,22 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * The row of the home screen the settings are working on now, by its key ([HomeSection.FAVORITES]
- * or a [HomeRow.key]); null when none. The settings say which, home brings it into view: the two
- * are separate screens that share nothing else but the saved look.
+ * The part of the home screen the settings are working on now: a row by its key
+ * ([HomeSection.FAVORITES] or a [HomeRow.key]) or [TOP_BAR]; null when none. The settings say which,
+ * home brings it into view: the two are separate screens that share nothing else but the saved look.
  */
 @Singleton
 class RowSpotlight @Inject constructor() {
-    private val row = MutableStateFlow<String?>(null)
+    private val state = MutableStateFlow<String?>(null)
 
-    val key: StateFlow<String?> = row.asStateFlow()
+    val lit: StateFlow<String?> = state.asStateFlow()
 
     fun show(key: String?) {
-        row.value = key
+        state.value = key
+    }
+
+    companion object {
+        /** The top bar, as home's grid keys it. */
+        const val TOP_BAR = "header"
     }
 }

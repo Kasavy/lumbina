@@ -119,11 +119,14 @@ private fun minutes(stored: Int?, default: Int): Int? = when (stored) {
 }
 
 @Serializable
-internal data class StoredChannelSettings(val hiddenChannels: List<String> = emptyList())
+internal data class StoredChannelSettings(
+    val hiddenChannels: List<String> = emptyList(),
+    val hiddenWatchNext: List<String> = emptyList(),
+)
 
-internal fun StoredChannelSettings.toDomain() = ChannelSettings(hiddenChannels.toSet())
+internal fun StoredChannelSettings.toDomain() = ChannelSettings(hiddenChannels.toSet(), hiddenWatchNext.toSet())
 
-internal fun ChannelSettings.toStored() = StoredChannelSettings(hiddenChannels.sorted())
+internal fun ChannelSettings.toStored() = StoredChannelSettings(hiddenChannels.sorted(), hiddenWatchNext.sorted())
 
 /** On disk the source is a name ("gradient", "media", "photoOfTheDay", "plugin" with [pluginId]). */
 @Serializable

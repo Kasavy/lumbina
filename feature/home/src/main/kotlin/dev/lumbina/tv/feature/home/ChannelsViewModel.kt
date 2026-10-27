@@ -13,7 +13,9 @@ import dev.lumbina.tv.core.domain.channels.ProgramLauncher
 import dev.lumbina.tv.core.domain.channels.TvChannels
 import dev.lumbina.tv.core.domain.channels.TvListingsPermission
 import dev.lumbina.tv.core.domain.channels.byAppUse
+import dev.lumbina.tv.core.domain.channels.shownWatchNext
 import dev.lumbina.tv.core.domain.channels.visibleRows
+import dev.lumbina.tv.core.domain.channels.watchedApps
 import dev.lumbina.tv.core.ui.WhileUiSubscribed
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,8 +34,9 @@ data class ChannelsUi(
 
 /**
  * What apps published to the TV Provider, for the home screen: "continue watching" and one row
- * per channel, leaving out apps that are no longer installed and channels the user hid. The
- * most used apps' channels come first, after a mix of all of them.
+ * per channel, leaving out apps that are no longer installed, channels the user hid and the apps
+ * the user took out of "continue watching". The most used apps' channels come first (among equals,
+ * the ones being watched), after a mix of all of them.
  */
 @HiltViewModel
 class ChannelsViewModel @Inject constructor(
@@ -56,10 +59,9 @@ class ChannelsViewModel @Inject constructor(
     ) { feeds, watchNext, choice, apps, used ->
         val labels = labelsByPackage(apps)
         appNames = labels
-        val watching = watchNext.filter { it.packageName in labels }
         ChannelsUi(
-            watchNext = watching,
-            rows = feeds.byAppUse(used, watching.map { it.packageName }.toSet()).visibleRows(choice, labels),
+            watchNext = watchNext.shownWatchNext(choice, labels),
+            rows = feeds.byAppUse(used, watchNext.watchedApps(labels)).visibleRows(choice, labels),
             loaded = true,
         )
     }.combine(missing) { ui, _ ->

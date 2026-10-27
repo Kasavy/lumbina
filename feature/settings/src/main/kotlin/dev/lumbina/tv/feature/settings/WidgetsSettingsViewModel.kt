@@ -5,9 +5,12 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.lumbina.tv.core.domain.app.InstalledApps
 import dev.lumbina.tv.core.domain.app.labelsByPackage
+import dev.lumbina.tv.core.domain.device.InputCatalog
 import dev.lumbina.tv.core.domain.home.ClockFormat
 import dev.lumbina.tv.core.domain.home.HomeAppearance
 import dev.lumbina.tv.core.domain.home.HomeAppearanceRepository
+import dev.lumbina.tv.core.domain.home.RowSpotlight
+import dev.lumbina.tv.core.domain.home.TopBarLook
 import dev.lumbina.tv.core.domain.text.Search
 import dev.lumbina.tv.core.domain.text.SearchChoice
 import dev.lumbina.tv.core.domain.text.SearchTarget
@@ -36,6 +39,8 @@ data class WidgetsState(
     val search: SearchChoice,
     /** The apps whose notifications are muted, by package, each with its name. */
     val muted: List<Pair<String, String>> = emptyList(),
+    /** Whether the device has inputs, which the top bar can have a button for. */
+    val inputs: Boolean = false,
 )
 
 /** Where a city search is: not started, running, failed (e.g. offline) or found (maybe nothing). */
@@ -46,10 +51,11 @@ sealed interface CitySearch {
     data class Found(val places: List<Place>) : CitySearch
 }
 
-/** What the widgets page can change. */
+/** What the top bar's page can change. */
 @Suppress("TooManyFunctions") // one per setting
 interface WidgetsCommands {
-    fun toggleDate()
+    /** Changes where the top bar stands, how it writes the date or which of its parts show. */
+    fun changeTopBar(change: (TopBarLook) -> TopBarLook)
     fun setClockFormat(format: ClockFormat)
     fun toggleWeather()
     fun setFahrenheit(fahrenheit: Boolean)
@@ -73,6 +79,8 @@ class WidgetsSettingsViewModel @Inject constructor(
     private val youTube: YouTube,
     private val searches: Search,
     installedApps: InstalledApps,
+    private val spotlight: RowSpotlight,
+    inputs: InputCatalog,
 ) : ViewModel(),
     WidgetsCommands {
 
@@ -85,15 +93,18 @@ class WidgetsSettingsViewModel @Inject constructor(
         weather.settings,
         youTube.choice,
         searches.choice,
-        installedApps.observe(),
-    ) { look, weather, youTube, search, apps ->
+        combine(installedApps.observe(), inputs.inputs, ::Pair),
+    ) { look, weather, youTube, search, (apps, inputs) ->
         val labels = labelsByPackage(apps)
         val muted = look.mutedNotices.map { it to (labels[it] ?: it) }.sortedBy { it.second.lowercase() }
-        WidgetsState(look, weather, youTube, search, muted)
+        WidgetsState(look, weather, youTube, search, muted, inputs = inputs.isNotEmpty())
     }
         .stateIn(viewModelScope, WhileUiSubscribed, null)
 
-    override fun toggleDate() = look { it.copy(showDate = !it.showDate) }
+    override fun changeTopBar(change: (TopBarLook) -> TopBarLook) = look { it.copy(topBar = change(it.topBar)) }
+
+    /** Lights the top bar on home while its page is open ([lit]), or puts the light out. */
+    fun lightTopBar(lit: Boolean) = spotlight.show(RowSpotlight.TOP_BAR.takeIf { lit })
 
     override fun setClockFormat(format: ClockFormat) = look { it.copy(clockFormat = format) }
 

@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -17,6 +18,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -83,7 +85,7 @@ fun HomePanel(
             modifier = modifier,
         )
     } else {
-        val adjust = LocalAdjustSize.current
+        val adjust = LocalAdjust.current
         SettingsList(modifier, edges = list) {
             // The shortest way to the sizes: the slider at once, on the first row.
             item(key = "sizes") {
@@ -232,8 +234,9 @@ private fun NamesChoices(page: RowPageOf, look: HomeAppearance, commands: HomeSe
 }
 
 /**
- * What only this row has: in Favorites the tile that opens all apps and the "+"; in a category the
- * "+", its name and deleting it; in recommendations the way to the channels shown.
+ * What only this row has: in a row of apps the tile that opens all apps and the "+", in a category
+ * also its name and deleting it; in recommendations the way to the channels shown; in "continue
+ * watching" its apps, each to show or take out.
  */
 @Composable
 private fun OwnRows(
@@ -244,16 +247,14 @@ private fun OwnRows(
     onDelete: (HomeSection) -> Unit,
 ) {
     val look = state.appearance
-    if (page.row == HomeRow.Favorites) {
-        val shown = HomeItem.AllApps in state.favorites.items
+    page.section?.let { section ->
+        val shown = HomeItem.AllApps in section.items
         SwitchRow(
             title = stringResource(R.string.row_all_apps_tile),
             hint = stringResource(R.string.row_all_apps_tile_hint),
             checked = shown,
-            onClick = { commands.setShortcut(!shown) },
+            onClick = { commands.setShortcut(section.id, !shown) },
         )
-    }
-    if (page.section != null) {
         SwitchRow(
             title = stringResource(R.string.row_plus),
             hint = stringResource(R.string.row_plus_hint),
@@ -273,6 +274,7 @@ private fun OwnRows(
             supportingContent = { Text(stringResource(R.string.home_category_delete_hint)) },
         )
     }
+    if (page.row == HomeRow.WatchNext) WatchNextApps(state.watchNextApps, state.watchNextMissing, commands)
     if (page.row == HomeRow.Recommendations) {
         val links = LocalSettingsLinks.current
         SettingRow(
@@ -280,6 +282,42 @@ private fun OwnRows(
             headlineContent = { Text(stringResource(R.string.row_channels)) },
             supportingContent = { Text(stringResource(R.string.row_channels_hint)) },
         )
+    }
+}
+
+/**
+ * The apps of "continue watching", each to show or take out; all are shown until the user says.
+ * With none, why: no provider, no access to it (granted on the channels' page), or nothing yet.
+ */
+@Composable
+private fun WatchNextApps(apps: List<WatchNextChoice>, missing: WatchNextMissing?, commands: HomeSettingsCommands) {
+    Header(stringResource(R.string.row_watch_next_apps))
+    when {
+        apps.isNotEmpty() -> Unit
+
+        missing == WatchNextMissing.Provider -> Note(stringResource(R.string.channels_no_provider))
+
+        missing == WatchNextMissing.Access -> {
+            Note(stringResource(R.string.channels_access_note))
+            val links = LocalSettingsLinks.current
+            SettingRow(
+                onClick = { links.page(SettingsPage.Channels) },
+                headlineContent = { Text(stringResource(R.string.channels_access_allow)) },
+            )
+        }
+
+        else -> Note(stringResource(R.string.row_watch_next_apps_none))
+    }
+    apps.forEach { app ->
+        // Keyed: a switch that reorders the list keeps the focus on its own app.
+        key(app.packageName) {
+            SwitchRow(
+                title = app.app,
+                hint = pluralStringResource(R.plurals.channels_programs, app.programs, app.programs),
+                checked = app.shown,
+                onClick = { commands.toggleWatchNextApp(app.packageName) },
+            )
+        }
     }
 }
 
@@ -294,7 +332,7 @@ internal fun rowTitle(page: RowPageOf): String = when {
 /** How big the row's tiles (or cards) are now; OK opens the slider on the home screen itself. */
 @Composable
 private fun SizeRow(page: RowPageOf, now: TileSize) {
-    val adjust = LocalAdjustSize.current
+    val adjust = LocalAdjust.current
     SettingRow(
         onClick = { adjust(page.key) },
         headlineContent = {

@@ -24,7 +24,18 @@ class TvRowsTest {
             row("_id" to 1, "package_name" to "com.vk.tv", "display_name" to "Recommended", "browsable" to 1),
         ) { "logo/$it" }
         assertEquals(TvChannel(1, "com.vk.tv", "Recommended", null, "logo/1"), channel)
-        assertNull(channelOf(row("_id" to 2, "package_name" to "x", "display_name" to "Y", "browsable" to 0)) { "" })
+        assertNull(channelOf(row("_id" to 2, "package_name" to "x", "display_name" to " ", "browsable" to 1)) { "" })
+    }
+
+    @Test
+    fun `a channel marked not browsable is read too, as Google TV's launcher marks none`() {
+        val row = row("_id" to 2, "package_name" to "ru.kinopoisk.tv", "display_name" to "Kino", "browsable" to 0)
+        assertEquals(TvChannel(2, "ru.kinopoisk.tv", "Kino", null, "logo/2"), channelOf(row) { "logo/$it" })
+    }
+
+    @Test
+    fun `a program marked not browsable is left out, as the launcher marks one the user removed`() {
+        assertNull(programOf(row("_id" to 3, "package_name" to "a", "title" to "T", "browsable" to 0)))
     }
 
     @Test
@@ -98,20 +109,21 @@ class TvRowsTest {
     }
 
     @Test
-    fun `the census counts each app's rows, and the channels the home screen leaves out`() {
+    fun `the census counts each app's rows, and the channels and programs marked not to show`() {
         val census = ProviderCensus()
         census.channel(row("package_name" to "com.vk.tv", "display_name" to "Recommended", "browsable" to 1))
         census.channel(row("package_name" to "com.vk.tv", "display_name" to "New", "browsable" to 0))
         census.channel(row("package_name" to "com.vk.tv", "display_name" to " ", "browsable" to 0))
         census.channel(row("package_name" to "a.first", "display_name" to "One"))
-        repeat(3) { census.program(row("package_name" to "com.vk.tv")) }
+        repeat(2) { census.program(row("package_name" to "com.vk.tv")) }
+        census.program(row("package_name" to "com.vk.tv", "browsable" to 0))
         census.program(row("title" to "of nobody"))
 
         assertEquals(
             listOf(
-                "(no package): 0 channels (0 not browsable, 0 unnamed), 1 programs",
-                "a.first: 1 channels (0 not browsable, 0 unnamed), 0 programs",
-                "com.vk.tv: 3 channels (2 not browsable, 1 unnamed), 3 programs",
+                "(no package): 0 channels (0 not browsable, 0 unnamed), 1 programs (0 not browsable)",
+                "a.first: 1 channels (0 not browsable, 0 unnamed), 0 programs (0 not browsable)",
+                "com.vk.tv: 3 channels (2 not browsable, 1 unnamed), 3 programs (1 not browsable)",
             ),
             census.lines(),
         )
