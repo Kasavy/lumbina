@@ -4,13 +4,16 @@ import android.accessibilityservice.AccessibilityService
 import dev.lumbina.tv.core.domain.device.InputCatalog
 import dev.lumbina.tv.core.domain.device.InputSource
 import dev.lumbina.tv.core.domain.device.InputSources
+import dev.lumbina.tv.core.domain.device.byPresence
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
  * The quick menu's video input: the arrows go through Android's own picture ("Smart TV") and the
- * inputs, stopping at either end, and OK switches to the one they came to. Main thread.
+ * inputs, stopping at either end, and OK switches to the one they came to. Where the device tells
+ * what is on the inputs, asked as the menu opens, the working ones come first under their device's
+ * name, the empty ones last. Main thread.
  */
 internal class QuickMenuSource(
     private val service: AccessibilityService,
@@ -21,8 +24,14 @@ internal class QuickMenuSource(
     private var scope: CoroutineScope? = null
     private var listening: Job? = null
 
+    /** Asking the device for the menu just opened: an older asking, finishing last, would overwrite it. */
+    private var asking: Job? = null
+
     /** Under the user's names. */
     private var inputs = emptyList<InputSource>()
+
+    /** [inputs] with what was on them as the menu opened, in the order the arrows go. */
+    private var shownInputs = emptyList<InputSource>()
 
     /** The chosen input and the one the arrows came to; null for Android's own picture. */
     private var current: String? = null
@@ -40,23 +49,28 @@ internal class QuickMenuSource(
 
     /**
      * The menu opened: the row starts from the input chosen now, which the remote's own button may
-     * have changed since; [changed] once that is known, unless the arrows have moved on meanwhile.
+     * have changed since, unless the arrows have moved on meanwhile; [changed] once that and what is
+     * on the inputs are known.
      */
     fun shown(changed: () -> Unit) {
         picked = current
+        shownInputs = inputs
         if (inputs.isEmpty()) {
             // The device's input service may not have answered at boot: asked again, the row comes next time.
             scope?.let(::listen)
             return
         }
-        scope?.launch {
+        asking?.cancel()
+        asking = scope?.launch {
             val before = picked
             // An input that is not among the inputs (a screen of the device's own) counts as Android's picture.
             current = sources.current()?.takeIf { id -> inputs.any { it.id == id } }
-            if (picked == before) {
-                picked = current
-                changed()
-            }
+            if (picked == before) picked = current
+            changed()
+            // What is on them takes the device longer: the order follows, the chosen one stays.
+            val presence = catalog.presence()
+            shownInputs = inputs.map { it.copy(presence = presence[it.id]) }.byPresence()
+            changed()
         }
     }
 
@@ -66,12 +80,12 @@ internal class QuickMenuSource(
         return QuickMenuOverlay.Item(
             label = service.getString(R.string.quick_source),
             value = { "◀ ${nameOf(picked)} ▶" },
-            onAdjust = { step -> picked = stepInput(inputs.map { it.id }, picked, step) },
+            onAdjust = { step -> picked = stepInput(shownInputs.map { it.id }, picked, step) },
         ) { switchTo(picked) }
     }
 
     private fun nameOf(id: String?): String =
-        inputs.firstOrNull { it.id == id }?.name ?: service.getString(R.string.quick_smart_tv)
+        shownInputs.firstOrNull { it.id == id }?.caption ?: service.getString(R.string.quick_smart_tv)
 
     /** To [id], or for null back to Android's own picture with Lumbina on it: the device's Home may be another's. */
     private fun switchTo(id: String?) {

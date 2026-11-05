@@ -1,0 +1,13 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>InjectDispatcher:AppsWithoutPlugins.kt:AppsWithoutPlugins$IO</ID>
+    <ID>LongParameterList:HandleUtterance.kt:HandleUtterance</ID>
+    <ID>LongParameterList:PcmCapture.kt:PcmCapture</ID>
+    <ID>LongParameterList:RemoteKeyInterpreter.kt:RemoteKeyInterpreter</ID>
+    <ID>LongParameterList:WarmAudioSource.kt:WarmAudioSource</ID>
+    <ID>MemberNameEqualsClassName:Search.kt:Search$suspend fun search: Boolean</ID>
+    <ID>UnusedPrivateProperty:RemoteSettings.kt:OtherHome$private val screens: HomeScreens</ID>
+  </CurrentIssues>
+</SmellBaseline>

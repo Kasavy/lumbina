@@ -167,11 +167,13 @@ class VideoFailure(val code: String, val lasting: Boolean) {
 }
 
 /**
- * A silent video filling the screen, looping unless played [once] ([onEnd] then). It never asks
+ * A silent video filling its place, looping unless played [once] ([onEnd] then). It never asks
  * for audio focus, so it doesn't pause music or another app's sound, and it stops while its screen
  * is not visible or [busy]. [onError]: the player stopped on an error. Looping, it tries again a
  * while after a passing error (another player held the decoder, the network went); played once, a
- * video stuck loading counts as an error too, rather than a frozen frame for minutes.
+ * video stuck loading counts as an error too, rather than a frozen frame for minutes. It fills
+ * its place cropped, or shows the whole picture when it is to [fit]. [onFirstFrame]: the picture is
+ * there, until then the place shows nothing.
  */
 @OptIn(UnstableApi::class)
 @Composable
@@ -182,11 +184,14 @@ fun MutedVideo(
     once: Boolean = false,
     onEnd: () -> Unit = {},
     onError: (VideoFailure) -> Unit = {},
+    fit: Boolean = false,
+    onFirstFrame: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val ended by rememberUpdatedState(onEnd)
     val failed by rememberUpdatedState(onError)
+    val shown by rememberUpdatedState(onFirstFrame)
     var passingFailures by remember(uri) { mutableIntStateOf(0) }
     val player = remember(uri) {
         mutedPlayer(context, uri, once, onEnd = { ended() }) { failure ->
@@ -224,27 +229,29 @@ fun MutedVideo(
     }
     // A TextureView, not a SurfaceView: on some TV chips a video plane under the UI makes every
     // UI frame slow; composing the video in the app's layer does not.
-    AndroidView(
-        factory = { context ->
-            AspectRatioFrameLayout(context).apply {
-                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                val texture = TextureView(context)
-                addView(texture, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-                player.setVideoTextureView(texture)
-                player.addListener(
-                    object : Player.Listener {
-                        override fun onVideoSizeChanged(videoSize: VideoSize) {
-                            if (videoSize.height > 0) {
-                                setAspectRatio(videoSize.width * videoSize.pixelWidthHeightRatio / videoSize.height)
-                            }
-                        }
-                    },
-                )
-            }
-        },
-        modifier = modifier.fillMaxSize(),
-    )
+    AndroidView(factory = { videoFrame(it, player, fit) { shown() } }, modifier = modifier.fillMaxSize())
 }
+
+/** The view [player] plays into, its picture filling the place cropped or, to [fit], whole. */
+@OptIn(UnstableApi::class)
+private fun videoFrame(context: Context, player: ExoPlayer, fit: Boolean, onFirstFrame: () -> Unit) =
+    AspectRatioFrameLayout(context).apply {
+        resizeMode = if (fit) AspectRatioFrameLayout.RESIZE_MODE_FIT else AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        val texture = TextureView(context)
+        addView(texture, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        player.setVideoTextureView(texture)
+        player.addListener(
+            object : Player.Listener {
+                override fun onVideoSizeChanged(videoSize: VideoSize) {
+                    if (videoSize.height > 0) {
+                        setAspectRatio(videoSize.width * videoSize.pixelWidthHeightRatio / videoSize.height)
+                    }
+                }
+
+                override fun onRenderedFirstFrame() = onFirstFrame()
+            },
+        )
+    }
 
 @OptIn(UnstableApi::class)
 private fun mutedPlayer(

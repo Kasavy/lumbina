@@ -46,8 +46,10 @@ import dev.lumbina.tv.core.domain.backdrop.WallpaperItem
 import dev.lumbina.tv.core.domain.phone.PhonePage
 import dev.lumbina.tv.core.ui.AppArtwork
 import dev.lumbina.tv.core.ui.BANNER_ASPECT
+import dev.lumbina.tv.core.ui.OVER_PICTURE
 import dev.lumbina.tv.core.ui.QrCode
 import dev.lumbina.tv.core.ui.SidePanel
+import dev.lumbina.tv.core.ui.TickBadge
 import dev.lumbina.tv.core.ui.focusGlow
 import dev.lumbina.tv.core.ui.highlightBorder
 import dev.lumbina.tv.core.ui.requestFocusSoon
@@ -182,7 +184,7 @@ private fun BannerChoice(
                         modifier = Modifier
                             .align(if (chipOnTop) Alignment.TopStart else Alignment.BottomStart)
                             .padding(8.dp)
-                            .background(Color.Black.copy(alpha = CHIP_ALPHA), CircleShape)
+                            .background(OVER_PICTURE, CircleShape)
                             .padding(horizontal = 8.dp, vertical = 2.dp),
                     )
                 }
@@ -247,7 +249,6 @@ private fun pageName(@StringRes entry: Int): String = stringResource(entry).remo
 
 private const val ORIGINAL_KEY = "original"
 private const val PHOTOS_KEY = "photos"
-private const val CHIP_ALPHA = 0.6f
 private const val BLOCK_ALPHA = 0.06f
 
 /** With the card's white margin about 100 dp: smaller than in the settings, the pictures come first here. */

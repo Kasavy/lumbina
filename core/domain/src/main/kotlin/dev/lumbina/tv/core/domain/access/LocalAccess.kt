@@ -1,7 +1,7 @@
 package dev.lumbina.tv.core.domain.access
 
 import dev.lumbina.tv.core.domain.health.AccessibilityServiceList
-import dev.lumbina.tv.core.domain.health.HealAccessibilityService
+import dev.lumbina.tv.core.domain.health.HealResult
 import dev.lumbina.tv.core.domain.health.SecureSettings
 import dev.lumbina.tv.core.domain.settings.SettingsRepository
 import java.io.InputStream
@@ -53,6 +53,9 @@ interface LocalAdb {
     /** Runs [command] in a shell and returns its output; null when not connected. */
     suspend fun shell(command: String): String?
 
+    /** As [shell], logged only when it fails: for what runs again and again and is known to work. */
+    suspend fun shellQuietly(command: String): String? = shell(command)
+
     /**
      * Runs [command] with [input] as its standard input and returns its output; null when not
      * connected. For what the shell may not open itself, like a file in an app's folder. The
@@ -96,7 +99,8 @@ typealias AccessSettingsRepository = SettingsRepository<AccessSettings>
 class LocalAccess(
     private val adb: LocalAdb,
     private val secureSettings: SecureSettings,
-    private val heal: HealAccessibilityService,
+    /** Brings the service on (HealAccessibilityService) and tells how it went. */
+    private val heal: suspend () -> HealResult,
     private val packageName: String,
     /** The class of Lumbina's notification listener. */
     private val notificationListener: String,
@@ -132,10 +136,13 @@ class LocalAccess(
      */
     suspend fun renew(): Boolean {
         if (adb.state() != AdbState.Connected) return false
-        grantUsageStats()
+        // Done at every opening of Lumbina: the log hears of it only when it fails.
+        adb.shellQuietly(usageStats())
+        // Also for those who connected before a version that lifts it: their service stays off the list till then.
+        adb.shellQuietly(unrestricted())
         // Notifications for the bell and "now playing": firmware that needs this connection has
         // no screen where the user could allow Lumbina's listener.
-        adb.shell("cmd notification allow_listener $packageName/$notificationListener")
+        adb.shellQuietly("cmd notification allow_listener $packageName/$notificationListener")
         companions.filter { it.wanted() }.forEach { it.install(adb) }
         return true
     }
@@ -145,9 +152,22 @@ class LocalAccess(
     /** Gives or takes back the permission, and with it brings the service on. False when not connected or refused. */
     suspend fun setKeepService(on: Boolean): Boolean {
         if (!grantSecureSettings(on)) return false
-        if (on) heal()
+        if (on) bringServiceOn()
         return true
     }
+
+    private suspend fun bringServiceOn() {
+        adb.shell(unrestricted())
+        heal()
+    }
+
+    /**
+     * Android 13+ restricts an app installed from a file (a browser, a file manager): the system
+     * strips its accessibility service from the list instead of binding it (seen on Vidda C3S).
+     * Allowed from the shell, the service binds as for an app installed over adb. Older Android
+     * doesn't know the operation and only prints an error.
+     */
+    private fun unrestricted() = "appops set $packageName ACCESS_RESTRICTED_SETTINGS allow"
 
     /** `pm` prints its error rather than failing the shell, so the permission itself tells whether it took. */
     private suspend fun grantSecureSettings(on: Boolean): Boolean {
@@ -157,8 +177,10 @@ class LocalAccess(
     }
 
     suspend fun grantUsageStats() {
-        adb.shell("appops set $packageName GET_USAGE_STATS allow")
+        adb.shell(usageStats())
     }
+
+    private fun usageStats() = "appops set $packageName GET_USAGE_STATS allow"
 
     /**
      * Asks for the microphone permission a speech recognizer must hold: the system checks the
@@ -182,7 +204,8 @@ class LocalAccess(
      */
     suspend fun startShellProgram(apk: String, mainClass: String, args: List<String>): Boolean {
         val program = "env CLASSPATH='$apk' app_process /system/bin $mainClass ${args.joinToString(" ")}"
-        return adb.shell("setsid sh -c \"$program </dev/null >/dev/null 2>&1 &\"") != null
+        // The caller logs what it started; the command, with the APK's path, only when it fails.
+        return adb.shellQuietly("setsid sh -c \"$program </dev/null >/dev/null 2>&1 &\"") != null
     }
 
     /** Stops [app] as if from the system's app info; false without access. */
@@ -208,6 +231,7 @@ object ComputerSetup {
         val services = AccessibilityServiceList.withoutOurs(enabledServices, ourService) + ourService
         return listOf(
             "adb connect ${address ?: "<IP>"}",
+            "adb shell appops set $packageName ACCESS_RESTRICTED_SETTINGS allow",
             "adb shell settings put secure enabled_accessibility_services ${AccessibilityServiceList.join(services)}",
             "adb shell pm grant $packageName android.permission.WRITE_SECURE_SETTINGS",
         )

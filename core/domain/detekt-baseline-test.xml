@@ -1,0 +1,9 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>InjectDispatcher:RunVoiceSessionTest.kt:RunVoiceSessionTest$IO</ID>
+    <ID>ObjectLiteralToLambda:DeliverTextTest.kt:DeliverTextTest$object : YouTubeSearch { override suspend fun search(query: String): Boolean { searches += query return true } }</ID>
+    <ID>ObjectLiteralToLambda:RunVoiceSessionTest.kt:RunVoiceSessionTest$object : AudioSource { override fun open(): AudioStream { val stream = spoken.open() return object : AudioStream by stream { override fun read(dst: ByteArray): Int = stream.read(dst).also { if (it &gt; 0) captured.addAndGet(it) } } } }</ID>
+  </CurrentIssues>
+</SmellBaseline>

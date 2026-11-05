@@ -262,7 +262,10 @@ internal class MicInjection(
     @RequiresApi(Build.VERSION_CODES.Q)
     private suspend fun launch(name: String, uids: Collection<Int>): Boolean {
         val apk = context.applicationInfo.sourceDir
-        return access.startShellProgram(apk, MicInjector::class.java.name, listOf(name) + uids.map(Int::toString))
+        val args = listOf(name) + uids.map(Int::toString)
+        val started = access.startShellProgram(apk, MicInjector::class.java.name, args)
+        if (started) log.log(TAG, "mic helper started for ${uids.joinToString()}")
+        return started
     }
 
     /**

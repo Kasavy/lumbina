@@ -522,6 +522,10 @@
     <string name="media_show_now">Поставить на обои сейчас</string>
     <string name="media_to_banner">Сделать баннером</string>
     <string name="media_to_banner_hint">Уйдёт из обоев и заставки в «Баннеры плиток»</string>
+    <string name="media_view">Смотреть на весь экран</string>
+    <string name="media_to_wallpaper">В обои и заставку</string>
+    <string name="media_to_wallpaper_hint">Станет фото для обоев и заставки</string>
+    <string name="media_to_wallpaper_copy_hint">Копия уйдёт в обои и заставку, баннер на плитках останется</string>
     <string name="media_delete">Удалить</string>
     <string name="media_delete_hint">С устройства, без возврата</string>
     <string name="media_delete_banner_hint">Плитки вернутся к своему баннеру</string>

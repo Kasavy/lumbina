@@ -19,6 +19,9 @@ fun Project.configureAndroid(android: CommonExtension) {
     android.lint.warningsAsErrors = false
     android.lint.abortOnError = true
     android.lint.checkDependencies = true
+    // Issues from before the baseline (05.11.2026) are kept there, so `lint` fails only on new
+    // ones; `updateLintBaseline` writes it again after old ones are fixed.
+    android.lint.baseline = file("lint-baseline.xml")
     android.defaultConfig.manifestPlaceholders.putAll(processNames())
 
     configureKotlinCompiler()

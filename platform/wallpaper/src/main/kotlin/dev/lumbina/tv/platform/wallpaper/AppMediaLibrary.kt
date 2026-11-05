@@ -94,25 +94,24 @@ internal class AppMediaLibrary @Inject constructor(@ApplicationContext context: 
     override fun copyToBanner(id: String): String? {
         val file = File(media, id)
         if (!isName(id) || !file.isFile || file.extension.lowercase() !in IMAGE_EXTENSIONS) return null
-        // The same photo picked again: the copy made before (same name, same size), not another one.
-        val title = id.substringAfter('-')
-        val made = bannerDir.listFiles()?.firstOrNull {
-            it.name.substringAfter('-') == title && it.length() == file.length()
-        }
-        if (made != null) return Uri.fromFile(made).toString()
-        if (file.length() > room()) return null
-        bannerDir.mkdirs()
-        // A name of its own (deleting the photo deletes by name in both folders), whole or not at all.
-        // Not the photo's own name either, should the copy come within its millisecond.
-        val at = System.currentTimeMillis().let { if ("$it-$title" == id) it + 1 else it }
-        val copy = File(bannerDir, "$at-$title")
-        val part = File(bannerDir, "${copy.name}$PART")
-        val done = runCatching { file.copyTo(part, overwrite = true) }.isSuccess && part.renameTo(copy)
-        if (!done) part.delete()
-        return if (done) Uri.fromFile(copy).toString() else null
+        // The same photo picked again: the copy made before, not another one.
+        val made = copyOf(file, bannerDir) ?: copyAside(file, bannerDir, room())
+        return made?.let { Uri.fromFile(it).toString() }
     }
 
-    private fun isName(id: String) = id.isNotEmpty() && '/' !in id && '\\' !in id && !id.startsWith(".")
+    override fun fromBanner(id: String, keep: Boolean): String? {
+        val file = File(bannerDir, id)
+        if (!isName(id) || !file.isFile) return null
+        media.mkdirs()
+        val moved = File(media, id)
+        // Sent there before while the tiles kept it: the copy made then, not another one. A photo
+        // of the same name there is never replaced: a copy under a name of its own goes instead.
+        val back = copyOf(file, media)
+            ?: if (keep || moved.exists()) copyAside(file, media, room()) else moved.takeIf { file.renameTo(it) }
+        // Moved, the banner is gone already; copied, it goes unless the tiles keep it.
+        if (back != null && !keep) file.delete()
+        return back?.name
+    }
 
     // Newest first: names start with the time they were added.
     private fun list(dir: File, extensions: Set<String>): List<MediaFile> = dir.listFiles { f ->
@@ -131,7 +130,6 @@ internal class AppMediaLibrary @Inject constructor(@ApplicationContext context: 
         val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp")
         val VIDEO_EXTENSIONS = setOf("mp4", "webm", "mkv", "mov", "m4v")
         val MEDIA_EXTENSIONS = IMAGE_EXTENSIONS + VIDEO_EXTENSIONS
-        const val PART = ".part"
 
         /** What sent files must leave free: the device needs room for its own updates and apps. */
         const val RESERVE_BYTES = 500L * 1024 * 1024
@@ -150,5 +148,32 @@ private fun safeName(name: String): String {
     return safe.dropLast(extension.length + 1).take(MAX_NAME - extension.length - 1) + "." + extension
 }
 
+private fun isName(id: String) = id.isNotEmpty() && '/' !in id && '\\' !in id && !id.startsWith(".")
+
+/**
+ * Copies [file] into [dir] under a name of its own (deleting deletes by name in both folders),
+ * whole or not at all: the copy, null if it needs more than [room] or was not written.
+ */
+private fun copyAside(file: File, dir: File, room: Long): File? {
+    if (file.length() > room) return null
+    dir.mkdirs()
+    // Not the file's own name either, should the copy come within its millisecond.
+    val title = file.name.substringAfter('-')
+    val at = System.currentTimeMillis().let { if ("$it-$title" == file.name) it + 1 else it }
+    val copy = File(dir, "$at-$title")
+    val part = File(dir, "${copy.name}$PART")
+    val done = runCatching { file.copyTo(part, overwrite = true) }.isSuccess && part.renameTo(copy)
+    if (!done) part.delete()
+    return copy.takeIf { done }
+}
+
+/** A file being written: no listing takes it. */
+private const val PART = ".part"
 private const val SAFE_PUNCTUATION = ".-_ "
 private const val MAX_NAME = 80
+
+/** A copy of [file] made before in [dir]: the same name after the time it was added, the same size. */
+private fun copyOf(file: File, dir: File): File? {
+    val title = file.name.substringAfter('-')
+    return dir.listFiles()?.firstOrNull { it.name.substringAfter('-') == title && it.length() == file.length() }
+}

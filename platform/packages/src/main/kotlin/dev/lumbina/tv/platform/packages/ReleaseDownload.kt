@@ -124,7 +124,7 @@ internal class ReleaseDownload @Inject constructor(private val http: HttpGet, pr
     private fun sha256(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
         file.inputStream().use { input -> input.chunks { buffer, read -> digest.update(buffer, 0, read) } }
-        return digest.digest().joinToString("") { "%02x".format(it) }
+        return digest.digest().toHexString()
     }
 
     /** Hands what [this] gives to [block] a buffer at a time, until it ends. */

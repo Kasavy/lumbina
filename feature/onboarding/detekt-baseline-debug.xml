@@ -1,0 +1,11 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>InjectDispatcher:SetupViewModel.kt:SetupViewModel$IO</ID>
+    <ID>MissingReadOnlyComposable:SetupWizard.kt:@Composable internal fun fileSize: String</ID>
+    <ID>MissingReadOnlyComposable:VoicePage.kt:@Composable private fun progressLabel: String</ID>
+    <ID>UnnecessaryLaunchedEffect:SetupWizard.kt:LaunchedEffect</ID>
+    <ID>UnusedPrivateProperty:SetupViewModel.kt:SetupViewModel$private val health: AccessibilityHealth</ID>
+  </CurrentIssues>
+</SmellBaseline>

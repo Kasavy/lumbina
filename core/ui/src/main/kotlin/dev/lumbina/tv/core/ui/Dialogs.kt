@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -55,8 +56,18 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 
-/** One entry of a [ChoiceDialog], with an optional second line; [chosen] marks the one in effect. */
-class Choice(val title: String, val subtitle: String? = null, val chosen: Boolean = false, val onChoose: () -> Unit)
+/**
+ * One entry of a [ChoiceDialog], with an optional second line; [chosen] marks the one in effect.
+ * [note] stands at its end, where [chosen] does not; [faded] shows it paler, still to be chosen.
+ */
+class Choice(
+    val title: String,
+    val subtitle: String? = null,
+    val chosen: Boolean = false,
+    val note: String? = null,
+    val faded: Boolean = false,
+    val onChoose: () -> Unit,
+)
 
 /**
  * A titled list of actions, with an optional [hint] under the title; choosing one closes the
@@ -89,8 +100,14 @@ fun ChoiceDialog(
                 },
                 headlineContent = { Text(choice.title) },
                 supportingContent = choice.subtitle?.let { { Text(it, maxLines = 2) } },
-                trailingContent = if (choice.chosen) ({ Text(TICK) }) else null,
-                modifier = Modifier.focusRequester(focus),
+                trailingContent = when {
+                    choice.chosen -> ({ Text(TICK) })
+                    choice.note != null -> ({ Text(choice.note, style = MaterialTheme.typography.labelLarge) })
+                    else -> null
+                },
+                modifier = Modifier
+                    .focusRequester(focus)
+                    .then(if (choice.faded) Modifier.alpha(DIMMED_ALPHA) else Modifier),
             )
         }
     }

@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>InjectDispatcher:LaunchHistoryStore.kt:DataStoreLaunchHistory$IO</ID>
+    <ID>LongParameterList:DataModule.kt:DataModule$private inline fun &lt;reified S, D&gt; Context.settings: SettingsRepository&lt;D&gt;</ID>
+  </CurrentIssues>
+</SmellBaseline>

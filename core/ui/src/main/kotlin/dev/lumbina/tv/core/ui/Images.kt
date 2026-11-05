@@ -12,7 +12,6 @@ import coil3.fetch.SourceFetchResult
 import coil3.memory.MemoryCache
 import coil3.request.Options
 import coil3.toAndroidUri
-import coil3.video.VideoFrameDecoder
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -39,7 +38,8 @@ fun lumbinaImageLoader(context: PlatformContext): ImageLoader = ImageLoader.Buil
     .components {
         add(UrlConnectionFetcher.Factory())
         add(ForeignContentFetcher.Factory())
-        add(VideoFrameDecoder.Factory())
+        add(MediaThumbnailFetcher.Factory())
+        add(MediaThumbnailFetcher.Key())
     }
     .build()
 
@@ -51,7 +51,7 @@ private const val MEMORY_CACHE_BYTES = 64L * 1024 * 1024
  * The image kept on disk under [key]; failing that, [load]s it and keeps it. A copy that can't
  * be written is still shown.
  */
-private suspend fun cachedOrLoad(
+internal suspend fun cachedOrLoad(
     imageLoader: ImageLoader,
     options: Options,
     key: String,

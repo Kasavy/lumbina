@@ -1,6 +1,7 @@
 package dev.lumbina.tv.core.domain.access
 
 import dev.lumbina.tv.core.domain.health.HealAccessibilityService
+import dev.lumbina.tv.core.domain.health.HealResult
 import dev.lumbina.tv.core.testing.FakeHealLock
 import dev.lumbina.tv.core.testing.FakeSecureSettings
 import kotlinx.coroutines.test.runTest
@@ -42,10 +43,12 @@ class LocalAccessTest {
         adb: LocalAdb,
         settings: FakeSecureSettings = FakeSecureSettings(),
         companions: List<CompanionApp> = emptyList(),
+        onHealed: (HealResult) -> Unit = {},
     ) = LocalAccess(
         adb,
         settings,
-        HealAccessibilityService(settings, { false }, ours, FakeHealLock(), toggleDelayMillis = 0, settleMillis = 0),
+        HealAccessibilityService(settings, { false }, ours, FakeHealLock(), toggleDelayMillis = 0, settleMillis = 0)
+            .let { heal -> suspend { heal().also(onHealed) } },
         "dev.lumbina.tv",
         "dev.lumbina.tv.Listener",
         companions,
@@ -59,6 +62,7 @@ class LocalAccessTest {
             listOf(
                 "pm grant dev.lumbina.tv android.permission.WRITE_SECURE_SETTINGS",
                 "appops set dev.lumbina.tv GET_USAGE_STATS allow",
+                "appops set dev.lumbina.tv ACCESS_RESTRICTED_SETTINGS allow",
                 "cmd notification allow_listener dev.lumbina.tv/dev.lumbina.tv.Listener",
             ),
             adb.commands,
@@ -82,6 +86,8 @@ class LocalAccessTest {
         assertEquals(
             listOf(
                 "appops set dev.lumbina.tv GET_USAGE_STATS allow",
+                // Those who connected before Lumbina lifted the restriction get it lifted too.
+                "appops set dev.lumbina.tv ACCESS_RESTRICTED_SETTINGS allow",
                 "cmd notification allow_listener dev.lumbina.tv/dev.lumbina.tv.Listener",
             ),
             adb.commands,
@@ -94,10 +100,12 @@ class LocalAccessTest {
     }
 
     @Test
-    fun `connecting heals the service once`() = runTest {
+    fun `connecting heals the service once and tells how it went`() = runTest {
         val settings = FakeSecureSettings(services = ours)
-        access(FakeAdb(AdbState.Connected), settings).connectAndSetUp()
+        val told = mutableListOf<HealResult>()
+        access(FakeAdb(AdbState.Connected), settings, onHealed = { told += it }).connectAndSetUp()
         assertEquals(listOf("", ours), settings.writes)
+        assertEquals(listOf<HealResult>(HealResult.Reenabled), told)
     }
 
     @Test
@@ -127,7 +135,13 @@ class LocalAccessTest {
         val adb = FakeAdb(AdbState.Connected)
         val companion = FakeCompanion(wanted = true)
         assertTrue(access(adb, settings, listOf(companion)).setKeepService(true))
-        assertEquals(listOf("pm grant dev.lumbina.tv android.permission.WRITE_SECURE_SETTINGS"), adb.commands)
+        assertEquals(
+            listOf(
+                "pm grant dev.lumbina.tv android.permission.WRITE_SECURE_SETTINGS",
+                "appops set dev.lumbina.tv ACCESS_RESTRICTED_SETTINGS allow",
+            ),
+            adb.commands,
+        )
         assertEquals(listOf("", ours), settings.writes)
         assertEquals(0, companion.installs)
     }
@@ -156,6 +170,7 @@ class LocalAccessTest {
     fun `computer commands keep the other services`() {
         val commands = ComputerSetup.commands("10.0.0.2", "a/.A:$ours", ours, "dev.lumbina.tv")
         assertEquals("adb connect 10.0.0.2", commands[0])
-        assertEquals("adb shell settings put secure enabled_accessibility_services a/.A:$ours", commands[1])
+        assertEquals("adb shell appops set dev.lumbina.tv ACCESS_RESTRICTED_SETTINGS allow", commands[1])
+        assertEquals("adb shell settings put secure enabled_accessibility_services a/.A:$ours", commands[2])
     }
 }

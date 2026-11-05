@@ -7,6 +7,8 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import android.os.Parcel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.lumbina.tv.core.domain.device.DeviceAnswer
+import dev.lumbina.tv.core.domain.device.InputPresence
 import dev.lumbina.tv.core.domain.device.InputSource
 import dev.lumbina.tv.core.domain.device.InputSources
 import javax.inject.Inject
@@ -17,6 +19,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.json.JSONObject
 
 /** Hisense's inputs. */
 class HisenseInputs @Inject constructor(@ApplicationContext private val context: Context) : InputSources {
@@ -30,7 +33,7 @@ class HisenseInputs @Inject constructor(@ApplicationContext private val context:
     } ?: false
 
     override suspend fun list(): List<InputSource> = withService { service ->
-        service.ints(GET_INPUTS).filter { it / TYPE != OWN_TYPE }.map { id ->
+        service.inputIds().map { id ->
             InputSource(id.toString(), spacedName(service.text(GET_NAME, id).orEmpty().ifBlank { id.toString() }))
         }
     }.orEmpty()
@@ -52,64 +55,81 @@ class HisenseInputs @Inject constructor(@ApplicationContext private val context:
 
     override fun showsInputs(packageName: String): Boolean = packageName == LIVE_TV.packageName
 
-    /** [block] with the service bound, off the main thread; null where it can't be bound. */
-    private suspend fun <T> withService(block: (IBinder) -> T): T? = calls.withLock {
-        var connection: ServiceConnection? = null
-        return try {
-            val service = withTimeoutOrNull(BIND_MILLIS) {
-                suspendCancellableCoroutine<IBinder?> { waiting ->
-                    val bound = object : ServiceConnection {
-                        override fun onServiceConnected(name: ComponentName, service: IBinder) {
-                            if (waiting.isActive) waiting.resume(service)
+    /** The inputs, without the device's own screens (Android's picture among them). */
+    private fun IBinder.inputIds(): List<Int> = ints(GET_INPUTS).filter { it / TYPE != OWN_TYPE }
+
+    /**
+     * A cable is told by the input service; a working device by the name and kind it sends with its
+     * picture (HDMI's SPD), which the system service gives for any input, chosen or not, and which a
+     * sleeping device stops sending. Where the system service is not there, the cable alone.
+     */
+    override suspend fun presence(): Map<String, InputPresence> {
+        // The cables asked apart: a model whose call differs still gets the names below.
+        val (ids, cabled) = withService { service ->
+            service.inputIds() to
+                runCatching { service.ints(GET_CONNECTED).toSet() }.getOrNull()
+        } ?: return emptyMap()
+        val devices = withService(SYSTEM_SERVICE) { system -> ids.associateWith { system.device(it) } }.orEmpty()
+        return ids.mapNotNull { id ->
+            val device = devices[id]
+            presenceOf(cabled?.let { id in it }, device?.first, device?.second)?.let { id.toString() to it }
+        }.toMap()
+    }
+
+    /**
+     * For a report: what the input service answers, as it answers it. Some models name an input
+     * "0"; the reply's own words tell a name that is "0" from a call that means something else there.
+     */
+    suspend fun answers(): List<DeviceAnswer> = withService { service ->
+        val ids = service.ints(GET_INPUTS)
+        listOf(
+            DeviceAnswer("input service: interface", service.interfaceDescriptor.orEmpty()),
+            DeviceAnswer("input service: inputs (call $GET_INPUTS)", ids.joinToString()),
+        ) + ids.map { id ->
+            val answer = runCatching { service.ask(GET_NAME, id) { rawReply(this) } }.getOrElse { "failed: $it" }
+            DeviceAnswer("input service: name of $id (call $GET_NAME)", answer)
+        }
+    }.orEmpty().ifEmpty { listOf(DeviceAnswer("input service", "not reached")) } +
+        DeviceAnswer("inputs now", presence().entries.joinToString { (id, presence) -> "$id: $presence" })
+
+    /** [block] with [component] bound, off the main thread; null where it can't be bound. */
+    private suspend fun <T> withService(component: ComponentName = SERVICE, block: (IBinder) -> T): T? =
+        calls.withLock {
+            var connection: ServiceConnection? = null
+            return try {
+                val service = withTimeoutOrNull(BIND_MILLIS) {
+                    suspendCancellableCoroutine<IBinder?> { waiting ->
+                        val bound = object : ServiceConnection {
+                            override fun onServiceConnected(name: ComponentName, service: IBinder) {
+                                if (waiting.isActive) waiting.resume(service)
+                            }
+
+                            override fun onServiceDisconnected(name: ComponentName) = Unit
                         }
-
-                        override fun onServiceDisconnected(name: ComponentName) = Unit
+                        connection = bound
+                        val intent = Intent().setComponent(component)
+                        if (!runCatching {
+                                context.bindService(intent, bound, Context.BIND_AUTO_CREATE)
+                            }.getOrDefault(false)
+                        ) {
+                            waiting.resume(null)
+                        }
                     }
-                    connection = bound
-                    val intent = Intent().setComponent(SERVICE)
-                    if (!runCatching {
-                            context.bindService(intent, bound, Context.BIND_AUTO_CREATE)
-                        }.getOrDefault(false)
-                    ) {
-                        waiting.resume(null)
-                    }
-                }
-            } ?: return null
-            withContext(Dispatchers.IO) { runCatching { block(service) }.getOrNull() }
-        } finally {
-            connection?.let { runCatching { context.unbindService(it) } }
+                } ?: return null
+                withContext(Dispatchers.IO) { runCatching { block(service) }.getOrNull() }
+            } finally {
+                connection?.let { runCatching { context.unbindService(it) } }
+            }
         }
-    }
-
-    /** One call of the service with an optional int argument, answered with an int. */
-    private fun IBinder.call(code: Int, argument: Int? = null): Int = ask(code, argument) { readInt() }
-
-    private fun IBinder.ints(code: Int): List<Int> = ask(code, null) { createIntArray()?.toList().orEmpty() }
-
-    private fun IBinder.text(code: Int, argument: Int): String? = ask(code, argument) { readString() }
-
-    private fun <T> IBinder.ask(code: Int, argument: Int?, read: Parcel.() -> T): T {
-        val data = Parcel.obtain()
-        val reply = Parcel.obtain()
-        try {
-            data.writeInterfaceToken(DESCRIPTOR)
-            argument?.let(data::writeInt)
-            transact(code, data, reply, 0)
-            reply.readException()
-            return reply.read()
-        } finally {
-            reply.recycle()
-            data.recycle()
-        }
-    }
 
     private companion object {
         val SERVICE = ComponentName("com.jamdeo.tv.service", "com.jamdeo.tv.service.SourceService")
-        const val DESCRIPTOR = "com.jamdeo.tv.service.ISourceRemoteService"
         const val SET_CURRENT = 1
         const val GET_CURRENT = 4
         const val GET_NAME = 11
         const val GET_INPUTS = 12
+        const val GET_CONNECTED = 37
+        val SYSTEM_SERVICE = ComponentName("com.jamdeo.tv.service", "com.jamdeo.tv.service.SystemService")
         const val ANDROID = 2562
         const val TYPE = 256
 
@@ -117,6 +137,89 @@ class HisenseInputs @Inject constructor(@ApplicationContext private val context:
         val LIVE_TV = ComponentName("com.jamdeo.tv.livetv", "com.jamdeo.tv.livetv.LiveTvActivity")
         const val BIND_MILLIS = 3_000L
     }
+}
+
+/** One call of the service with an optional int argument, answered with an int. */
+private fun IBinder.call(code: Int, argument: Int? = null): Int = ask(code, argument) { readInt() }
+
+private fun IBinder.ints(code: Int): List<Int> = ask(code, null) { createIntArray()?.toList().orEmpty() }
+
+private fun IBinder.text(code: Int, argument: Int): String? = ask(code, argument) { readString() }
+
+private fun <T> IBinder.ask(code: Int, argument: Int?, read: Parcel.() -> T): T {
+    val data = Parcel.obtain()
+    val reply = Parcel.obtain()
+    try {
+        data.writeInterfaceToken(DESCRIPTOR)
+        argument?.let(data::writeInt)
+        transact(code, data, reply, 0)
+        reply.readException()
+        return reply.read()
+    } finally {
+        reply.recycle()
+        data.recycle()
+    }
+}
+
+/** The name and kind the device on [input] sends; null where the service does not answer. */
+private fun IBinder.device(input: Int): Pair<String?, Int?>? = runCatching {
+    val name = tvMethod("hsTVgetSPDSourceName", input)?.optString("HdmiSourceName")
+    val kind = tvMethod("hsTVgetSPDSourceType", input)?.optInt("HdmiSourceType")
+    name to kind
+}.getOrNull()
+
+/**
+ * The system service's invokeTvMethod(name, {"SrcId": input}), as the firmware's own screens
+ * call it; null unless it went well.
+ */
+private fun IBinder.tvMethod(name: String, input: Int): JSONObject? {
+    val data = Parcel.obtain()
+    val reply = Parcel.obtain()
+    try {
+        data.writeInterfaceToken(SYSTEM_DESCRIPTOR)
+        data.writeString(name)
+        data.writeString(JSONObject().put("SrcId", input).toString())
+        transact(INVOKE_TV_METHOD, data, reply, 0)
+        reply.readException()
+        return reply.readString()?.let(::JSONObject)?.takeIf { it.optInt("ret", -1) == 0 }
+    } finally {
+        reply.recycle()
+        data.recycle()
+    }
+}
+
+private const val DESCRIPTOR = "com.jamdeo.tv.service.ISourceRemoteService"
+private const val SYSTEM_DESCRIPTOR = "com.jamdeo.tv.service.ISystemRemoteService"
+private const val INVOKE_TV_METHOD = 57
+
+/** The reply read as a string, then its words from the start as the firmware wrote them. */
+private fun rawReply(reply: Parcel): String {
+    val text = runCatching { reply.readString() }.getOrElse { "failed: $it" }
+    reply.setDataPosition(0)
+    val words = buildList { while (reply.dataAvail() >= Int.SIZE_BYTES && size < REPLY_WORDS) add(reply.readInt()) }
+    return describeReply(text, reply.dataSize(), words)
+}
+
+private const val REPLY_WORDS = 32
+private const val HEX_DIGITS = Int.SIZE_BITS / 4
+
+/** How [rawReply] puts it: `"HDMI1" · 24 bytes: 00000000 00000005 …`. */
+internal fun describeReply(text: String?, size: Int, words: List<Int>): String {
+    val hex = words.joinToString(" ") { Integer.toHexString(it).padStart(HEX_DIGITS, '0') }
+    return "${text?.let { "\"$it\"" } ?: "null"} · $size bytes: $hex"
+}
+
+/**
+ * What is on an input: a device that sends its [name] or a [kind] other than 0 is working; else a
+ * [cabled] one is only connected. Where the device was not asked ([name] and [kind] null), the cable
+ * alone; null where the cable can't be told either.
+ */
+internal fun presenceOf(cabled: Boolean?, name: String?, kind: Int?): InputPresence? = when {
+    !name.isNullOrBlank() -> InputPresence.Working(name.trim())
+    kind != null && kind != 0 -> InputPresence.Working(null)
+    cabled == true -> InputPresence.Connected
+    cabled == false -> InputPresence.Empty
+    else -> null
 }
 
 /** "HDMI1" as "HDMI 1"; a name with its space already stays as it is. */

@@ -1,0 +1,10 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>InjectDispatcher:ProjectivyPlugins.kt:ProjectivyPlugins$IO</ID>
+    <ID>InjectDispatcher:ScreensaverPhotoSource.kt:ScreensaverPhotoSource$IO</ID>
+    <ID>InjectDispatcher:WallpaperModule.kt:WallpaperScopes$IO</ID>
+    <ID>LongParameterList:ScreensaverPhotoSource.kt:ScreensaverPhotoSource</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -50,10 +50,11 @@ class AskDeviceTest {
     @Test
     fun `the firmware's services are asked first, then the shell, its common commands first`() = runTest {
         val adb = FakeAdb()
-        val answers = AskDevice(Profile(localAdb = true, firmware), adb, StandardTestDispatcher(testScheduler))()
+        val answers = AskDevice(Profile(localAdb = true, firmware), adb, OURS, StandardTestDispatcher(testScheduler))()
 
         assertEquals(DeviceAnswer("service: hello", "OK"), answers.first())
         assertEquals("pm list packages -d", adb.commands[1])
+        assertTrue("appops get $OURS ACCESS_RESTRICTED_SETTINGS" in adb.commands)
         assertEquals("dumpsys firmware", adb.commands.last())
         assertEquals(adb.commands, answers.drop(1).map { it.question })
     }
@@ -61,11 +62,12 @@ class AskDeviceTest {
     @Test
     fun `without a shell of its own, or without a connection, the shell is not asked`() = runTest {
         val unused = FakeAdb()
-        val probeOnly = AskDevice(Profile(localAdb = false, firmware), unused, StandardTestDispatcher(testScheduler))()
+        val probeOnly =
+            AskDevice(Profile(localAdb = false, firmware), unused, OURS, StandardTestDispatcher(testScheduler))()
         assertEquals(listOf(DeviceAnswer("service: hello", "OK")), probeOnly)
 
         val off = FakeAdb(AdbState.NotAllowed)
-        val answers = AskDevice(Profile(localAdb = true, null), off, StandardTestDispatcher(testScheduler))()
+        val answers = AskDevice(Profile(localAdb = true, null), off, OURS, StandardTestDispatcher(testScheduler))()
         assertEquals(listOf(DeviceAnswer("shell", "not asked: debugging connection NotAllowed")), answers)
         assertTrue(unused.commands.isEmpty() && off.commands.isEmpty())
     }
@@ -73,7 +75,7 @@ class AskDeviceTest {
     @Test
     fun `a command that loses the connection is the last one asked`() = runTest {
         val adb = FakeAdb { null }
-        val answers = AskDevice(Profile(localAdb = true, firmware), adb, StandardTestDispatcher(testScheduler))()
+        val answers = AskDevice(Profile(localAdb = true, firmware), adb, OURS, StandardTestDispatcher(testScheduler))()
 
         assertEquals(1, adb.commands.size)
         assertEquals("no connection", answers.last().answer)
@@ -84,7 +86,7 @@ class AskDeviceTest {
         val fits = (1..60).joinToString("\n") { "line $it" } + "\n"
         val tooLong = (1..61).joinToString("\n") { "line $it" }
         val adb = FakeAdb { if (it == "pm list packages -d") tooLong else fits }
-        val answers = AskDevice(Profile(localAdb = true, null), adb, StandardTestDispatcher(testScheduler))()
+        val answers = AskDevice(Profile(localAdb = true, null), adb, OURS, StandardTestDispatcher(testScheduler))()
 
         val long = answers.single { it.question == "pm list packages -d" }.answer
         assertEquals(fits, answers.first().answer)
@@ -100,8 +102,10 @@ class AskDeviceTest {
                 return emptyList()
             }
         }
-        val answers = AskDevice(Profile(localAdb = false, hangs), FakeAdb(), probeMillis = 1_000)()
+        val answers = AskDevice(Profile(localAdb = false, hangs), FakeAdb(), OURS, probeMillis = 1_000)()
 
         assertEquals(listOf(DeviceAnswer("probe", "no answer in 1 s")), answers)
     }
 }
+
+private const val OURS = "dev.lumbina.tv"

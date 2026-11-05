@@ -22,7 +22,7 @@ import org.junit.Test
 class ReleaseDownloadTest {
 
     private val apk = ByteArray(300_000) { (it % 251).toByte() }
-    private val sum = MessageDigest.getInstance("SHA-256").digest(apk).joinToString("") { "%02x".format(it) }
+    private val sum = MessageDigest.getInstance("SHA-256").digest(apk).toHexString()
     private val file = File(createTempDirectory().toFile(), "lumbina.apk")
 
     /** The statuses the package is answered with, in turn; then 200, or 206 for a range. */

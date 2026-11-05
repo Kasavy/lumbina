@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -75,18 +76,25 @@ fun AppCard(
     val under = name.under || caption != null
     val label = if (named || caption == null) app.label else caption
     Tile(label = label.takeIf { under }, modifier = modifier, shown = named || caption != null, dim = !named) {
+        // No fill of the card's own: the artwork covers the tile, and a fill under it shows round
+        // a dark banner as a light rim while the tile grows or shrinks. Artwork brings a fill where
+        // it needs one: not there yet, see-through, or a banner of the user's still loading.
         TileCard(
             onClick = onClick,
             onLongClick = onLongClick,
             highlighted = highlighted,
+            containerColor = Color.Transparent,
             modifier = Modifier
                 .aspectRatio(BANNER_ASPECT)
                 .onFocusChanged { focused = it.isFocused },
         ) {
             if (banner != null) {
+                val fill = ColorPainter(MaterialTheme.colorScheme.surfaceVariant)
                 AsyncImage(
                     model = banner,
                     contentDescription = app.label,
+                    placeholder = fill,
+                    error = fill,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                 )

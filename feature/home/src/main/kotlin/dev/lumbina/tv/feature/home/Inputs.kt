@@ -12,6 +12,7 @@ import dev.lumbina.tv.core.domain.device.InputSource
 import dev.lumbina.tv.core.domain.home.HomeItem
 import dev.lumbina.tv.core.domain.home.HomeSection
 import dev.lumbina.tv.core.ui.MenuEntry
+import dev.lumbina.tv.core.ui.TickBadge
 import dev.lumbina.tv.core.ui.TileMenu
 import dev.lumbina.tv.core.ui.TileName
 
@@ -88,8 +89,11 @@ internal fun LazyGridScope.inputItems(
         Box(if (input == state.inputs.first()) first else Modifier) {
             InputTile(
                 onClick = { commands.setInput(section.id, input.id, !inIt) },
-                label = state.layout.nameOf(input),
+                label = input.caption,
                 name = TileName.None,
+                presence = input.presence,
+                // The right is the tick's corner.
+                markAtStart = true,
             )
             TickBadge(inIt, Modifier.align(Alignment.TopEnd).offset(x = BADGE_OUT, y = -BADGE_OUT))
         }

@@ -1,8 +1,6 @@
 package dev.lumbina.tv.feature.home
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,13 +8,11 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -42,10 +38,11 @@ import dev.lumbina.tv.core.ui.AppCard
 import dev.lumbina.tv.core.ui.BANNER_ASPECT
 import dev.lumbina.tv.core.ui.CenteredPanel
 import dev.lumbina.tv.core.ui.PanelGroup
-import dev.lumbina.tv.core.ui.TICK
+import dev.lumbina.tv.core.ui.TickBadge
 import dev.lumbina.tv.core.ui.TileCard
 import dev.lumbina.tv.core.ui.TileName
 import dev.lumbina.tv.core.ui.onTile
+import dev.lumbina.tv.core.ui.paceHeldSteps
 import dev.lumbina.tv.core.ui.requestFocusSoon
 import java.util.Locale
 
@@ -137,7 +134,7 @@ internal fun PickApps(dialog: HomeDialog.PickApps, state: HomeUiState, commands:
             verticalArrangement = Arrangement.spacedBy(6.dp),
             // Room for the focused tile to grow and for the badges over the tiles' corners.
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 12.dp),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().paceHeldSteps(always = true),
         ) {
             pickGrid(
                 groups,
@@ -230,21 +227,6 @@ private fun PickTile(
     }
 }
 
-/** A tick in a filled circle when [checked], an empty ring when not; it sits on a tile's top right corner. */
-@Composable
-internal fun TickBadge(checked: Boolean, modifier: Modifier = Modifier) {
-    val colors = MaterialTheme.colorScheme
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = modifier
-            .size(BADGE)
-            .background(if (checked) colors.primary else colors.surface, CircleShape)
-            .border(2.dp, if (checked) colors.surface else colors.onSurfaceVariant, CircleShape),
-    ) {
-        if (checked) Text(TICK, style = MaterialTheme.typography.labelLarge, color = colors.onPrimary)
-    }
-}
-
 internal const val PLUS_KEY = "plus"
 private const val PICK_COLUMNS = 5
 private const val OUTLINE_ALPHA = 0.7f
@@ -252,7 +234,6 @@ private const val FILL_ALPHA = 0.5f
 private val DASH = 8.dp
 private val STROKE = 2.dp
 private val CORNER = 8.dp
-private val BADGE = 24.dp
 
 /** How far the badge stands out of the tile's corner: a quarter of it, so it reads as sitting on the corner. */
 internal val BADGE_OUT = 6.dp

@@ -79,7 +79,7 @@ class HisenseDeviceProfile @Inject constructor(hisenseVolume: HisenseVolume, his
         FirmwarePart(HisenseVolume.PACKAGE, FirmwarePart.Feature.Volume),
     )
 
-    override val diagnostics: DeviceDiagnostics = HisenseDiagnostics()
+    override val diagnostics: DeviceDiagnostics = HisenseDiagnostics(hisenseInputs)
 
     override fun matches(device: DeviceFingerprint): Boolean = device.isInstalled(STOCK_LAUNCHER_PACKAGE)
 

@@ -1,0 +1,11 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>InjectDispatcher:Screensaver.kt:ScreensaverModel$Default</ID>
+    <ID>InjectDispatcher:Screensaver.kt:ScreensaverModel$IO</ID>
+    <ID>LongParameterList:Screensaver.kt:ScreensaverModel</ID>
+    <ID>NoNameShadowing:Screensaver.kt:ScreensaverModel${ return ShownPhoto(it, photo.credit) }</ID>
+    <ID>UnusedPrivateProperty:Screensaver.kt:ScreensaverModel$private val sleep: SleepSettingsRepository</ID>
+  </CurrentIssues>
+</SmellBaseline>

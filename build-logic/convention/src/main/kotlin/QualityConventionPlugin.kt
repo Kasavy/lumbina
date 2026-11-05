@@ -23,6 +23,9 @@ class QualityConventionPlugin : Plugin<Project> {
             parallel.set(true)
             config.setFrom(rootProject.file("config/detekt/detekt.yml"))
             basePath.set(rootProject.layout.projectDirectory)
+            // Findings from before the baseline (05.11.2026) are kept there, so a new one fails the
+            // build; fixed old ones drop out at the next `detektBaselineMain`/`detektBaselineTest`.
+            baseline.set(layout.projectDirectory.file("detekt-baseline.xml"))
         }
         dependencies {
             add("detektPlugins", libs.lib("detekt-compose-rules"))

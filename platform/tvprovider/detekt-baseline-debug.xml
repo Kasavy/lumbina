@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>InjectDispatcher:AndroidTvChannels.kt:AndroidTvChannels$IO</ID>
+    <ID>InjectDispatcher:TvProviderCompanion.kt:TvProviderCompanion$IO</ID>
+  </CurrentIssues>
+</SmellBaseline>

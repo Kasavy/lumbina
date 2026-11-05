@@ -98,14 +98,15 @@ fun MediaLibraryRoute(
 private fun MediaLibrary(state: MediaLibraryState, view: MediaView, commands: MediaCommands) {
     var filter by rememberSaveable { mutableStateOf(view.filter) }
     var menu by remember { mutableStateOf<MediaEntry?>(null) }
+    var viewing by remember { mutableStateOf<MediaEntry?>(null) }
     var cleaning by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
     val pick = view.pick
     var holdsFocus by remember { mutableStateOf(false) }
     // The tile with the focus gone (deleted, made a banner, out of the filter): the focus would be
     // nowhere and the remote seem dead. A moment first: closing a menu brings it back by itself.
-    LaunchedEffect(holdsFocus, menu) {
-        if (holdsFocus || menu != null) return@LaunchedEffect
+    LaunchedEffect(holdsFocus, menu, viewing) {
+        if (holdsFocus || menu != null || viewing != null) return@LaunchedEffect
         delay(FOCUS_BACK_MILLIS)
         first.requestFocusSoon()
     }
@@ -120,6 +121,8 @@ private fun MediaLibrary(state: MediaLibraryState, view: MediaView, commands: Me
         } else {
             BrowseHeading(state, filter, onFilter = { filter = it }, onCleanUp = { cleaning = true })
         }
+        // A video plays in its tile only with nothing over the library.
+        val focus = TileFocus(first, previews = menu == null && viewing == null)
         LazyVerticalGrid(
             columns = GridCells.Fixed(COLUMNS),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -129,9 +132,9 @@ private fun MediaLibrary(state: MediaLibraryState, view: MediaView, commands: Me
             modifier = Modifier.weight(1f),
         ) {
             if (pick != null) {
-                pickTiles(state.files, pick, first, commands, onMenu = { menu = it })
+                pickTiles(state.files, pick, focus, commands, onMenu = { menu = it })
             } else {
-                browseTiles(state, filter, first, onMenu = { menu = it })
+                browseTiles(state, filter, focus, onMenu = { menu = it })
             }
         }
         if (pick != null) {
@@ -143,12 +146,55 @@ private fun MediaLibrary(state: MediaLibraryState, view: MediaView, commands: Me
             )
         }
         LaunchedEffect(Unit) { first.requestFocusSoon() }
-        menu?.let { opened ->
-            // The entry as it is now: the menu's switches show what was just changed.
-            val now = (state.files + state.banners).firstOrNull { it.file.id == opened.file.id }
-            if (now == null) menu = null else MediaMenu(now, pick, commands, onDismiss = { menu = null })
-        }
+        OpenedFile(
+            state,
+            pick,
+            commands,
+            menu,
+            viewing,
+            onMenu = { menu = it },
+            onView = { viewing = it },
+        )
         if (cleaning) CleanUpDialog(state.unused, commands::deleteUnused, onDismiss = { cleaning = false })
+    }
+}
+
+/**
+ * The [menu] of a file, or the file [viewing] over the whole screen: Back from it returns to its
+ * menu. The menu shows the entry as it is now, its switches what was just changed.
+ */
+@Composable
+private fun OpenedFile(
+    state: MediaLibraryState,
+    pick: MediaMark?,
+    commands: MediaCommands,
+    menu: MediaEntry?,
+    viewing: MediaEntry?,
+    onMenu: (MediaEntry?) -> Unit,
+    onView: (MediaEntry?) -> Unit,
+) {
+    menu?.let { opened ->
+        val now = (state.files + state.banners).firstOrNull { it.file.id == opened.file.id }
+        if (now == null) {
+            onMenu(null)
+        } else {
+            MediaMenu(
+                now,
+                pick,
+                commands,
+                onView = {
+                    onView(now)
+                    onMenu(null)
+                },
+                onDismiss = { onMenu(null) },
+            )
+        }
+    }
+    viewing?.let { shown ->
+        MediaViewer(shown) {
+            onMenu(shown)
+            onView(null)
+        }
     }
 }
 

@@ -19,6 +19,8 @@ accessibility service, and any other button of the remote you choose to give som
   recent apps, sleep timer, the phone remote, the device's settings, another home screen (the
   device's own launcher, or one you choose), Lumbina's settings. On Lumbina's own screens the Menu
   button opens that menu too.
+- Recent apps can be closed, where Lumbina reaches debugging: holding OK closes one, a "Close all"
+  tile at the end closes them all.
 - Remote buttons are yours to set: a press, a double press and a hold of a button can each open
   an app or one of Lumbina's screens, control the player, mute or unmute, start the screensaver,
   turn the screen off, or do nothing. A
@@ -43,11 +45,13 @@ accessibility service, and any other button of the remote you choose to give som
 - Wallpapers: your own pictures and videos, photo of the day (the last ones kept for offline),
   Projectivy wallpaper plugins, or none: the theme's background.
 - A media library for your photos and videos: which go on the wallpaper, which on the screensaver,
-  and pictures for app tiles' banners. They come from a phone, through the phone remote's page.
+  and pictures for app tiles' banners. They come from a phone, through the phone remote's page. A
+  video plays in its tile when the focus rests on it, and any file opens over the whole screen.
 - A top bar with the clock, weather, notifications and now playing, at the right, left or in
   the middle, with the parts you want.
 - HDMI and other inputs, where the device lets apps reach them: as tiles in any row, in the quick
-  menu, and as a button in the top bar.
+  menu, and as a button in the top bar. Where the device tells, each says what is on it: the name
+  of the device working there, a cable with the device asleep, or nothing.
 - Dark and light themes with a choice of accent.
 - Screensaver with photos and videos from the same sources as the wallpaper, from a minute idle,
   over Lumbina's own screens only, so it never covers a video. Sleep timer, auto-sleep.

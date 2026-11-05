@@ -1,0 +1,47 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>InjectDispatcher:DebugHearing.kt:DebugHearing$IO</ID>
+    <ID>InjectDispatcher:LumbinaRecognitionService.kt:LumbinaRecognitionService$Default</ID>
+    <ID>InjectDispatcher:MicAppPrompt.kt:MicAppPrompt.Companion$IO</ID>
+    <ID>InjectDispatcher:MicInjection.kt:MicInjection$IO</ID>
+    <ID>InjectDispatcher:PhoneRemote.kt:PhoneRemote$IO</ID>
+    <ID>InjectDispatcher:PhoneRemoteServer.kt:PhoneRemoteServer$IO</ID>
+    <ID>InjectDispatcher:RecognizeSpeechActivity.kt:RecognizeSpeechActivity$Default</ID>
+    <ID>InjectDispatcher:RemoteFeatures.kt:RemoteFeatures$IO</ID>
+    <ID>InjectDispatcher:VoiceAssembly.kt:VoiceAssembly$IO</ID>
+    <ID>InjectDispatcher:VoiceController.kt:VoiceController$Default</ID>
+    <ID>InjectDispatcher:VoiceReadiness.kt:VoiceReadiness$IO</ID>
+    <ID>InjectDispatcher:VoiceSessions.kt:VoiceSessions$IO</ID>
+    <ID>LongParameterList:AppSwitcherViews.kt:AppSwitcherViews.Texts</ID>
+    <ID>LongParameterList:AppSwitching.kt:AppSwitching</ID>
+    <ID>LongParameterList:DebugCommands.kt:DebugCommands</ID>
+    <ID>LongParameterList:MicAppPrompt.kt:MicAppPrompt.Texts</ID>
+    <ID>LongParameterList:PhoneRemote.kt:PhoneRemote.Ports</ID>
+    <ID>LongParameterList:PhoneRemoteServer.kt:PhoneRemoteServer</ID>
+    <ID>LongParameterList:QuickMenu.kt:QuickMenu.Ports</ID>
+    <ID>LongParameterList:QuickMenuOverlay.kt:QuickMenuOverlay.Item</ID>
+    <ID>LongParameterList:RemoteDeps.kt:RemoteDeps.Device</ID>
+    <ID>LongParameterList:RemoteDeps.kt:RemoteDeps.Stores</ID>
+    <ID>LongParameterList:RemoteDeps.kt:RemoteDeps.Voice</ID>
+    <ID>LongParameterList:RemoteFeatures.kt:RemoteFeatures.Parts</ID>
+    <ID>LongParameterList:VoiceAssembly.kt:VoiceAssembly</ID>
+    <ID>LongParameterList:VoiceController.kt:VoiceController</ID>
+    <ID>LongParameterList:VoiceController.kt:VoiceController.Strings</ID>
+    <ID>MemberNameEqualsClassName:MicInjector.kt:MicInjector.Policy$private val policy = policyBuilderClass.getConstructor(Context::class.java).newInstance(context).let { mixes.values.forEach { mix -&gt; policyBuilderClass.getMethod("addMix", mixClass).invoke(it, mix) } policyBuilderClass.getMethod("build").invoke(it) }</ID>
+    <ID>NoNameShadowing:PhoneRemoteServer.kt:PhoneRemoteServer${ client.soTimeout = it }</ID>
+    <ID>NoNameShadowing:PhoneRemoteServer.kt:PhoneRemoteServer${ log.log(TAG, "${request.command}: $it") }</ID>
+    <ID>UnusedPrivateProperty:AppSwitching.kt:AppSwitching$private val notListed: Set&lt;String&gt;</ID>
+    <ID>UnusedPrivateProperty:DebugCommands.kt:DebugCommands$private val deliver: () -&gt; DeliverText</ID>
+    <ID>UnusedPrivateProperty:DebugCommands.kt:DebugCommands$private val hear: suspend (File) -&gt; String?</ID>
+    <ID>UnusedPrivateProperty:DebugCommands.kt:DebugCommands$private val log: LumbinaLog</ID>
+    <ID>UnusedPrivateProperty:DebugCommands.kt:DebugCommands$private val quickMenu: (String) -&gt; Unit</ID>
+    <ID>UnusedPrivateProperty:DebugCommands.kt:DebugCommands$private val say: () -&gt; HandleUtterance</ID>
+    <ID>UnusedPrivateProperty:DebugCommands.kt:DebugCommands$private val scope: CoroutineScope</ID>
+    <ID>UnusedPrivateProperty:DebugCommands.kt:DebugCommands$private val sleepIn: (Int) -&gt; Unit</ID>
+    <ID>UnusedPrivateProperty:DebugCommands.kt:DebugCommands$private val switcher: (String) -&gt; Unit</ID>
+    <ID>UnusedPrivateProperty:HeldArrow.kt:HeldArrow$private val showing: () -&gt; Boolean</ID>
+    <ID>UnusedPrivateProperty:PhoneRemoteServer.kt:PhoneRemoteServer$private val key: String</ID>
+  </CurrentIssues>
+</SmellBaseline>

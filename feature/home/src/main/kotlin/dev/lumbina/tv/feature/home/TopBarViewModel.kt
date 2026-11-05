@@ -69,7 +69,7 @@ class TopBarViewModel @Inject constructor(
 ) : ViewModel() {
 
     /** The bar as the user set it. */
-    private val looks = combine(appearance.settings, inputs.inputs) { look, inputs ->
+    private val looks = combine(appearance.settings, inputs.live) { look, inputs ->
         BarLooks(look.topBar, look.clockFormat, inputs)
     }.distinctUntilChanged()
 

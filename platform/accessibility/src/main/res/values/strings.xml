@@ -92,6 +92,12 @@
     <string name="sleep_refused">The device doesn’t let Lumbina turn it off</string>
     <string name="switcher_hint_close">◀ ▶ choose · OK open · hold OK to close · Back to leave</string>
     <string name="switcher_no_previous">There is no previous app</string>
+    <string name="switcher_close_all">Close all</string>
+    <string name="switcher_hint_close_all">◀ ▶ choose · OK close all · Back to leave</string>
+    <plurals name="switcher_close_all_count">
+        <item quantity="one">Closes %d app</item>
+        <item quantity="other">Closes %d apps</item>
+    </plurals>
     <string name="voice_silence">Nothing was heard</string>
     <string name="voice_which">Which one?</string>
     <string name="voice_too_many">Several apps fit. Say the name more exactly</string>

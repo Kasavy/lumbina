@@ -1,8 +1,5 @@
 package dev.lumbina.tv.core.domain.device
 
-/** One of the device's video inputs: [id] as the firmware knows it, [name] as it calls it ("HDMI 1"). */
-data class InputSource(val id: String, val name: String)
-
 /** The device's video inputs (HDMI and the like), where an app can choose between them. */
 interface InputSources {
     /** Makes Android's own picture the chosen one, if an input is; true when it had to switch. */
@@ -16,6 +13,12 @@ interface InputSources {
 
     /** Chooses input [id] and shows it full screen; false when it could not. */
     suspend fun open(id: String): Boolean
+
+    /**
+     * What is on each input now, by [InputSource.id]: a device working, a cable only, nothing. An
+     * input the device can't tell of is left out; on such a device, all of them.
+     */
+    suspend fun presence(): Map<String, InputPresence> = emptyMap()
 
     /** Whether [packageName] is the firmware's own screen that [open] shows an input on. */
     fun showsInputs(packageName: String): Boolean = false

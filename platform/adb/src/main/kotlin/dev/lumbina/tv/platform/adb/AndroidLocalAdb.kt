@@ -43,6 +43,12 @@ internal class AndroidLocalAdb @Inject constructor(
         return result.value
     }
 
+    override suspend fun shellQuietly(command: String): String? {
+        val result = open(offerKey = false) { it.shell(command, SHELL_TIMEOUT_MILLIS) }
+        if (result.value == null) log.log(TAG, "shell \"$command\": ${result.state}")
+        return result.value
+    }
+
     override suspend fun exec(command: String, input: InputStream): String? {
         val result = open(offerKey = false) { it.exec(command, input, EXEC_TIMEOUT_MILLIS) }
         log.log(TAG, "exec \"$command\": ${if (result.value != null) "ok" else result.state}")

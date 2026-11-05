@@ -53,7 +53,12 @@ class RecognizerSetupTest {
     private fun setup(adb: LocalAdb): RecognizerSetup {
         val settings = FakeSecureSettings()
         val heal = HealAccessibilityService(settings, { true }, "x/.Y", FakeHealLock(), 0, 0)
-        return RecognizerSetup(context, LocalAccess(adb, settings, heal, context.packageName, "x.Listener")) { _, _ -> }
+        return RecognizerSetup(
+            context,
+            LocalAccess(adb, settings, {
+                heal()
+            }, context.packageName, "x.Listener"),
+        ) { _, _ -> }
     }
 
     @Test

@@ -1,0 +1,13 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>InjectDispatcher:AndroidHomeScreens.kt:AndroidHomeScreens$IO</ID>
+    <ID>InjectDispatcher:AndroidSpeechApps.kt:AndroidSpeechApps$IO</ID>
+    <ID>InjectDispatcher:AndroidSystemSearch.kt:AndroidSystemSearch$IO</ID>
+    <ID>InjectDispatcher:AndroidYouTubeApps.kt:AndroidYouTubeApps$IO</ID>
+    <ID>InjectDispatcher:FileHealLock.kt:FileHealLock$IO</ID>
+    <ID>InjectDispatcher:HealJob.kt:HealJob$Default</ID>
+    <ID>UnusedPrivateProperty:AndroidMediaSessions.kt:AndroidMediaSessions$@ApplicationContext private val context: Context</ID>
+  </CurrentIssues>
+</SmellBaseline>

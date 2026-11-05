@@ -26,13 +26,19 @@ class LumbinaAccessibilityService : AccessibilityService() {
     private val scope = MainScope()
     private var features: RemoteFeatures? = null
 
+    /** One answer per press, however many times the system hands it over. */
+    private val echo = KeyEcho(
+        onEcho = { log.log(TAG, "key ${it.keyCode} came twice: the service may be bound twice") },
+    )
+
     override fun onServiceConnected() {
         // Keys let go for a held volume button stay so after the process ends, unless taken back here.
         filterKeys(true)
         (features ?: featuresFactory.create(this, scope).also { features = it }).start()
     }
 
-    override fun onKeyEvent(event: KeyEvent): Boolean = features?.onKey(event) ?: false
+    override fun onKeyEvent(event: KeyEvent): Boolean =
+        echo.answer(KeyStamp.of(event)) { features?.onKey(event) ?: false }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         features?.onAccessibilityEvent(event)

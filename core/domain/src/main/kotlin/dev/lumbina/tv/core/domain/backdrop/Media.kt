@@ -46,6 +46,12 @@ interface MediaLibrary {
      * is: the copy's URI; null if there is no such photo or no room for it.
      */
     fun copyToBanner(id: String): String?
+
+    /**
+     * Puts the banner [id] back among the wallpaper's files, moved, or copied under a name of its
+     * own when [keep] (tiles show it): the file's new id; null if there is no such banner or no room.
+     */
+    fun fromBanner(id: String, keep: Boolean): String?
 }
 
 /** How adding a file went. */

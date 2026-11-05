@@ -155,7 +155,7 @@ internal class ModelInstaller @Inject constructor(private val store: VoskModelSt
                 read = input.read(buffer)
             }
         }
-        return digest.digest().joinToString("") { "%02x".format(it) }
+        return digest.digest().toHexString()
     }
 
     private companion object {

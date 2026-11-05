@@ -9,6 +9,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.lumbina.tv.core.common.ALL_INSTALLED_APPS
 import dev.lumbina.tv.core.common.LumbinaComponents
+import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.common.OUR_ACCESSIBILITY_SERVICE
 import dev.lumbina.tv.core.common.OUR_SCREENSAVER
 import dev.lumbina.tv.core.domain.access.CompanionApp
@@ -53,23 +54,27 @@ object AppModule {
     // What works over a port that only some builds have an adapter for is put together here, not
     // in that adapter's module: a build without the adapter still needs these.
     @Provides
-    fun askDevice(profile: DeviceProfile, adb: LocalAdb): AskDevice = AskDevice(profile, adb)
+    fun askDevice(profile: DeviceProfile, adb: LocalAdb, @ApplicationContext context: Context): AskDevice =
+        AskDevice(profile, adb, context.packageName)
 
     @Provides
     fun firmwareParts(profile: DeviceProfile, packages: PackageStates, adb: LocalAdb): FirmwareParts =
         FirmwareParts(profile, packages, adb)
 
+    // A provider hands its dependencies through; grouping them would only hide what LocalAccess takes.
+    @Suppress("LongParameterList")
     @Provides
     fun localAccess(
         adb: LocalAdb,
         secureSettings: SecureSettings,
         heal: HealAccessibilityService,
         companions: Set<@JvmSuppressWildcards CompanionApp>,
+        log: LumbinaLog,
         @ApplicationContext context: Context,
     ): LocalAccess = LocalAccess(
         adb,
         secureSettings,
-        heal,
+        { heal().also { log.log("heal", "after the grant: $it") } },
         context.packageName,
         LumbinaComponents.NOTIFICATION_LISTENER,
         companions.toList(),

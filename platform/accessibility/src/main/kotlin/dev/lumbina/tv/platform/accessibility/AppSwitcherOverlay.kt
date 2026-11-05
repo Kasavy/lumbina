@@ -15,7 +15,8 @@ import dev.lumbina.tv.core.domain.app.AppId
 
 /**
  * Recent apps along the bottom of whatever is on screen: ◀ ▶ pick, OK opens, Back closes; holding
- * OK closes the app instead where [show] says it may ([onClose]). It also closes by itself when
+ * OK closes the app instead where [show] says it may ([onClose]), and there a "Close all" tile ends
+ * the ribbon ([onCloseAll], with the apps not already closing). It also closes by itself when
  * left alone. It never takes focus — the service feeds it the remote's keys ([onKey]) — so the
  * app underneath keeps running undisturbed. A held ◀ or ▶ goes on by itself ([HeldArrow]).
  */
@@ -24,6 +25,7 @@ internal class AppSwitcherOverlay(
     texts: AppSwitcherViews.Texts,
     private val onPick: (App) -> Unit,
     onClose: (App) -> Unit,
+    private val onCloseAll: (List<App>) -> Unit,
 ) {
     private val windowManager = context.getSystemService(WindowManager::class.java)
     private val views = AppSwitcherViews(context, texts)
@@ -51,6 +53,8 @@ internal class AppSwitcherOverlay(
 
     // Timed, not by auto-repeat: some remotes send no repeats while OK is held.
     private val longPress = Runnable {
+        // The "Close all" tile has no app to hold: it closes them all on the release, held or not.
+        if (onCloseAllTile) return@Runnable
         held = true
         // Holding an arrow too: whichever app it went to by then is not the one meant.
         if (arrow.isHeld) return@Runnable
@@ -63,8 +67,10 @@ internal class AppSwitcherOverlay(
 
     val isShowing: Boolean get() = root != null
 
-    /** The app under the selection. */
+    /** The app under the selection; past the last app, the "Close all" tile. */
     val selectedIndex: Int get() = selected
+
+    private val onCloseAllTile: Boolean get() = ribbon?.closeAll != null && selected == apps.size
 
     /**
      * Shows the ribbon. [keepKeys]: it is shown anew over itself (what it says about closing
@@ -75,12 +81,14 @@ internal class AppSwitcherOverlay(
         this.apps = apps
         this.close = close
         closing.retainAll(apps.map { it.id }.toSet())
-        selected = initial.coerceIn(0, (apps.size - 1).coerceAtLeast(0))
+        // Up to the "Close all" tile past the last app, if the ribbon has it: select() tells.
+        selected = initial.coerceIn(0, apps.size)
         val made = views.ribbon(apps, close)
         val params = overlayParams(MATCH_PARENT, WRAP_CONTENT, Gravity.BOTTOM)
         root = made.view.takeIf { windowManager.addOverlay(it, params) } ?: return
         ribbon = made
-        select(selected)
+        // Straight to the card: shown anew after a close, the ribbon would slide in from its start.
+        select(selected, smooth = false)
         keepOpen()
     }
 
@@ -155,6 +163,12 @@ internal class AppSwitcherOverlay(
                 held = false
             }
 
+            onCloseAllTile -> {
+                okDown = false
+                handler.removeCallbacks(longPress)
+                closeAll()
+            }
+
             else -> {
                 handler.removeCallbacks(longPress)
                 val app = apps.getOrNull(selected)
@@ -162,6 +176,15 @@ internal class AppSwitcherOverlay(
                 app?.let(onPick)
             }
         }
+    }
+
+    /** Every card says "closing" until the device answers for its app; the ribbon stays. */
+    private fun closeAll() {
+        val left = apps.filterNot { it.id in closing }
+        if (left.isEmpty()) return
+        closing += left.map { it.id }
+        select(selected)
+        onCloseAll(left)
     }
 
     private fun keepOpen() {
@@ -174,15 +197,16 @@ internal class AppSwitcherOverlay(
     private fun select(index: Int, smooth: Boolean = true) {
         val shown = ribbon ?: return
         if (shown.cards.isEmpty()) return
-        selected = index.coerceIn(0, shown.cards.lastIndex)
+        val last = if (shown.closeAll != null) shown.cards.size else shown.cards.lastIndex
+        selected = index.coerceIn(0, last)
         shown.cards.forEachIndexed { i, card -> views.mark(card, on = i == selected, closing = card.app.id in closing) }
-        val card = shown.cards[selected].frame
+        views.markCloseAll(shown, on = onCloseAllTile, count = apps.count { it.id !in closing })
+        val card = shown.cards.getOrNull(selected)?.frame ?: shown.closeAll?.frame ?: return
         val scroller = shown.scroller ?: return
         scroller.post {
             // The overlay may have closed in the meantime, taking the card off screen.
             val cell = card.parent as? View ?: return@post
-            val target = cell.left - (scroller.width - cell.width) / 2
-            val x = target.coerceAtLeast(0)
+            val x = edgeScroll(cell.left, cell.right, scroller.scrollX, scroller.width, views.edge) ?: return@post
             if (smooth) scroller.smoothScrollTo(x, 0) else scroller.scrollTo(x, 0)
         }
     }
@@ -190,4 +214,20 @@ internal class AppSwitcherOverlay(
     private companion object {
         const val AUTO_HIDE_MILLIS = 10_000L
     }
+}
+
+/**
+ * Where the ribbon scrolls to show the card spanning [left] to [right] (scrolled to [scrollX], [width]
+ * wide): as home's rows do, only when the card would come closer than [margin] to a side, and just
+ * enough; null where it stays.
+ */
+internal fun edgeScroll(left: Int, right: Int, scrollX: Int, width: Int, margin: Int): Int? {
+    val start = scrollX + margin
+    val end = scrollX + width - margin
+    val to = when {
+        left < start -> left - margin
+        right > end -> right - width + margin
+        else -> return null
+    }
+    return to.coerceAtLeast(0)
 }

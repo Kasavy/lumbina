@@ -10,7 +10,6 @@ dependencies {
     // Program posters, channel logos and wallpapers (http, content, file and resource URIs).
     api(libs.coil.compose)
     // A video's first frame as its picture, in the media library.
-    implementation(libs.coil.video)
     // QR code for the phone remote address.
     implementation(libs.zxing.core)
     // Video wallpapers.

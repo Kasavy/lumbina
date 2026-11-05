@@ -80,6 +80,57 @@ class AppMediaLibraryTest {
         )
     }
 
+    /** A photo made a banner (moved there), its id. */
+    private fun banner(name: String = "sea.jpg"): String {
+        val photo = (add(name) as MediaAdd.Added).file
+        library.toBanner(photo.id)
+        return library.banners().single().id
+    }
+
+    @Test
+    fun `a banner no tile shows goes back to the photos as it is`() {
+        val id = banner()
+        assertEquals(id, library.fromBanner(id, keep = false))
+        assertEquals(listOf(id), library.files().map { it.id })
+        assertTrue(library.banners().isEmpty())
+    }
+
+    @Test
+    fun `a banner the tiles show goes as a copy, once however often it is sent`() {
+        val id = banner()
+        val copy = library.fromBanner(id, keep = true)
+        assertNotEquals(id, copy)
+        assertEquals(listOf(id), library.banners().map { it.id })
+        assertEquals(copy, library.fromBanner(id, keep = true))
+        assertEquals(listOf(copy), library.files().map { it.id })
+    }
+
+    @Test
+    fun `a banner sent before as a copy, sent once more without its tile, leaves only that copy`() {
+        val id = banner()
+        val copy = library.fromBanner(id, keep = true)
+        assertEquals(copy, library.fromBanner(id, keep = false))
+        assertEquals(listOf(copy), library.files().map { it.id })
+        assertTrue(library.banners().isEmpty())
+    }
+
+    @Test
+    fun `a photo of the same name is never replaced by a banner coming back`() {
+        val id = banner()
+        File(context.filesDir, "photos/$id").writeBytes(ByteArray(3))
+        val back = library.fromBanner(id, keep = false)
+        assertNotEquals(id, back)
+        assertEquals(3L, File(context.filesDir, "photos/$id").length())
+        assertEquals(setOf(id, back), library.files().map { it.id }.toSet())
+        assertTrue(library.banners().isEmpty())
+    }
+
+    @Test
+    fun `nothing comes back for a name that is no banner here`() {
+        assertNull(library.fromBanner("missing.jpg", keep = false))
+        assertNull(library.fromBanner("../photos/x.jpg", keep = true))
+    }
+
     @Test
     fun `nothing is copied for a name that is no photo here`() {
         assertNull(library.copyToBanner("missing.jpg"))

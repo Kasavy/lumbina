@@ -93,4 +93,21 @@ class MediaUseCasesTest {
         assertEquals(setOf("v.mp4"), marks.current.value.unplayable)
         assertEquals(5, wallpaper.current.value.mediaChangedAt)
     }
+
+    @Test
+    fun `a banner no tile shows goes back to the wallpaper, one a tile shows sends a copy`() = runTest {
+        library.banners = listOf(banner("spare"), banner("shown"))
+        marks.current.value = MediaMarks(offWallpaper = setOf("spare", "copy-shown"))
+        appearance.current.value = HomeAppearance(customBanners = mapOf("app" to banner("shown").uri))
+        val back = BannerToWallpaper(library, marks, wallpaper, appearance)
+
+        assertTrue(back(banner("spare"), now = 3))
+        assertTrue(back(banner("shown"), now = 4))
+        assertFalse(back(banner("gone"), now = 5))
+
+        assertEquals(listOf("copy-shown", "spare"), library.files.map { it.id })
+        assertEquals(listOf("shown"), library.banners.map { it.id })
+        assertEquals(MediaMarks(), marks.current.value)
+        assertEquals(4, wallpaper.current.value.mediaChangedAt)
+    }
 }

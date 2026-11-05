@@ -97,6 +97,14 @@
     <string name="sleep_refused">Устройство не позволяет Lumbina выключить его</string>
     <string name="switcher_hint_close">◀ ▶ выбрать · OK открыть · удержание OK закрыть · Назад выйти</string>
     <string name="switcher_no_previous">Предыдущего приложения нет</string>
+    <string name="switcher_close_all">Закрыть все</string>
+    <string name="switcher_hint_close_all">◀ ▶ выбрать · OK закрыть все · Назад выйти</string>
+    <plurals name="switcher_close_all_count">
+        <item quantity="one">Закроет %d приложение</item>
+        <item quantity="few">Закроет %d приложения</item>
+        <item quantity="many">Закроет %d приложений</item>
+        <item quantity="other">Закроет %d приложения</item>
+    </plurals>
     <string name="voice_silence">Ничего не слышно</string>
     <string name="voice_which">Какое именно?</string>
     <string name="voice_too_many">Нашлось несколько. Скажите название точнее</string>

@@ -53,12 +53,13 @@ sealed interface HealResult {
 }
 
 /**
- * Brings our accessibility service back when the system lists it but doesn't run it:
- * removing it from the list and adding it again makes the system bind it. A service found
- * unbound gets [settleMillis] first: the system may be binding it right now (e.g. as the
- * device wakes, or after another heal just toggled it), and toggling then leaves it bound twice,
- * every remote key acting twice. The wait and the toggle run under [lock], so a second heal waits
- * for the first and then sees its result.
+ * Brings our accessibility service back when the system doesn't run it, listed or not (another app
+ * may have taken it off the list): removing it from the list and adding it again makes the system
+ * bind it. The user who wants it off turns this off ("The remote's service turns itself on", which
+ * takes the right). A service found unbound gets [settleMillis] first: the system may be binding
+ * it right now (e.g. as the device wakes, or after another heal just toggled it), and toggling
+ * then leaves it bound twice, every remote key acting twice. The wait and the toggle run under
+ * [lock], so a second heal waits for the first and then sees its result.
  */
 class HealAccessibilityService(
     private val settings: SecureSettings,

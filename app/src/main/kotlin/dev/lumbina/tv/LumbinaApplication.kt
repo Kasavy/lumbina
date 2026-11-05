@@ -40,6 +40,7 @@ class LumbinaApplication :
         val process = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) getProcessName() else "?"
         log.log("app", "process started: $process")
         HealJob.ensureScheduled(this)
+        HealJob.checkSoon(this)
         SpeechForApps.sync(this, wanted = profile.speechForApps)
     }
 

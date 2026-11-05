@@ -11,7 +11,6 @@ import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
-import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.sync.Mutex
@@ -102,7 +101,7 @@ internal class SavedDailyPhotos @Inject constructor(
     // A name of its own for each address: Bing's ids carry characters a file name should not.
     private fun fileOf(url: String): File {
         val digest = MessageDigest.getInstance("SHA-1").digest(url.toByteArray())
-        return File(dir, digest.take(NAME_BYTES).joinToString("") { "%02x".format(Locale.ROOT, it) } + ".jpg")
+        return File(dir, digest.copyOf(NAME_BYTES).toHexString() + ".jpg")
     }
 
     private companion object {

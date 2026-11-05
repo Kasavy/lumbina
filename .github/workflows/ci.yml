@@ -24,7 +24,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
 
       - name: Static checks
-        run: ./gradlew checkModuleGraph spotlessCheck detekt lintFossDebug --continue
+        run: ./gradlew checkModuleGraph spotlessCheck detekt detektMain detektTest lint --continue
 
       - name: Unit and Robolectric tests
         run: ./gradlew test testDebugUnitTest testFossDebugUnitTest --continue

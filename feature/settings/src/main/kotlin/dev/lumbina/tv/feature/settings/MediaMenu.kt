@@ -17,11 +17,19 @@ import java.text.DateFormat
 import java.util.Date
 
 /**
- * A file's menu: its marks, showing it now, making a photo a banner, deleting. In the pick mode
- * the mark being picked is left out: it is the tick. A banner's menu says where it stands and deletes it.
+ * A file's menu: looking at it over the whole screen ([onView]; not a video that won't play), its
+ * marks, showing it now, making a photo a banner, deleting. In the pick mode the mark being picked
+ * is left out: it is the tick.
+ * A banner's menu says where it stands, puts it back to the wallpaper and deletes it.
  */
 @Composable
-internal fun MediaMenu(entry: MediaEntry, pick: MediaMark?, commands: MediaCommands, onDismiss: () -> Unit) {
+internal fun MediaMenu(
+    entry: MediaEntry,
+    pick: MediaMark?,
+    commands: MediaCommands,
+    onView: () -> Unit,
+    onDismiss: () -> Unit,
+) {
     var deleting by remember { mutableStateOf(false) }
     val kind = when {
         entry.banner -> R.string.media_kind_banner
@@ -38,6 +46,13 @@ internal fun MediaMenu(entry: MediaEntry, pick: MediaMark?, commands: MediaComma
             if (entry.banner) {
                 val tiles = entry.shownOn.joinToString()
                 if (tiles.isNotEmpty()) Note(stringResource(R.string.media_banner_on, tiles))
+            }
+            // A video that won't play here would show only its frame.
+            if (!entry.unplayable) {
+                SettingRow(onClick = onView, headlineContent = { Text(stringResource(R.string.media_view)) })
+            }
+            if (entry.banner) {
+                BannerEntries(entry, commands, onDismiss)
             } else {
                 FileEntries(entry, pick, commands, onDismiss)
             }
@@ -69,6 +84,22 @@ internal fun MediaMenu(entry: MediaEntry, pick: MediaMark?, commands: MediaComma
 }
 
 private val MediaEntry.date: Date get() = Date(file.addedAt)
+
+/** A banner back to the wallpaper: a copy of it, when tiles show it. */
+@Composable
+private fun BannerEntries(entry: MediaEntry, commands: MediaCommands, onDone: () -> Unit) {
+    val shown = entry.shownOn.isNotEmpty()
+    SettingRow(
+        onClick = {
+            commands.toWallpaper(entry)
+            onDone()
+        },
+        headlineContent = { Text(stringResource(R.string.media_to_wallpaper)) },
+        supportingContent = {
+            Text(stringResource(if (shown) R.string.media_to_wallpaper_copy_hint else R.string.media_to_wallpaper_hint))
+        },
+    )
+}
 
 /** What a photo or video of the wallpaper and screensaver can be made to do. */
 @Composable

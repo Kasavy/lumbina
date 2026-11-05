@@ -1,0 +1,52 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>InjectDispatcher:AboutPanel.kt:IO</ID>
+    <ID>InjectDispatcher:AccessViewModel.kt:AccessViewModel$IO</ID>
+    <ID>InjectDispatcher:ButtonsViewModel.kt:ButtonsViewModel$IO</ID>
+    <ID>InjectDispatcher:DiagnosticsViewModel.kt:DiagnosticsViewModel$IO</ID>
+    <ID>InjectDispatcher:HomeSettingsViewModel.kt:HomeSettingsViewModel$Default</ID>
+    <ID>InjectDispatcher:MediaLibraryViewModel.kt:MediaLibraryViewModel$Default</ID>
+    <ID>InjectDispatcher:MediaLibraryViewModel.kt:MediaLibraryViewModel$IO</ID>
+    <ID>InjectDispatcher:PhoneRemoteViewModel.kt:PhoneRemoteViewModel$IO</ID>
+    <ID>InjectDispatcher:SettingsScreen.kt:SettingsPagesViewModel$IO</ID>
+    <ID>InjectDispatcher:SleepSettingsViewModel.kt:SleepSettingsViewModel$IO</ID>
+    <ID>InjectDispatcher:WallpaperSettingsViewModel.kt:WallpaperSettingsViewModel$IO</ID>
+    <ID>LongParameterList:ButtonsViewModel.kt:ButtonsViewModel</ID>
+    <ID>LongParameterList:DiagnosticsViewModel.kt:DiagnosticsViewModel</ID>
+    <ID>LongParameterList:HomeSettingsViewModel.kt:HomeSettingsViewModel</ID>
+    <ID>LongParameterList:MediaLibraryViewModel.kt:MediaLibraryViewModel</ID>
+    <ID>LongParameterList:SleepSettingsViewModel.kt:SleepSettingsViewModel</ID>
+    <ID>LongParameterList:WidgetsSettingsViewModel.kt:WidgetsSettingsViewModel</ID>
+    <ID>MissingReadOnlyComposable:AboutPanel.kt:@Composable private fun versionText: String</ID>
+    <ID>MissingReadOnlyComposable:ButtonTexts.kt:@Composable internal fun KeyGesture.label: String</ID>
+    <ID>MissingReadOnlyComposable:HomeRowItems.kt:@Composable internal fun builtInTitle: String</ID>
+    <ID>MissingReadOnlyComposable:HomeRowItems.kt:@Composable private fun builtInHint: String?</ID>
+    <ID>MissingReadOnlyComposable:MediaLibraryScreen.kt:@Composable private fun countsLine: String</ID>
+    <ID>MissingReadOnlyComposable:MediaTiles.kt:@Composable private fun marks: List&lt;Pair&lt;String, Boolean&gt;&gt;</ID>
+    <ID>MissingReadOnlyComposable:SettingRow.kt:@Composable private fun rowColor: Color</ID>
+    <ID>MissingReadOnlyComposable:SettingsScreen.kt:@Suppress("ViewModelForwarding") @Composable private fun deviceSettingsOpener: (() -&gt; Unit)?</ID>
+    <ID>MissingReadOnlyComposable:SleepPanel.kt:@Composable private fun autoSleepLabel: String</ID>
+    <ID>MissingReadOnlyComposable:VoicePanel.kt:@Composable private fun size: String</ID>
+    <ID>MissingReadOnlyComposable:VoiceProvider.kt:@Composable private fun providerName: String</ID>
+    <ID>NoNameShadowing:SettingsScreen.kt:{ { Text(stringResource(it), color = rowWarning()) } }</ID>
+    <ID>UnnecessaryLaunchedEffect:HomePanel.kt:LaunchedEffect</ID>
+    <ID>UnnecessaryLaunchedEffect:SettingsPages.kt:LaunchedEffect</ID>
+    <ID>UnnecessaryLaunchedEffect:SizeSlider.kt:LaunchedEffect</ID>
+    <ID>UnusedPrivateProperty:AccessViewModel.kt:AccessViewModel$private val usage: UsageAccess</ID>
+    <ID>UnusedPrivateProperty:ChannelSettingsViewModel.kt:ChannelSettingsViewModel$private val channels: TvChannels</ID>
+    <ID>UnusedPrivateProperty:DiagnosticsViewModel.kt:DiagnosticsViewModel$private val channels: TvChannels</ID>
+    <ID>UnusedPrivateProperty:DiagnosticsViewModel.kt:DiagnosticsViewModel$private val health: AccessibilityHealth</ID>
+    <ID>UnusedPrivateProperty:DiagnosticsViewModel.kt:DiagnosticsViewModel$private val listings: TvListingsPermission</ID>
+    <ID>UnusedPrivateProperty:DiagnosticsViewModel.kt:DiagnosticsViewModel$private val localAccess: LocalAccess</ID>
+    <ID>UnusedPrivateProperty:DiagnosticsViewModel.kt:DiagnosticsViewModel$private val packages: PackageStates</ID>
+    <ID>UnusedPrivateProperty:DiagnosticsViewModel.kt:DiagnosticsViewModel$private val profile: DeviceProfile</ID>
+    <ID>UnusedPrivateProperty:DiagnosticsViewModel.kt:DiagnosticsViewModel$private val secureSettings: SecureSettings</ID>
+    <ID>UnusedPrivateProperty:DiagnosticsViewModel.kt:DiagnosticsViewModel$private val system: SystemInfo</ID>
+    <ID>UnusedPrivateProperty:PhoneRemoteViewModel.kt:PhoneRemoteViewModel$private val localAddress: LocalAddress</ID>
+    <ID>UnusedPrivateProperty:SleepSettingsViewModel.kt:SleepSettingsViewModel$private val library: MediaLibrary</ID>
+    <ID>UnusedPrivateProperty:VoiceSettingsViewModel.kt:VoiceSettingsViewModel$private val speechApps: SpeechApps</ID>
+    <ID>UnusedPrivateProperty:WallpaperSettingsViewModel.kt:WallpaperSettingsViewModel$private val library: MediaLibrary</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -43,6 +43,14 @@ class FakeMediaLibrary(var files: List<MediaFile> = emptyList(), var banners: Li
         return copy.uri
     }
 
+    override fun fromBanner(id: String, keep: Boolean): String? {
+        val banner = banners.firstOrNull { it.id == id } ?: return null
+        if (!keep) banners = banners - banner
+        val back = media(if (keep) "copy-$id" else id)
+        files = listOf(back) + files
+        return back.id
+    }
+
     companion object {
         fun media(id: String, kind: MediaKind = MediaKind.Photo) = MediaFile(id, "file:///photos/$id", kind, id, 0)
 

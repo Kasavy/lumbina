@@ -1,0 +1,37 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>InjectDispatcher:HomeViewModel.kt:HomeViewModel$Default</ID>
+    <ID>InjectDispatcher:HomeViewModel.kt:HomeViewModel$IO</ID>
+    <ID>InjectDispatcher:TopBarViewModel.kt:TopBarViewModel$IO</ID>
+    <ID>InjectDispatcher:WallpaperViewModel.kt:WallpaperViewModel$IO</ID>
+    <ID>LongParameterList:ChannelRows.kt:internal fun LazyGridScope.appRow</ID>
+    <ID>LongParameterList:HomeActions.kt:HomeActions</ID>
+    <ID>LongParameterList:HomeViewModel.kt:HomeViewModel</ID>
+    <ID>LongParameterList:TopBarViewModel.kt:TopBarViewModel</ID>
+    <ID>MissingReadOnlyComposable:AllApps.kt:@Composable private fun filterTitle: String</ID>
+    <ID>MissingReadOnlyComposable:BannerPicker.kt:@Composable private fun pageName: String</ID>
+    <ID>MissingReadOnlyComposable:Failures.kt:@Composable internal fun Failed.message: String</ID>
+    <ID>MissingReadOnlyComposable:HomeBlocks.kt:@Composable private fun Modifier.glassBacking: Modifier</ID>
+    <ID>MissingReadOnlyComposable:HomeDialogs.kt:@Composable internal fun HomeSection.title: String</ID>
+    <ID>MissingReadOnlyComposable:HomeTopBar.kt:@Composable private fun Modifier.capsule: Modifier</ID>
+    <ID>MissingReadOnlyComposable:MoveMode.kt:@Composable internal fun Modifier.bottomMessage: Modifier</ID>
+    <ID>MissingReadOnlyComposable:StatusIcons.kt:@Composable private fun flat</ID>
+    <ID>MissingReadOnlyComposable:Undo.kt:@Composable private fun MediaArrival.message: String</ID>
+    <ID>NoNameShadowing:HomeJumps.kt:{ it.index &lt; from &amp;&amp; !isOfRow(it.key, id) }</ID>
+    <ID>NoNameShadowing:HomeJumps.kt:{ it.index }</ID>
+    <ID>NoNameShadowing:HomeJumps.kt:{ matches(it.key) }</ID>
+    <ID>UnnecessaryLaunchedEffect:AllAppsScreen.kt:LaunchedEffect</ID>
+    <ID>UnnecessaryLaunchedEffect:Failures.kt:LaunchedEffect</ID>
+    <ID>UnnecessaryLaunchedEffect:FolderDialogs.kt:LaunchedEffect</ID>
+    <ID>UnnecessaryLaunchedEffect:HomeFocus.kt:LaunchedEffect</ID>
+    <ID>UnnecessaryLaunchedEffect:HomeScreen.kt:LaunchedEffect</ID>
+    <ID>UnnecessaryLaunchedEffect:HomeTopBar.kt:LaunchedEffect</ID>
+    <ID>UnnecessaryLaunchedEffect:HomeWindows.kt:LaunchedEffect</ID>
+    <ID>UnnecessaryLaunchedEffect:NoticesPanel.kt:LaunchedEffect</ID>
+    <ID>UnnecessaryLaunchedEffect:PickApps.kt:LaunchedEffect</ID>
+    <ID>UnnecessaryLaunchedEffect:Undo.kt:LaunchedEffect</ID>
+    <ID>VarsWithoutStateBacking:HomeScreen.kt:var moving by movingTile::tile</ID>
+  </CurrentIssues>
+</SmellBaseline>

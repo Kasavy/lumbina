@@ -1,0 +1,7 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>MaxLineLength:AppArtwork.kt:if (artwork.image.hasAlpha) Modifier.background(MaterialTheme.colorScheme.surfaceVariant) else Modifier</ID>
+  </CurrentIssues>
+</SmellBaseline>

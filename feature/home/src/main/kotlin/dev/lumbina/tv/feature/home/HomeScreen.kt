@@ -378,7 +378,8 @@ private fun SectionTile(
             is TileContent.InputTile -> InputTile(
                 onClick = { actions.click(isMoving) { actions.openInput(tile) } },
                 onLongClick = { hold(isMoving) { actions.inputMenu(sectionId, tile) } },
-                label = tile.name,
+                label = tile.caption,
+                presence = tile.presence,
                 name = name,
                 highlighted = marked,
                 modifier = lifted,

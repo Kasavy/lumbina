@@ -79,6 +79,25 @@ class MakeBanner @Inject constructor(
 }
 
 /**
+ * Puts a banner back among the wallpaper's files, on the wallpaper. A banner tiles show stays a
+ * banner: a copy goes back. Blocking file work: call it off the main thread. False if it could not.
+ */
+class BannerToWallpaper @Inject constructor(
+    private val library: MediaLibrary,
+    private val marks: MediaMarksRepository,
+    private val settings: WallpaperSettingsRepository,
+    private val appearance: HomeAppearanceRepository,
+) {
+    suspend operator fun invoke(banner: MediaFile, now: Long): Boolean {
+        val shown = banner.uri in appearance.settings.first().customBanners.values
+        val id = library.fromBanner(banner.id, keep = shown) ?: return false
+        marks.update { it.withWallpaper(id, on = true) }
+        settings.update { it.copy(mediaChangedAt = now) }
+        return true
+    }
+}
+
+/**
  * Banners kept among the wallpaper's files, from before banners had a folder of their own, move
  * there: they leave the wallpaper and screensaver, and the tiles follow them to their new place.
  * Does nothing once they have moved. Blocking file work: call it off the main thread.

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="settings_title">Settings</string>
     <string name="settings_device">Device settings</string>
     <string name="settings_device_hint">The device’s own settings open</string>
@@ -12,7 +12,7 @@
         <item quantity="other">%1$d steps left</item>
     </plurals>
     <string name="home_background">Background</string>
-    <string name="tile_per_row">%1$d per row</string>
+    <string name="tile_per_row" tools:ignore="PluralsCandidate">%1$d per row</string>
     <string name="row_layout">View</string>
     <string name="row_style_row">Row</string>
     <string name="row_style_grid">Grid</string>
@@ -182,7 +182,7 @@
     <string name="screensaver_as_wallpaper">As on the wallpaper</string>
     <string name="screensaver_as_wallpaper_hint">The wallpaper now: “%1$s”</string>
     <string name="screensaver_as_no_wallpaper_hint">No wallpaper is on, so photos of the day</string>
-    <string name="screensaver_my_media_hint">%1$d of %2$d picked</string>
+    <string name="screensaver_my_media_hint" tools:ignore="PluralsCandidate">%1$d of %2$d picked</string>
     <string name="screensaver_photo_of_the_day_hint">Photos of the day from Bing; without the internet, those already downloaded</string>
     <string name="screensaver_change_hint">A video plays to the end</string>
     <string name="weather_header">Weather</string>
@@ -213,7 +213,7 @@
     <string name="wallpaper_none">No wallpaper</string>
     <string name="wallpaper_none_hint">The “%1$s” background from “View and language”</string>
     <string name="wallpaper_my_media">My photos and videos</string>
-    <string name="wallpaper_my_media_hint">%1$d of %2$d picked, in turn</string>
+    <string name="wallpaper_my_media_hint" tools:ignore="PluralsCandidate">%1$d of %2$d picked, in turn</string>
     <string name="wallpaper_my_media_empty">None yet. Send photos or videos from the “Phone remote” page</string>
     <plurals name="wallpaper_files">
         <item quantity="one">%d file</item>
@@ -493,7 +493,7 @@
     <string name="media_delete_unused_text">%1$s will be deleted from this device: files with no marks, and banners no tile shows.</string>
     <string name="media_pick_screensaver">What the screensaver shows</string>
     <string name="media_pick_wallpaper">What the wallpaper shows</string>
-    <string name="media_chosen">%1$d of %2$d picked</string>
+    <string name="media_chosen" tools:ignore="PluralsCandidate">%1$d of %2$d picked</string>
     <string name="media_choose_all">Choose all</string>
     <string name="media_clear_all">Clear all</string>
     <string name="media_pick_keys">OK: mark · hold OK: menu</string>
@@ -504,6 +504,10 @@
     <string name="media_show_now">Show on the wallpaper now</string>
     <string name="media_to_banner">Make it a banner</string>
     <string name="media_to_banner_hint">Moves from the wallpaper and screensaver to the tile banners</string>
+    <string name="media_view">View full screen</string>
+    <string name="media_to_wallpaper">To the wallpaper and screensaver</string>
+    <string name="media_to_wallpaper_hint">Becomes a photo for the wallpaper and screensaver</string>
+    <string name="media_to_wallpaper_copy_hint">A copy goes to the wallpaper and screensaver, the tiles keep the banner</string>
     <string name="media_delete">Delete</string>
     <string name="media_delete_hint">From this device, for good</string>
     <string name="media_delete_banner_hint">The tiles go back to their own banner</string>

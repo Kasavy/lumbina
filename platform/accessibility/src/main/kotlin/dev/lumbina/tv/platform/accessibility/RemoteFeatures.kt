@@ -102,6 +102,10 @@ internal class RemoteFeatures(
     /** When each key was last written to the log: what this remote sends is logged again only after a while. */
     private val loggedKeys = HashMap<Long, Long>()
 
+    /** Devices whose first key not taken by Lumbina is in the log: a new remote shows up once. */
+    private val loggedDevices = HashSet<String>()
+    private val seenDevices = HashSet<Int>()
+
     /** Once only: the system may connect the same service instance again. */
     fun start() {
         log.log(TAG, "connected, device profile: ${profile.id}")
@@ -197,17 +201,31 @@ internal class RemoteFeatures(
             capture.isAsking
     }
 
-    /** Printing keys are skipped: what is typed stays out of the log. */
+    /**
+     * The keys Lumbina takes, and the first other key of each device (what a new remote is): the
+     * rest, arrows and OK all day long, would fill the log. Printing keys are skipped: what is
+     * typed stays out of the log.
+     */
     private fun note(event: KeyEvent) {
-        if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0) return
+        if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0 || event.isPrintingKey) return
+        // Only for a line that is written: arrows and OK pass here all day long.
+        fun from() = event.device?.let {
+            String.format(Locale.US, "%s (%04x:%04x)", it.name, it.vendorId, it.productId)
+        }
+        val ours = profile.keyMap.map(event.scanCode, event.keyCode)
+        if (ours == null) {
+            // A device seen already costs nothing; a new one (a remote paired again too) is told by its name.
+            if (seenDevices.add(event.deviceId) && loggedDevices.add(from().toString())) {
+                log.log(TAG, "key: scan ${event.scanCode}, code ${event.keyCode}, not ours, the first from ${from()}")
+            }
+            return
+        }
         val key = event.scanCode.toLong() shl Int.SIZE_BITS or event.keyCode.toLong()
         val now = SystemClock.uptimeMillis()
         val logged = loggedKeys[key]
-        if ((logged != null && now - logged < KEY_LOG_MILLIS) || event.isPrintingKey) return
+        if (logged != null && now - logged < KEY_LOG_MILLIS) return
         loggedKeys[key] = now
-        val from = event.device?.let { String.format(Locale.US, "%s (%04x:%04x)", it.name, it.vendorId, it.productId) }
-        val ours = profile.keyMap.map(event.scanCode, event.keyCode)
-        log.log(TAG, "key: scan ${event.scanCode}, code ${event.keyCode}, ${ours ?: "not ours"}, from $from")
+        log.log(TAG, "key: scan ${event.scanCode}, code ${event.keyCode}, $ours, from ${from()}")
     }
 
     fun onAccessibilityEvent(event: AccessibilityEvent) {

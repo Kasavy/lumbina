@@ -222,7 +222,7 @@ class HomeViewModel @Inject constructor(
     /** Null until apps and the layout are loaded. */
     val state: StateFlow<HomeUiState?> =
         combine(
-            combine(installedApps.observe(), inputs.inputs, ::Pair),
+            combine(installedApps.observe(), inputs.live, ::Pair),
             layouts.layout,
             appearance.settings,
             usage.recent(),

@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>MaxLineLength:PortPresenceTest.kt:PortPresenceTest$assertEquals(InputPresence.Empty, portPresence(INPUT_STATE_DISCONNECTED, listOf("old" to INPUT_STATE_DISCONNECTED)))</ID>
+    <ID>MaxLineLength:PortPresenceTest.kt:PortPresenceTest$assertEquals(InputPresence.Working(null), portPresence(INPUT_STATE_CONNECTED, listOf("" to INPUT_STATE_CONNECTED)))</ID>
+  </CurrentIssues>
+</SmellBaseline>

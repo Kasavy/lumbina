@@ -1,6 +1,7 @@
 package dev.lumbina.tv.feature.settings
 
 import dev.lumbina.tv.core.domain.app.InstalledApps
+import dev.lumbina.tv.core.domain.backdrop.BannerToWallpaper
 import dev.lumbina.tv.core.domain.backdrop.DeleteMedia
 import dev.lumbina.tv.core.domain.backdrop.DeleteUnusedMedia
 import dev.lumbina.tv.core.domain.backdrop.MakeBanner
@@ -46,6 +47,7 @@ class MediaLibraryViewModelTest {
         deleteUnusedMedia = DeleteUnusedMedia(library, marks, appearance),
         showOnWallpaper = ShowOnWallpaper(marks, wallpaper),
         makeBanner = MakeBanner(library, marks, wallpaper),
+        bannerToWallpaper = BannerToWallpaper(library, marks, wallpaper, appearance),
         appearance = appearance,
         apps = InstalledApps { flowOf(emptyList()) },
     )

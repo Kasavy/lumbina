@@ -13,9 +13,12 @@ import androidx.compose.ui.node.ModifierNodeElement
  * A held ▲ or ▼ in a list of rows steps at most every [HeldStepPacer.STEP_MILLIS]; a press of its
  * own always goes through. Only where layers are dear ([LAYERS_ARE_CHEAP] false), the weak boxes:
  * a held key repeats about 20 times a second, each step starts a scroll and may place a row, more
- * than such a box draws. Elsewhere a held key keeps its full pace.
+ * than such a box draws. Elsewhere a held key keeps its full pace, unless [always]: a grid with
+ * captions across it, whose lines above come only as it scrolls back, at full pace lands a held ▲
+ * on whatever tile of the top line it placed first, not on the one above.
  */
-fun Modifier.paceHeldSteps(): Modifier = if (LAYERS_ARE_CHEAP) this else this then PaceHeldSteps
+fun Modifier.paceHeldSteps(always: Boolean = false): Modifier =
+    if (LAYERS_ARE_CHEAP && !always) this else this then PaceHeldSteps
 
 /** Which presses of a held key go through: the first always, a repeat once [STEP_MILLIS] passed since the last. */
 class HeldStepPacer {

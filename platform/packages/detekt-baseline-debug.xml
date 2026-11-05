@@ -1,0 +1,13 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>InjectDispatcher:AndroidAppUsage.kt:AndroidAppUsage$IO</ID>
+    <ID>InjectDispatcher:AndroidInstalledApps.kt:AndroidInstalledApps$IO</ID>
+    <ID>InjectDispatcher:GitHubUpdates.kt:GitHubUpdates$IO</ID>
+    <ID>UnusedPrivateProperty:AndroidAppUsage.kt:AndroidAppUsage$private val access: UsageAccess</ID>
+    <ID>UnusedPrivateProperty:AndroidAppUsage.kt:AndroidAppUsage$private val launches: LaunchHistory</ID>
+    <ID>UnusedPrivateProperty:GitHubUpdates.kt:GitHubUpdates$private val downloads: ReleaseDownload</ID>
+    <ID>UnusedPrivateProperty:GitHubUpdates.kt:GitHubUpdates$private val overAdb: AdbSelfInstall</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -71,12 +71,16 @@ internal class AppSwitching(
             empty = service.getString(R.string.switcher_empty),
             emptyKeys = service.getString(R.string.switcher_hint_empty),
             closing = service.getString(R.string.switcher_closing),
+            closeAll = service.getString(R.string.switcher_close_all),
+            closeAllKeys = service.getString(R.string.switcher_hint_close_all),
+            closeAllCount = { service.resources.getQuantityString(R.plurals.switcher_close_all_count, it, it) },
         ),
         onPick = { app ->
             log.log(TAG, "switch to ${app.id.packageName}")
             if (!launcher.launch(app.id)) ports.say(service.getString(R.string.switcher_open_failed, app.label))
         },
         onClose = ::close,
+        onCloseAll = ::closeAll,
     )
 
     /** Keeps the list of launchable apps current (one launcher entry per package). */
@@ -185,6 +189,37 @@ internal class AppSwitching(
 
                 // Shown anew over itself: an OK or an arrow being held goes on being held.
                 overlay.isShowing -> overlay.show(listed, overlay.selectedIndex, closeApps, keepKeys = true)
+            }
+        }
+    }
+
+    /**
+     * Stops [targets] one after another, the app that was on screen last: closing it leaves
+     * nothing to look at, and Lumbina's home opens once the rest are gone. Those the device
+     * would not stop stay on the list and are named.
+     */
+    private fun closeAll(targets: List<App>) {
+        val access = closing?.access ?: return
+        scope?.launch {
+            val failed = targets.sortedBy { it.id.packageName == inFront }.filterNot { app ->
+                val stopped = access.forceStop(app.id.packageName)
+                overlay.closed(app)
+                if (stopped) recent.forget(app.id.packageName)
+                stopped
+            }
+            log.log(TAG, "close all: ${targets.size - failed.size} stopped, ${failed.size} not")
+            save()
+            if (failed.isNotEmpty()) {
+                ports.say(service.getString(R.string.switcher_close_failed, failed.joinToString { it.label }))
+            }
+            val closed = targets.map { it.id.packageName } - failed.map { it.id.packageName }.toSet()
+            when {
+                inFront in closed -> {
+                    overlay.hide()
+                    ports.home.open(toStart = false)
+                }
+
+                overlay.isShowing -> overlay.show(listed, 0, closeApps, keepKeys = true)
             }
         }
     }

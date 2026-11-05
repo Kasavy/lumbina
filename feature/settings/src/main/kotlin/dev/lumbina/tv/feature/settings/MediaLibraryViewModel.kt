@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.lumbina.tv.core.domain.app.InstalledApps
+import dev.lumbina.tv.core.domain.backdrop.BannerToWallpaper
 import dev.lumbina.tv.core.domain.backdrop.DeleteMedia
 import dev.lumbina.tv.core.domain.backdrop.DeleteUnusedMedia
 import dev.lumbina.tv.core.domain.backdrop.MakeBanner
@@ -69,6 +70,7 @@ interface MediaCommands {
     fun markAll(mark: MediaMark, on: Boolean)
     fun showNow(entry: MediaEntry)
     fun toBanner(entry: MediaEntry)
+    fun toWallpaper(entry: MediaEntry)
     fun delete(entry: MediaEntry)
     fun deleteUnused()
 }
@@ -82,6 +84,7 @@ class MediaLibraryViewModel @Inject constructor(
     private val deleteUnusedMedia: DeleteUnusedMedia,
     private val showOnWallpaper: ShowOnWallpaper,
     private val makeBanner: MakeBanner,
+    private val bannerToWallpaper: BannerToWallpaper,
     appearance: HomeAppearanceRepository,
     apps: InstalledApps,
 ) : ViewModel(),
@@ -142,6 +145,10 @@ class MediaLibraryViewModel @Inject constructor(
 
     override fun toBanner(entry: MediaEntry) {
         viewModelScope.launch(Dispatchers.IO) { makeBanner(entry.file, now = System.currentTimeMillis()) }
+    }
+
+    override fun toWallpaper(entry: MediaEntry) {
+        viewModelScope.launch(Dispatchers.IO) { bannerToWallpaper(entry.file, now = System.currentTimeMillis()) }
     }
 
     override fun delete(entry: MediaEntry) {

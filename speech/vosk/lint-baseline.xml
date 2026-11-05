@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 9.4.1" type="baseline" client="gradle" dependencies="true" name="AGP (9.4.1)" variant="all" version="9.4.1">
+
+    <issue
+        id="UsableSpace"
+        message="Consider also using `StorageManager#getAllocatableBytes` and `allocateBytes` which will consider clearable cached data"
+        errorLine1="        if (store.root.usableSpace &lt; model.sizeBytes * SPACE_FACTOR - archive.length()) {"
+        errorLine2="                       ~~~~~~~~~~~">
+        <location
+            file="src/main/kotlin/dev/lumbina/tv/speech/vosk/ModelInstaller.kt"
+            line="40"
+            column="24"/>
+    </issue>
+
+</issues>

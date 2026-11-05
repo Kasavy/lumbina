@@ -4,7 +4,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.drawable.Drawable
 import android.util.LruCache
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -47,7 +46,8 @@ import kotlinx.coroutines.withContext
 
 /** Loaded artwork: a TV banner (16:9) or, for phone apps, the launcher icon and a color taken from it. */
 private sealed interface Artwork {
-    data class Banner(val image: ImageBitmap) : Artwork
+    /** [seeThrough]: some of it lets through what is under it (told by its pixels, see [seeThrough]). */
+    data class Banner(val image: ImageBitmap, val seeThrough: Boolean) : Artwork
     data class Icon(val image: ImageBitmap, val color: Color) : Artwork
     data object None : Artwork
 }
@@ -73,11 +73,20 @@ fun AppArtwork(app: App, modifier: Modifier = Modifier, compact: Boolean = false
 
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         when (artwork) {
+            // A banner with see-through parts on the tile's own fill, as on the card it was made for.
             is Artwork.Banner -> Picture(
                 bitmap = artwork.image,
                 contentDescription = app.label,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().then(
+                    if (artwork.seeThrough) {
+                        Modifier.background(
+                            MaterialTheme.colorScheme.surfaceVariant,
+                        )
+                    } else {
+                        Modifier
+                    },
+                ),
             )
 
             is Artwork.Icon -> Box(
@@ -101,7 +110,13 @@ fun AppArtwork(app: App, modifier: Modifier = Modifier, compact: Boolean = false
                 }
             }
 
-            Artwork.None -> if (!compact) Label(app.label)
+            // The tile's fill where a card has none of its own: an app card leaves it to the artwork.
+            Artwork.None -> Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
+            ) {
+                if (!compact) Label(app.label)
+            }
         }
         if (named && artwork !is Artwork.None) NameOnTile(app.label)
     }
@@ -180,7 +195,12 @@ suspend fun preloadArtwork(context: Context, apps: List<App>) = withContext(Disp
 private fun PackageManager.loadArtwork(app: App): Artwork {
     val component = ComponentName(app.id.packageName, app.id.activityName)
     val banner = runCatching { getActivityBanner(component) ?: getApplicationBanner(app.id.packageName) }.getOrNull()
-    if (banner != null) return Artwork.Banner(banner.toImage(BANNER_WIDTH, BANNER_HEIGHT))
+    if (banner != null) {
+        val bitmap = banner.toBitmap(BANNER_WIDTH, BANNER_HEIGHT)
+        val pixels = IntArray(bitmap.width * bitmap.height)
+        if (bitmap.hasAlpha()) bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+        return Artwork.Banner(bitmap.asImageBitmap(), seeThrough = bitmap.hasAlpha() && seeThrough(pixels))
+    }
     val icon = runCatching { getActivityIcon(component) }.getOrNull() ?: return Artwork.None
     val bitmap = icon.toBitmap(ICON_SIZE, ICON_SIZE)
     return Artwork.Icon(bitmap.asImageBitmap(), bannerColorOf(bitmap))
@@ -234,8 +254,6 @@ private object ArtworkCache {
     }
 }
 
-private fun Drawable.toImage(width: Int, height: Int): ImageBitmap = toBitmap(width, height).asImageBitmap()
-
 private const val BANNER_WIDTH = 320
 private const val BANNER_HEIGHT = 180
 private const val ICON_SIZE = 96
@@ -250,3 +268,18 @@ private const val NAMED_ICON = 0.45f
 private val BESIDE_ICON = 12.dp * 2 + 40.dp + 10.dp
 private val NEUTRAL_BANNER = Color(0xFF2A2F3A)
 private const val CACHE_BYTES = 24 * 1024 * 1024
+
+/**
+ * Whether a picture's [pixels] (ARGB) let through what is under them: more than a few mostly
+ * see-through. A bitmap's own "has alpha" says only that it could: any banner drawn from a vector
+ * or layers has it, and so do many PNGs opaque all over, and a fill under those would show round
+ * the edges of a dark banner as it scales.
+ */
+internal fun seeThrough(pixels: IntArray): Boolean =
+    pixels.count { it ushr ALPHA_SHIFT < HALF_ALPHA } * SEE_THROUGH_SHARE > pixels.size
+
+private const val ALPHA_SHIFT = 24
+private const val HALF_ALPHA = 128
+
+/** One pixel in 200: a stray see-through one or two along an edge doesn't count. */
+private const val SEE_THROUGH_SHARE = 200
