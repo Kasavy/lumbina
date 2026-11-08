@@ -1,9 +1,17 @@
 package dev.lumbina.tv.platform.accessibility
 
 import android.accessibilityservice.AccessibilityService
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.res.Configuration
+import android.os.Build
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
+import androidx.core.content.ContextCompat
 import dagger.hilt.android.AndroidEntryPoint
+import dev.lumbina.tv.core.common.LumbinaActions
 import dev.lumbina.tv.core.common.LumbinaLog
 import javax.inject.Inject
 import kotlinx.coroutines.MainScope
@@ -31,6 +39,35 @@ class LumbinaAccessibilityService : AccessibilityService() {
         onEcho = { log.log(TAG, "key ${it.keyCode} came twice: the service may be bound twice") },
     )
 
+    /**
+     * Lumbina's own language chosen meanwhile (before Android 13): put on the service's resources,
+     * where the overlays read their words as they show (the voice's as it speaks).
+     */
+    private val languageChanged = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            applyOwnLanguage()
+            log.log(TAG, "language changed")
+        }
+    }
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase.inOwnLanguage())
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            val filter = IntentFilter(LumbinaActions.LANGUAGE_CHANGED)
+            ContextCompat.registerReceiver(this, languageChanged, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        }
+    }
+
+    /** The system rebuilds resources on a change (a remote, a screen mode) with the language the service started in. */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyOwnLanguage()
+    }
+
     override fun onServiceConnected() {
         // Keys let go for a held volume button stay so after the process ends, unless taken back here.
         filterKeys(true)
@@ -48,6 +85,7 @@ class LumbinaAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         log.log(TAG, "destroyed")
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) unregisterReceiver(languageChanged)
         features?.stop()
         scope.cancel()
         super.onDestroy()

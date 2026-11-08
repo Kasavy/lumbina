@@ -161,7 +161,7 @@ internal class PhoneRemoteServer(
         job = null
     }
 
-    private suspend fun serve(client: Socket) = client.use {
+    private suspend fun serve(client: Socket) = client.use { _ ->
         val input = HeadDeadline(BufferedInputStream(client.getInputStream()), HEAD_MILLIS, { client.soTimeout = it })
         val output = client.getOutputStream()
         val request = try {

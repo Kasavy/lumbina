@@ -22,7 +22,7 @@
     <string name="row_card_size">Размер карточек</string>
     <string name="rows_sizes">Размер плиток и карточек…</string>
     <string name="slider_keys">◀ ▶ размер · ▲ ▼ другой ряд · OK сохранить · Назад вернуть</string>
-    <string name="slider_row_hidden">Сейчас этот ряд выключен</string>
+    <string name="slider_row_hidden">Сейчас этот ряд скрыт</string>
     <string name="card_small">Маленькие</string>
     <string name="card_medium">Средние</string>
     <string name="card_large">Большие</string>
@@ -129,7 +129,7 @@
     <string name="voice_model_unpacking">Распаковка…</string>
     <string name="voice_model_failed_network">Нет связи с сервером загрузки. Выберите, чтобы повторить</string>
     <string name="voice_model_failed_corrupt">Файл скачался с ошибками. Выберите, чтобы повторить</string>
-    <string name="voice_model_failed_space">Не хватает места</string>
+    <string name="voice_model_failed_space">Не хватает места на устройстве. Удалите ненужное. Выберите, чтобы повторить</string>
     <string name="voice_model_failed_storage">Не удалось сохранить модель. Выберите, чтобы повторить</string>
     <string name="voice_remove_title">Удалить %1$s?</string>
     <string name="voice_remove_text">Модель (%1$s) будет удалена, а язык выключен. Позже её можно скачать снова.</string>
@@ -162,7 +162,7 @@
     <string name="about_license_gpl">GNU General Public License 3.0. Свободная программа, без каких-либо гарантий</string>
     <string name="about_weather">Погода</string>
     <string name="about_weather_credit">Данные MET Norway и Open-Meteo, CC BY 4.0</string>
-    <string name="about_components">Сторонние компоненты</string>
+    <string name="about_components">Сторонние компоненты…</string>
     <string name="about_components_hint">AndroidX, Kotlin, Vosk и другие</string>
     <string name="settings_sleep">Заставка и сон</string>
     <string name="sleep_header">Сон</string>
@@ -176,10 +176,13 @@
     <string name="screensaver_after_minutes">Через %1$d мин</string>
     <string name="screensaver_use_lumbina">Заставка Lumbina как системная</string>
     <string name="screensaver_is_lumbina">Фото, часы и погода</string>
-    <string name="screensaver_not_lumbina">Используется заставка устройства</string>
+    <string name="screensaver_not_lumbina">Сейчас выбрана не заставка Lumbina</string>
     <string name="screensaver_denied">Устройство не позволяет Lumbina поменять это</string>
-    <string name="screensaver_from_computer">Включить с компьютера</string>
-    <string name="screensaver_computer_text">На компьютере, подключённом к этому устройству по adb, выполните эти команды. В QR-коде тот же текст, чтобы переслать его с телефона.</string>
+    <string name="screensaver_pick">Выбрать в настройках устройства</string>
+    <string name="screensaver_pick_screen_hint">Выберите Lumbina в списке заставок</string>
+    <string name="screensaver_pick_in_settings_hint">В «Настройках устройства», пункт «Заставка», выберите Lumbina</string>
+    <string name="screensaver_from_computer">Включить с компьютера…</string>
+    <string name="computer_commands_text">На компьютере, подключённом к этому устройству по adb, выполните эти команды. В QR-коде тот же текст, чтобы переслать его с телефона.</string>
     <string name="screensaver_preview">Предпросмотр</string>
     <string name="screensaver_as_wallpaper">Как на обоях</string>
     <string name="screensaver_as_wallpaper_hint">Сейчас на обоях: «%1$s»</string>
@@ -194,14 +197,18 @@
     <string name="weather_city_prompt">Название города</string>
     <string name="weather_search">Найти</string>
     <string name="weather_searching">Поиск…</string>
-    <string name="weather_search_failed">Нет связи с сервисом поиска</string>
+    <string name="weather_search_failed">Нет связи с сервисом поиска. Проверьте сеть и выберите «Город» ещё раз.</string>
     <string name="weather_choose_city">Выберите город</string>
-    <string name="weather_nothing_found">Ничего не найдено</string>
+    <string name="weather_nothing_found_hint">Такой город не найден. Выберите «Город», чтобы ввести другое название.</string>
     <string name="settings_channels">Каналы</string>
     <string name="channels_header">Каналы</string>
     <string name="channels_access_header">Доступ к каналам</string>
     <string name="channels_access_note">Каналы других приложений и «Продолжить просмотр» Lumbina видит, только если вы разрешите доступ к каналам. В системном окне он называется «чтение доступных на устройстве телепрограмм».</string>
     <string name="channels_access_allow">Разрешить доступ к каналам</string>
+    <string name="grant_usage_note">Ряд собирается по истории использования приложений, а доступа к ней у Lumbina нет.</string>
+    <string name="grant_usage_allow">Разрешить доступ к истории использования</string>
+    <string name="grant_notices_note">«Сейчас играет» и колокольчик берут сведения из уведомлений, а доступа к ним у Lumbina нет.</string>
+    <string name="grant_notices_allow">Разрешить доступ к уведомлениям</string>
     <string name="channels_none">Каналов пока нет.</string>
     <string name="channels_publish_hint">Каналы появляются, когда приложение их добавит, обычно после первого запуска.</string>
     <string name="channels_no_provider">Чтобы появились каналы и «Продолжить просмотр», установите дополнение Lumbina TV Provider.</string>
@@ -242,6 +249,9 @@
     <string name="phone_no_network">Нет сети: подключите устройство к Wi-Fi или Ethernet.</string>
     <string name="phone_new_key">Новый адрес</string>
     <string name="phone_new_key_hint">Телефоны, открывшие старый, потеряют доступ</string>
+    <string name="phone_new_key_title">Сменить адрес?</string>
+    <string name="phone_new_key_text">Телефоны, открывшие страницу пульта по старому адресу, сразу потеряют доступ. Код на этой странице нужно будет отсканировать заново.</string>
+    <string name="phone_new_key_confirm">Сменить</string>
     <string name="theme_header">Цвет выделения</string>
     <string name="theme_theme">Тема</string>
     <string name="theme_dark">Тёмная</string>
@@ -331,11 +341,13 @@
         <item quantity="other">Ещё %1$d языка</item>
     </plurals>
     <string name="page_access">Доступ</string>
-    <string name="access_intro">Через отладку на этом устройстве Lumbina сама включает свою службу, закрывает приложения и выдаёт себе нужные разрешения. Компьютер не нужен.</string>
+    <string name="access_intro">Через отладку на этом устройстве Lumbina сама включает свою службу, закрывает приложения и выдаёт себе нужные разрешения, без компьютера, если устройство её пускает.</string>
     <string name="access_debugging">Отладка (USB debugging)</string>
     <string name="access_connected">● Подключено</string>
     <string name="access_connected_hint">Lumbina подключена</string>
-    <string name="access_debugging_off">Не подключено. В настройках разработчика включите «USB debugging» (раздел «Debugging») и нажмите «Подключить».</string>
+    <string name="access_debugging_off">Не подключено. В настройках разработчика включите «USB debugging» (раздел «Debugging») и нажмите «Подключить». Если настроек разработчика нет, в «Об устройстве» выберите номер сборки 7 раз подряд.</string>
+    <string name="access_not_listening">Отладка включена, но это устройство пускает к ней только компьютер, поэтому Lumbina не может подключиться сама. То же самое можно выдать с компьютера, команды ниже.</string>
+    <string name="access_from_computer">Команды для компьютера…</string>
     <string name="access_failed">Отладка включена, но Lumbina не смогла подключиться. Нажмите «Подключить» ещё раз; если не выходит, причина есть в отчёте диагностики.</string>
     <string name="access_not_allowed">Отладка включена. Нажмите «Подключить» и разрешите Lumbina в запросе на экране (отметьте «Всегда разрешать»).</string>
     <string name="access_connecting">На экране появится запрос: отметьте «Всегда разрешать» и нажмите «Разрешить».</string>
@@ -437,6 +449,7 @@
     <string name="action_device_settings">Настройки устройства</string>
     <string name="action_screen_off">Выключить экран</string>
     <string name="action_mute">Выключить или включить звук</string>
+    <string name="action_close_all">Закрыть все приложения</string>
     <string name="action_nothing">Ничего</string>
     <string name="action_as_device">Как на устройстве</string>
     <string name="action_app_gone">приложение удалено</string>
@@ -449,10 +462,10 @@
     <string name="button_rename_hint">Пустое имя вернёт прежнее</string>
     <string name="button_lumbina_only">Только на экранах Lumbina</string>
     <string name="button_lumbina_only_hint">В других приложениях кнопка работает как на устройстве</string>
-    <string name="access_tried_off">Подключиться не вышло: отладка на устройстве выключена. Включите её в настройках разработчика и нажмите «Подключить» ещё раз.</string>
-    <string name="access_tried_not_allowed">Подключиться не вышло: запрос на экране не был разрешён. Если запрос не появился, перезагрузите устройство и попробуйте снова.</string>
+    <string name="access_tried_off">Не удалось подключиться: отладка на устройстве выключена. Включите её в настройках разработчика и нажмите «Подключить» ещё раз.</string>
+    <string name="access_tried_not_allowed">Не удалось подключиться: запрос на экране не был разрешён. Если запрос не появился, перезагрузите устройство и попробуйте снова.</string>
     <string name="access_tried_allowed_once">Разрешено только один раз. Нажмите «Подключить» ещё раз и отметьте в запросе «Всегда разрешать».</string>
-    <string name="access_tried_failed">Подключиться не вышло. Причина есть в отчёте диагностики.</string>
+    <string name="access_tried_failed">Не удалось подключиться. Причина есть в отчёте диагностики.</string>
     <string name="access_tried_not_kept">Подключено, но устройство не дало Lumbina включать свою службу самой.</string>
     <string name="access_not_connected">Не подключено</string>
     <string name="phone_on_screensaver">Показывать код на заставке</string>
@@ -514,7 +527,7 @@
     <string name="media_chosen">Выбрано %1$d из %2$d</string>
     <string name="media_choose_all">Выбрать все</string>
     <string name="media_clear_all">Снять все</string>
-    <string name="media_pick_keys">OK: отметить · долгое OK: меню</string>
+    <string name="media_pick_keys">OK отметить · удержание OK меню</string>
     <string name="media_kind_photo">Фото</string>
     <string name="media_kind_video">Видео</string>
     <string name="media_kind_banner">Баннер</string>
@@ -530,4 +543,6 @@
     <string name="media_delete_hint">С устройства, без возврата</string>
     <string name="media_delete_banner_hint">Плитки вернутся к своему баннеру</string>
     <string name="media_delete_title">Удалить с устройства?</string>
+    <string name="media_on_all_apps">«Все приложения»</string>
+    <string name="media_on_input">плитка входа</string>
 </resources>

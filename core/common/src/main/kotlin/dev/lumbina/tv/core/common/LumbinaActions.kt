@@ -5,6 +5,9 @@ object LumbinaActions {
     /** A speech model was installed or deleted: voice input checks which languages it has. */
     const val SPEECH_MODELS_CHANGED = "dev.lumbina.tv.action.SPEECH_MODELS_CHANGED"
 
+    /** Lumbina's own language was chosen before Android 13 ([OwnLanguage]): each process puts it on. */
+    const val LANGUAGE_CHANGED = "dev.lumbina.tv.action.LANGUAGE_CHANGED"
+
     /** An on-screen mic key was pressed: the accessibility service starts or stops voice input. */
     const val TOGGLE_VOICE = "dev.lumbina.tv.action.TOGGLE_VOICE"
 

@@ -57,7 +57,11 @@ internal class MenuState {
     var cameBackTo by mutableStateOf<String?>(null)
         private set
 
+    /** The app in an open folder whose menu was opened, for the folder to put the focus back on. */
+    var inFolder: String? = null
+
     fun open(next: HomeDialog, about: Moving? = null) {
+        inFolder = null
         tile = about
         at = anchor.bounds
         trail.clear()
@@ -129,10 +133,14 @@ sealed interface HomeDialog {
     /** The rows that have the tile of [input], ticked. */
     data class InputWhere(val input: TileContent.InputTile) : InputDialog
 
+    /** The input's name and its tile's banner, as an app has. */
+    data class InputNameAndBanner(val input: TileContent.InputTile) : InputDialog
+
     /** The apps to tick for one section, opened by its "+" tile. */
     data class PickApps(val sectionId: String) : HomeDialog
 
-    data class Banner(val app: App) : HomeDialog
+    /** The user's own banner for a tile: an app's, the one that opens all apps, an input's. */
+    data class Banner(val of: BannerOf) : HomeDialog
 
     /** Asks for a name. */
     sealed interface Naming : HomeDialog
@@ -183,7 +191,7 @@ internal fun HomeDialogs(
                         show(HomeDialog.VoiceName(dialog.app, name))
                     }
                 },
-                MenuEntry(stringResource(R.string.menu_banner)) { show(HomeDialog.Banner(dialog.app)) },
+                MenuEntry(stringResource(R.string.menu_banner)) { show(HomeDialog.Banner(BannerOf.OfApp(dialog.app))) },
             ),
             onDismiss = done,
             onBack = back,
@@ -195,10 +203,11 @@ internal fun HomeDialogs(
 
         is HomeDialog.Banner ->
             BannerPicker(
-                dialog.app,
-                state.appearance.customBanners[dialog.app.id.flatten()],
+                dialog.of,
+                state.appearance.customBanners[dialog.of.key],
                 commands,
                 back,
+                closeAll = { menu.show(null) },
             )
 
         is HomeDialog.PickApps -> PickApps(dialog, state, commands, back)
@@ -232,7 +241,10 @@ private fun ShortcutDialogs(
     }
 }
 
-/** Holding OK on the tile that opens all apps: move it, the rows that have it, take it out of this one. */
+/**
+ * Holding OK on the tile that opens all apps: move it, the rows that have it, take it out of this
+ * one, and a banner of the user's for it.
+ */
 @Composable
 private fun ShortcutMenu(
     dialog: HomeDialog.ShortcutActions,
@@ -251,7 +263,7 @@ private fun ShortcutMenu(
             onMove = { startMoving(Moving(section.id, HomeItem.AllApps.key)) },
             onOut = { commands.removeAllApps(section.id) },
             onWhere = { menu.show(HomeDialog.ShortcutWhere) },
-        ),
+        ) + MenuEntry(stringResource(R.string.menu_banner)) { menu.show(HomeDialog.Banner(BannerOf.AllApps)) },
         onDismiss = { menu.done(dialog) },
         onBack = menu::back,
         subtitle = stringResource(R.string.shortcut_hint),
@@ -333,20 +345,20 @@ private fun AppMenu(
 @Composable
 private fun ownActions(app: App, commands: HomeCommands): List<MenuEntry> {
     val context = LocalContext.current
-    val unavailable = { Toast.makeText(context, R.string.home_action_unavailable, Toast.LENGTH_SHORT).show() }
+    val refused = { text: Int -> Toast.makeText(context, text, Toast.LENGTH_LONG).show() }
     val appGroup = stringResource(R.string.menu_group_app)
     return buildList {
         add(MenuEntry(stringResource(R.string.menu_open), group = appGroup) { commands.open(app) })
         if (commands.hasDetails) {
             add(
                 MenuEntry(stringResource(R.string.menu_details), group = appGroup) {
-                    if (!commands.showDetails(app)) unavailable()
+                    if (!commands.showDetails(app)) refused(R.string.home_details_refused)
                 },
             )
         }
         add(
             MenuEntry(stringResource(R.string.menu_uninstall), group = appGroup) {
-                if (!commands.uninstall(app)) unavailable()
+                if (!commands.uninstall(app)) refused(R.string.home_uninstall_refused)
             },
         )
     }

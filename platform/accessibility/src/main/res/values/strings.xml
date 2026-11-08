@@ -1,32 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="lumbina_accessibility_label" translatable="false">Lumbina</string>
-    <string name="lumbina_accessibility_description">Lets the remote\'s Home button open Lumbina (holding it opens the quick menu) and turns the mic button into voice input.</string>
+    <string name="lumbina_accessibility_description">Lets the remote’s Home button open Lumbina (holding it opens the quick menu) and turns the mic button into voice input.</string>
     <string name="voice_listening">Listening…</string>
     <string name="voice_recognizing">Recognizing…</string>
     <string name="voice_still_recognizing">Still recognizing…</string>
-    <string name="voice_not_started">Recognition didn\'t start</string>
+    <string name="voice_not_started">Recognition didn’t start</string>
     <string name="voice_ok_open">OK: open that page</string>
     <string name="voice_ok_home">OK: open the home screen</string>
     <string name="voice_heard">“%1$s”</string>
-    <string name="voice_not_heard">Didn\'t catch that</string>
+    <string name="voice_not_heard">Didn’t catch that</string>
     <string name="voice_no_speech">Heard nothing</string>
-    <string name="voice_no_sound">No sound from the remote\'s microphone. Try again</string>
-    <string name="voice_mic_service_off">The remote\'s microphone is turned off in the firmware</string>
-    <string name="voice_search_failed">Search didn\'t open. Change “Where to search”</string>
+    <string name="voice_no_sound">No sound from the remote’s microphone. Try again</string>
+    <string name="voice_mic_service_off">The remote’s microphone is turned off in the firmware</string>
+    <string name="voice_search_failed">Search didn’t open. Change “Where to search”</string>
     <string name="voice_no_field">Nowhere to type “%1$s”. Select a text field first</string>
     <string name="voice_failed">Couldn’t recognize that. Try again</string>
     <string name="voice_no_key">The speech service has no key. Paste it from the phone remote page</string>
-    <string name="voice_key_refused">The speech service didn\'t accept the key. Check it on the phone remote page</string>
-    <string name="voice_not_paid">Your speech service account is out of funds. Top it up on the service\'s website</string>
-    <string name="voice_not_allowed">The speech service won\'t work with this key. Check its permissions and billing on the service\'s website</string>
-    <string name="voice_other_country">The speech service isn\'t available in your country. Choose another in “Voice input”</string>
-    <string name="voice_service_error">The speech service isn\'t working right now (error %1$d). Try again later</string>
+    <string name="voice_key_refused">The speech service didn’t accept the key. Check it on the phone remote page</string>
+    <string name="voice_not_paid">Your speech service account is out of funds. Top it up on the service’s website</string>
+    <string name="voice_not_allowed">The speech service won’t work with this key. Check its permissions and billing on the service’s website</string>
+    <string name="voice_other_country">The speech service isn’t available in your country. Select another in “Voice input”</string>
+    <string name="voice_service_error">The speech service isn’t working right now (error %1$d). Try again later</string>
     <string name="voice_busy">Too many requests to the speech service. Wait a minute</string>
     <string name="voice_occupied">Recognition is still busy with the last phrase. Wait a few seconds</string>
-    <string name="voice_mic_not_given">The remote\'s sound doesn\'t reach the app. Check the connection to debugging</string>
-    <string name="voice_no_network">Speech recognition isn\'t responding. Check your internet connection</string>
-    <string name="voice_for_apps_unavailable">Lumbina\'s voice input isn\'t ready: open Lumbina and check “Voice input” in its settings</string>
+    <string name="voice_mic_not_given">The remote’s sound doesn’t reach the app. Check the connection to debugging</string>
+    <string name="voice_no_network">Speech recognition isn’t responding. Check your internet connection</string>
+    <string name="voice_for_apps_unavailable">Lumbina’s voice input isn’t ready: open Lumbina and check “Voice input” in its settings</string>
     <string name="voice_language_auto">Voice: automatic</string>
     <string name="voice_language_only">Voice: %1$s only</string>
     <string name="switcher_title">Recent apps</string>
@@ -55,7 +55,7 @@
     <string name="quick_sleep">Sleep timer</string>
     <string name="quick_source">Input</string>
     <string name="quick_smart_tv">Smart TV</string>
-    <string name="quick_input_failed">Could not switch to %1$s</string>
+    <string name="quick_input_failed">Couldn’t switch to %1$s</string>
     <string name="quick_sleep_left">%1$d min</string>
     <string name="quick_off">off</string>
     <string name="quick_no_network">no network</string>
@@ -92,17 +92,22 @@
     <string name="sleep_refused">The device doesn’t let Lumbina turn it off</string>
     <string name="switcher_hint_close">◀ ▶ choose · OK open · hold OK to close · Back to leave</string>
     <string name="switcher_no_previous">There is no previous app</string>
-    <string name="switcher_close_all">Close all</string>
-    <string name="switcher_hint_close_all">◀ ▶ choose · OK close all · Back to leave</string>
-    <plurals name="switcher_close_all_count">
-        <item quantity="one">Closes %d app</item>
-        <item quantity="other">Closes %d apps</item>
-    </plurals>
+    <string name="switcher_close_all">Close all · %1$d</string>
+    <string name="switcher_hint_close_all">▼ to the apps · OK close all · Back to leave</string>
     <string name="voice_silence">Nothing was heard</string>
     <string name="voice_which">Which one?</string>
     <string name="voice_too_many">Several apps fit. Say the name more exactly</string>
     <string name="voice_nothing_to_close">There is nothing to close</string>
-    <string name="voice_cant_close">Closing apps takes the connection to debugging</string>
+    <string name="voice_cant_close">Closing apps needs the connection to debugging</string>
+    <string name="debugging_off">Debugging is off</string>
+    <string name="debugging_off_hint">Without it the remote’s voice and closing apps don’t work</string>
+    <string name="debugging_off_hint_apps">Without it closing apps doesn’t work</string>
+    <string name="debugging_connect">Connect…</string>
+    <string name="debugging_not_now">Not now</string>
+    <plurals name="close_all_again">
+        <item quantity="one">Press again to close %d app</item>
+        <item quantity="other">Press again to close %d apps</item>
+    </plurals>
     <string name="voice_no_timer">No sleep timer is running</string>
     <string name="voice_one_language">Voice understands only %1$s. Other languages are added under “Voice input”</string>
 </resources>

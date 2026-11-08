@@ -15,9 +15,12 @@ import kotlinx.coroutines.launch
 internal class VoiceAnswers(
     private val scope: CoroutineScope,
     private val overlay: VoiceOverlay,
-    private val strings: VoiceController.Strings,
+    /** Read as each is said, see [VoiceController]. */
+    private val stringsOf: () -> VoiceController.Strings,
     private val log: LumbinaLog,
 ) {
+    private val strings: VoiceController.Strings get() = stringsOf()
+
     /** Something that went wrong, on screen long enough to be read; with a [place], OK opens it. */
     fun notice(text: String, place: Place? = null) {
         overlay.flash(text, toRead(text), Mark.Failed, place?.let(strings.go))

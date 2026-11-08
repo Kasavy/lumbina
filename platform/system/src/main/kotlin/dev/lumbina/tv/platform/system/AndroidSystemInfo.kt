@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.content.res.Resources
 import android.os.Build
 import android.os.Environment
 import android.os.StatFs
@@ -14,13 +15,17 @@ import android.os.SystemClock
 import android.view.InputDevice
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.lumbina.tv.core.domain.diagnostics.SystemInfo
+import dev.lumbina.tv.core.domain.locale.AppLanguage
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
 
 /** Read on each access, so the diagnostics screen shows current memory and storage. */
-internal class AndroidSystemInfo @Inject constructor(@ApplicationContext private val context: Context) : SystemInfo {
+internal class AndroidSystemInfo @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val language: AppLanguage,
+) : SystemInfo {
 
     override val appVersion: String
         get() = context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
@@ -35,6 +40,12 @@ internal class AndroidSystemInfo @Inject constructor(@ApplicationContext private
     override val androidRelease: String get() = Build.VERSION.RELEASE.orEmpty()
 
     override val sdkInt: Int get() = Build.VERSION.SDK_INT
+
+    /** The system's, not Lumbina's own: the app's resources would give its chosen language instead. */
+    override val systemLanguages: String
+        get() = Resources.getSystem().configuration.locales.toLanguageTags().replace(",", ", ")
+
+    override val appLanguage: String get() = language.current() ?: "device"
 
     override val totalRamBytes: Long get() = memory().totalMem
 

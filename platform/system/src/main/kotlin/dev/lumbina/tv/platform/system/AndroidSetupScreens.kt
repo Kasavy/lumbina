@@ -36,6 +36,6 @@ internal class AndroidSetupScreens @Inject constructor(private val screens: Sett
 
     private companion object {
         val TV_ACCESSIBILITY =
-            ComponentName("com.android.tv.settings", "com.android.tv.settings.system.AccessibilityActivity")
+            ComponentName(SettingsScreens.TV_SETTINGS, "com.android.tv.settings.system.AccessibilityActivity")
     }
 }

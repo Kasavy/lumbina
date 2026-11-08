@@ -19,9 +19,10 @@ import javax.inject.Inject
  * Saves reports to the shared Download folder (no permission needed on Android 10+), where a
  * file manager or adb can reach them; older Android gets the app's external files folder.
  *
- * TODO(before publishing): the report carries the log's tail, and the log holds links opened from
- *  the phone, uploaded file names and recognized phrases. Log their kind and length instead, or
- *  leave them out of the report, before builds go to other people.
+ * The report carries the log's tail, and people post it publicly. Phrases said to Lumbina stay in
+ * it, as the diagnostics page tells: they are what a voice problem is worked out from. What comes
+ * from the phone is logged by its kind: a link by its site, a file by its type; the phone itself by
+ * its address in the home network.
  */
 internal class AndroidReportExporter @Inject constructor(
     @ApplicationContext private val context: Context,

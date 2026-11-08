@@ -29,9 +29,6 @@
     <ID>LongParameterList:VoiceAssembly.kt:VoiceAssembly</ID>
     <ID>LongParameterList:VoiceController.kt:VoiceController</ID>
     <ID>LongParameterList:VoiceController.kt:VoiceController.Strings</ID>
-    <ID>MemberNameEqualsClassName:MicInjector.kt:MicInjector.Policy$private val policy = policyBuilderClass.getConstructor(Context::class.java).newInstance(context).let { mixes.values.forEach { mix -&gt; policyBuilderClass.getMethod("addMix", mixClass).invoke(it, mix) } policyBuilderClass.getMethod("build").invoke(it) }</ID>
-    <ID>NoNameShadowing:PhoneRemoteServer.kt:PhoneRemoteServer${ client.soTimeout = it }</ID>
-    <ID>NoNameShadowing:PhoneRemoteServer.kt:PhoneRemoteServer${ log.log(TAG, "${request.command}: $it") }</ID>
     <ID>UnusedPrivateProperty:AppSwitching.kt:AppSwitching$private val notListed: Set&lt;String&gt;</ID>
     <ID>UnusedPrivateProperty:DebugCommands.kt:DebugCommands$private val deliver: () -&gt; DeliverText</ID>
     <ID>UnusedPrivateProperty:DebugCommands.kt:DebugCommands$private val hear: suspend (File) -&gt; String?</ID>

@@ -67,10 +67,17 @@ interface DeviceProfile {
     val inputs: InputSources? get() = null
 
     /**
-     * Debugging (adb) listens on the local network without TLS pairing once the user turns it
-     * on, so Lumbina can connect to it itself (see `LocalAdb`).
+     * Lumbina may connect to the device's own debugging (adb on port 5555, without TLS pairing)
+     * and set itself up over it (see `LocalAdb`). Whether the device listens there is found out
+     * when connecting: many Android TVs open the port with "USB debugging", some don't.
      */
     val localAdb: Boolean get() = false
+
+    /**
+     * The setup turns the service on over that connection, not in the accessibility settings:
+     * the firmware hides them or drops the service, and debugging always listens on the port.
+     */
+    val setupOverAdb: Boolean get() = false
 
     /**
      * The parts of the firmware this profile's features rest on, see [FirmwareParts]. Each must be

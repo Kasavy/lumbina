@@ -12,11 +12,9 @@ import org.junit.jupiter.api.Test
 class DeliverTextTest {
 
     private val searches = mutableListOf<String>()
-    private val search = object : YouTubeSearch {
-        override suspend fun search(query: String): Boolean {
-            searches += query
-            return true
-        }
+    private val search = YouTubeSearch { query ->
+        searches += query
+        true
     }
 
     private fun chain(screen: FakeScreenReader) = DeliverText(

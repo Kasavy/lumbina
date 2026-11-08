@@ -1,6 +1,12 @@
 package dev.lumbina.tv.core.ui
 
+import dev.lumbina.tv.core.domain.app.AppId
+import dev.lumbina.tv.core.domain.device.DeviceFingerprint
+import dev.lumbina.tv.core.domain.device.DeviceProfile
+import dev.lumbina.tv.core.domain.remote.KeyMap
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ServiceConsentTest {
@@ -31,5 +37,23 @@ class ServiceConsentTest {
             withMic + R.string.service_consent_mic_apps,
             consentParagraphs(ServiceScope(remoteMic = true, feedsMicToApps = true)),
         )
+    }
+
+    private fun profile(setupOverAdb: Boolean) = object : DeviceProfile {
+        override val id = "acme"
+        override val priority = 0
+        override val keyMap = KeyMap { _, _ -> null }
+        override val stockLauncher: AppId? = null
+        override val localAdb = true
+        override val setupOverAdb = setupOverAdb
+
+        override fun matches(device: DeviceFingerprint) = true
+    }
+
+    @Test
+    fun `debugging is in the consent only where the setup goes that way`() {
+        assertTrue(profile(setupOverAdb = true).serviceScope().localAdb)
+        // A TV where the connection is an option the setup doesn't take.
+        assertFalse(profile(setupOverAdb = false).serviceScope().localAdb)
     }
 }

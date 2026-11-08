@@ -2,7 +2,6 @@ package dev.lumbina.tv.platform.accessibility
 
 import android.accessibilityservice.AccessibilityService
 import android.os.SystemClock
-import dev.lumbina.tv.core.common.LumbinaActions
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.domain.app.App
 import dev.lumbina.tv.core.domain.app.AppLauncher
@@ -126,14 +125,17 @@ internal class VoiceAssembly(
             pushToTalk = sessions.pushToTalk(warm, language::languages),
             handsFree = sessions.handsFree(warm, language::languages),
         )
-        return VoiceController(scope, listened, language, utterances(), plate, strings(), log)
+        return VoiceController(scope, listened, language, utterances(), plate, phrases::get, log)
     }
 
     /** Speech for other apps ([RecognizeSpeechActivity], [LumbinaRecognitionService]), reading [warm]. */
     fun forApps(warm: AudioSource, language: VoiceLanguageSetting) = AppRecognition(warm, sessions, language, log)
 
     /** The plate's answers by themselves, for a debug command that says a phrase where there is no mic. */
-    fun answers(scope: CoroutineScope) = VoiceAnswers(scope, plate, strings(), log)
+    fun answers(scope: CoroutineScope) = VoiceAnswers(scope, plate, phrases::get, log)
+
+    /** The phrases, read again only when the service's language changed (Lumbina's own may, before Android 13). */
+    private val phrases = PerLocale({ service.resources.configuration.locales[0] }, ::strings)
 
     private fun strings() = VoiceController.Strings(
         listening = service.getString(R.string.voice_listening),
@@ -186,14 +188,7 @@ internal class VoiceAssembly(
 
     /** What OK does on a notice that sends the user to [place]. */
     private fun go(place: VoiceController.Place): VoiceOverlay.Action {
-        val page = when (place) {
-            VoiceController.Place.Diagnostics -> LumbinaActions.SETTINGS_PAGE_STATE
-            VoiceController.Place.Voice -> LumbinaActions.SETTINGS_PAGE_VOICE
-            VoiceController.Place.Phone -> LumbinaActions.SETTINGS_PAGE_PHONE
-            VoiceController.Place.Access -> LumbinaActions.SETTINGS_PAGE_ACCESS
-            VoiceController.Place.Widgets -> LumbinaActions.SETTINGS_PAGE_WIDGETS
-            VoiceController.Place.Home -> null
-        }
+        val page = place.page()
         val hint = if (page == null) R.string.voice_ok_home else R.string.voice_ok_open
         return VoiceOverlay.Action(service.getString(hint)) {
             if (page == null) service.openLumbinaHome() else service.openLumbina(page)
@@ -226,3 +221,14 @@ internal class VoiceAssembly(
 
 /** The language's own name for itself: "русский", "English". */
 private fun languageName(code: String): String = Locale.forLanguageTag(code).let { it.getDisplayLanguage(it) }
+
+/** A value read again only when the [locale] it was read in has changed: words asked for again and again. */
+internal class PerLocale<T>(private val locale: () -> Locale, private val read: () -> T) {
+    private var held: Pair<Locale, T>? = null
+
+    fun get(): T {
+        val now = locale()
+        held?.takeIf { it.first == now }?.let { return it.second }
+        return read().also { held = now to it }
+    }
+}

@@ -367,6 +367,7 @@ private fun SectionTile(
             )
 
             TileContent.AllAppsTile -> AllAppsTile(
+                banner = actions.bannerOf(BannerOf.AllApps.key),
                 onClick = { actions.click(isMoving) { actions.openAllApps() } },
                 onLongClick = { hold(isMoving) { actions.shortcutMenu(sectionId) } },
                 label = stringResource(R.string.home_all_apps),
@@ -376,6 +377,7 @@ private fun SectionTile(
             )
 
             is TileContent.InputTile -> InputTile(
+                banner = actions.bannerOf(BannerOf.OfInput(tile).key),
                 onClick = { actions.click(isMoving) { actions.openInput(tile) } },
                 onLongClick = { hold(isMoving) { actions.inputMenu(sectionId, tile) } },
                 label = tile.caption,

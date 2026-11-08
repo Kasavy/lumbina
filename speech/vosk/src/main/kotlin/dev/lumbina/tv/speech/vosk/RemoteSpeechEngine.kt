@@ -119,7 +119,7 @@ internal class RemoteSpeechEngine(
                 }
                 lock.wait(left)
             }
-            return engine!!
+            return checkNotNull(engine)
         }
 
         override fun onServiceConnected(name: ComponentName, service: IBinder) = synchronized(lock) {

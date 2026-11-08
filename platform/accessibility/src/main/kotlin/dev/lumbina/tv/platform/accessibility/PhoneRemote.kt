@@ -64,6 +64,8 @@ internal class PhoneRemote(
         val overlayKey: (KeyEvent) -> Boolean,
         /** Holds OK down, where Lumbina can (it takes its own access to the device); null where it can't. */
         val holdOk: (suspend () -> Boolean)? = null,
+        /** Whether [holdOk] works now, asked off the main thread as the page opens: it may need a connection. */
+        val canHoldOk: () -> Boolean = { holdOk != null },
         /** Whether the remote has a mic Lumbina hears: only then are the speech services' keys of any use. */
         val hasMic: Boolean = false,
     )
@@ -86,7 +88,7 @@ internal class PhoneRemote(
             .put("ok", true)
             .put("name", name)
             .put("arrows", DPAD_ACTIONS.isNotEmpty())
-            .put("holdOk", ports.holdOk != null)
+            .put("holdOk", ports.canHoldOk())
             .put("mic", ports.hasMic)
             // For files: what may still be sent, and the screen photos are made to fit.
             .put("room", ports.media.room())
@@ -226,8 +228,9 @@ internal class PhoneRemote(
             try {
                 service.startActivity(candidate)
                 true
-            } catch (e: ActivityNotFoundException) {
-                log.log(TAG, "open $link: $e")
+            } catch (_: ActivityNotFoundException) {
+                // The site only: the log goes into reports people post. The exception's text holds the whole link.
+                log.log(TAG, "open ${uri.scheme}://${uri.host} in ${candidate.`package` ?: "any app"}: no app takes it")
                 false
             }
         }

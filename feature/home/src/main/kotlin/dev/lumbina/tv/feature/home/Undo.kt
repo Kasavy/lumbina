@@ -44,6 +44,8 @@ enum class UndoKind {
     Hidden,
     OutOfFavorites,
     OutOfCategory,
+    InputOutOfFavorites,
+    InputOutOfCategory,
     FolderDissolved,
     RowHidden,
     ShortcutRemoved,
@@ -187,6 +189,8 @@ private fun Undo.message(): String = when (kind) {
     UndoKind.Hidden -> stringResource(R.string.undo_hidden, name)
     UndoKind.OutOfFavorites -> stringResource(R.string.undo_out_of_favorites, name)
     UndoKind.OutOfCategory -> stringResource(R.string.undo_out_of_category, name, place)
+    UndoKind.InputOutOfFavorites -> stringResource(R.string.undo_input_out_of_favorites, name)
+    UndoKind.InputOutOfCategory -> stringResource(R.string.undo_input_out_of_category, name, place)
     UndoKind.FolderDissolved -> stringResource(R.string.undo_folder_dissolved, name)
     UndoKind.RowHidden -> stringResource(R.string.undo_row_hidden, name)
     UndoKind.ShortcutRemoved -> stringResource(R.string.undo_shortcut_removed)

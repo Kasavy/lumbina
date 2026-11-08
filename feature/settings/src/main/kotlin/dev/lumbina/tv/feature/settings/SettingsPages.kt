@@ -100,7 +100,7 @@ private fun LookPage(viewModel: HomeSettingsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     // Choosing a language re-creates the screen, so reading it once per composition is enough.
     val language = remember { viewModel.language }
-    LookPanel(state = state, commands = viewModel, language = language, languageSupported = viewModel.languageSupported)
+    LookPanel(state = state, commands = viewModel, language = language)
 }
 
 @Composable
@@ -193,6 +193,11 @@ private fun SleepPage(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     DisposableEffect(viewModel) { onDispose(viewModel::forgetRefusal) }
+    // Back from the system's settings, where the screensaver may have been chosen by hand.
+    LifecycleResumeEffect(viewModel) {
+        viewModel.recheck()
+        onPauseOrDispose {}
+    }
     SleepPanel(
         state = state,
         commands = viewModel,
@@ -221,8 +226,9 @@ private fun StatePage(
         onTurnOn = viewModel::turnOn,
         openAccess = openAccess,
         onSaveReport = viewModel::saveReport,
-        onNotificationAccess = viewModel::openNotificationAccess,
-        onUsageAccess = viewModel::openUsageAccess,
+        // Where the device has no screen for it, Lumbina's own access gives it.
+        onNotificationAccess = { if (!viewModel.openNotificationAccess()) openAccess?.invoke() },
+        onUsageAccess = { if (!viewModel.openUsageAccess()) openAccess?.invoke() },
     )
 }
 
@@ -241,7 +247,7 @@ private fun AccessPage(viewModel: AccessViewModel = hiltViewModel()) {
             }
         }
     }
-    AccessPanel(state = state, commands = commands)
+    AccessPanel(state = state, commands = commands, computerCommands = viewModel.computerCommands)
     ServiceConsentDialog(consent, viewModel.serviceScope)
 }
 

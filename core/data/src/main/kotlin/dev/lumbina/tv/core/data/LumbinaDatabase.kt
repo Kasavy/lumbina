@@ -11,7 +11,10 @@ import dev.lumbina.tv.core.data.home.HomeLayoutDao
 import dev.lumbina.tv.core.data.home.SectionEntity
 import dev.lumbina.tv.core.data.home.SectionItemEntity
 
-/** The launcher UI's database (main process only). Schemas are exported to `core/data/schemas`. */
+/**
+ * The launcher's database, opened in the UI's process and the remote's (see DataModule). Schemas are
+ * exported to `core/data/schemas`.
+ */
 @Database(
     entities = [
         SectionEntity::class,

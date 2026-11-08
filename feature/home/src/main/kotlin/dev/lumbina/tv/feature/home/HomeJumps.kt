@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
  * in view. False if there is no such item that way.
  */
 internal suspend fun LazyGridState.bringToTop(forward: Boolean, matches: (Any) -> Boolean): Boolean {
-    repeat(MAX_PAGES) {
+    repeat(MAX_PAGES) { _ ->
         val found = layoutInfo.visibleItemsInfo.firstOrNull { matches(it.key) }
         if (found != null) {
             scrollToItem(found.index)
@@ -71,7 +71,7 @@ internal suspend fun LazyGridState.showRow(rowKey: String) {
 /** The first item of the row [id] that has the item [from]: looked for a page at a time above it. */
 private suspend fun LazyGridState.rowStart(from: Int, id: String): Int {
     scrollToItem(from)
-    repeat(MAX_PAGES) {
+    repeat(MAX_PAGES) { _ ->
         withFrameNanos { }
         val before = layoutInfo.visibleItemsInfo.filter {
             it.index < from && !isOfRow(it.key, id)

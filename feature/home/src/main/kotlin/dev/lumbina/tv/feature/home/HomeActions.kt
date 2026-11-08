@@ -2,6 +2,7 @@ package dev.lumbina.tv.feature.home
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,8 +41,8 @@ class HomeActions(
     val channelsAccess: (Boolean) -> Unit,
     /** Switches a row off; the second is its title, for saying so. */
     val hideRow: (HomeRow, String) -> Unit,
-    /** The user's own banner for an app, if any. */
-    val banner: (App) -> String?,
+    /** The user's own banner for a tile ([BannerOf.key]), if any. */
+    val bannerOf: (String) -> String?,
     /** Tiles report here while focused, so the keyboard that names one can open under it. */
     val anchor: TileAnchor,
 )
@@ -64,6 +65,9 @@ internal fun rememberHomeActions(
     openAllApps: () -> Unit,
 ): HomeActions {
     val latest by rememberUpdatedState(state)
+    // Read by every tile as it is drawn: a state of its own that changes only with the banners, so
+    // the rest of home changing doesn't draw every tile again.
+    val banners = remember { derivedStateOf { latest?.appearance?.customBanners.orEmpty() } }
     return remember(viewModel, channelsViewModel) {
         HomeActions(
             open = viewModel::open,
@@ -97,7 +101,7 @@ internal fun rememberHomeActions(
             openProgram = channelsViewModel::open,
             channelsAccess = channelsViewModel::onAccess,
             hideRow = viewModel::hideRow,
-            banner = { app -> latest?.appearance?.customBanners?.get(app.id.flatten()) },
+            bannerOf = { key -> banners.value[key] },
             anchor = menu.anchor,
         )
     }
@@ -110,3 +114,6 @@ internal fun HomeActions.click(moving: Boolean, open: () -> Unit) = if (moving) 
 internal fun hold(moving: Boolean, menu: () -> Unit) {
     if (!moving) menu()
 }
+
+/** The user's own banner for [app]'s tile, if any. */
+internal fun HomeActions.banner(app: App): String? = bannerOf(app.id.flatten())

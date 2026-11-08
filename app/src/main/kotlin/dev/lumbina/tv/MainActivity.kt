@@ -1,6 +1,10 @@
 package dev.lumbina.tv
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import androidx.activity.ComponentActivity
@@ -12,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.tv.material3.MaterialTheme
@@ -33,6 +38,7 @@ import dev.lumbina.tv.core.ui.LocalScreenMarks
 import dev.lumbina.tv.core.ui.LocalUseLumbinaKeyboard
 import dev.lumbina.tv.core.ui.LocalVoiceInput
 import dev.lumbina.tv.core.ui.ScreenMarks
+import dev.lumbina.tv.core.ui.inOwnLanguage
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,8 +66,23 @@ class MainActivity : ComponentActivity() {
 
     private val returns = HomeReturns()
 
+    /** Lumbina's own language chosen before Android 13: the screens are made anew in it, as Android 13 does itself. */
+    private val languageChanged = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            recreate()
+        }
+    }
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase.inOwnLanguage())
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            val filter = IntentFilter(LumbinaActions.LANGUAGE_CHANGED)
+            ContextCompat.registerReceiver(this, languageChanged, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        }
         val page = intent.getStringExtra(LumbinaActions.EXTRA_SETTINGS_PAGE)
         returns.created(savedInstanceState != null, freshProcess = !createdInThisProcess, page)?.let(::navigate)
         createdInThisProcess = true
@@ -96,6 +117,11 @@ class MainActivity : ComponentActivity() {
     private val themeLook by lazy {
         appearance.settings.map { ThemeLook(it.accent.takeIf { _ -> it.accentChosen }, it.textScale, it.theme) }
             .distinctUntilChanged()
+    }
+
+    override fun onDestroy() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) unregisterReceiver(languageChanged)
+        super.onDestroy()
     }
 
     override fun onStart() {

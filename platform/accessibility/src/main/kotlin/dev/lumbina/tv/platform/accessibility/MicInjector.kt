@@ -191,16 +191,16 @@ object MicInjector {
         private val policyBuilderClass = Class.forName("android.media.audiopolicy.AudioPolicy\$Builder")
 
         private val mixes = uids.associateWith(::mix)
-        private val policy = policyBuilderClass.getConstructor(Context::class.java).newInstance(context).let {
+        private val built = policyBuilderClass.getConstructor(Context::class.java).newInstance(context).let {
             mixes.values.forEach { mix -> policyBuilderClass.getMethod("addMix", mixClass).invoke(it, mix) }
             policyBuilderClass.getMethod("build").invoke(it)
         }
 
         fun register(): Boolean =
-            AudioManager::class.java.getMethod("registerAudioPolicy", policyClass).invoke(audio, policy) == 0
+            AudioManager::class.java.getMethod("registerAudioPolicy", policyClass).invoke(audio, built) == 0
 
         fun unregister() {
-            AudioManager::class.java.getMethod("unregisterAudioPolicy", policyClass).invoke(audio, policy)
+            AudioManager::class.java.getMethod("unregisterAudioPolicy", policyClass).invoke(audio, built)
         }
 
         /**
@@ -209,7 +209,7 @@ object MicInjector {
          */
         fun track(uid: Int): AudioTrack {
             val mix = mixes.getValue(uid)
-            val track = policyClass.getMethod("createAudioTrackSource", mixClass).invoke(policy, mix) as AudioTrack
+            val track = policyClass.getMethod("createAudioTrackSource", mixClass).invoke(built, mix) as AudioTrack
             val address = mixClass.getMethod("getRegistration").invoke(mix) as String
             audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
                 .firstOrNull { it.address == address }

@@ -3,10 +3,10 @@ package dev.lumbina.tv.core.ui
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
-import android.media.ExifInterface
 import android.media.MediaMetadataRetriever
 import android.os.Build
 import androidx.core.net.toUri
+import androidx.exifinterface.media.ExifInterface
 import coil3.ImageLoader
 import coil3.decode.DataSource
 import coil3.fetch.FetchResult

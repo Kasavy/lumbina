@@ -2,7 +2,5 @@
 <SmellBaseline>
   <ManuallySuppressedIssues/>
   <CurrentIssues>
-    <ID>MaxLineLength:KeyEchoTest.kt:KeyEchoTest$KeyStamp(deviceId = 7, keyCode = 3, scanCode = 102, action = action, repeatCount = repeat, downTime = 100, eventTime = at)</ID>
-    <ID>MaxLineLength:RecognizerSetupTest.kt:RecognizerSetupTest$return RecognizerSetup(context, LocalAccess(adb, settings, { heal() }, context.packageName, "x.Listener")) { _, _ -&gt; }</ID>
   </CurrentIssues>
 </SmellBaseline>

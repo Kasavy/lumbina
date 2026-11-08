@@ -180,6 +180,7 @@ private fun LazyGridScope.shortcutItem(section: HomeSection, commands: HomeComma
     item(key = HomeItem.AllApps.key) {
         val inIt = HomeItem.AllApps in section.items
         Box(modifier) {
+            // Plain, without a banner of the user's: picked by what it is, and here no name would show.
             AllAppsTile(
                 onClick = { commands.setAllApps(section.id, !inIt) },
                 label = stringResource(R.string.home_all_apps),

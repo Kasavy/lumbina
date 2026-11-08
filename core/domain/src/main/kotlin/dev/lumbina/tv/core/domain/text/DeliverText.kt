@@ -27,6 +27,9 @@ sealed interface Delivery {
 /** Searches YouTube in the app in use for it ([YouTube]); false when there is none or it didn't open. */
 fun interface YouTubeSearch {
     suspend fun search(query: String): Boolean
+
+    /** Searches in [packageName] itself, where it is one of the YouTube apps; false otherwise. */
+    suspend fun searchIn(packageName: String, query: String): Boolean = false
 }
 
 /** Tries sinks in order. */

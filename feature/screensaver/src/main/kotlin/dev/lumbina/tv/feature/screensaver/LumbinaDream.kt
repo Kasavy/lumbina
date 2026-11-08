@@ -1,5 +1,6 @@
 package dev.lumbina.tv.feature.screensaver
 
+import android.content.Context
 import android.os.Bundle
 import android.service.dreams.DreamService
 import android.view.KeyEvent
@@ -16,6 +17,7 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import dagger.hilt.android.AndroidEntryPoint
 import dev.lumbina.tv.core.designsystem.LumbinaTheme
+import dev.lumbina.tv.core.ui.inOwnLanguage
 import javax.inject.Inject
 
 /**
@@ -37,6 +39,10 @@ class LumbinaDream :
     override val lifecycle: Lifecycle get() = lifecycleRegistry
 
     override val savedStateRegistry: SavedStateRegistry get() = savedState.savedStateRegistry
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase.inOwnLanguage())
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -80,6 +86,10 @@ class LumbinaDream :
 class ScreensaverActivity : ComponentActivity() {
 
     @Inject lateinit var model: ScreensaverModel
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase.inOwnLanguage())
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

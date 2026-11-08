@@ -148,7 +148,7 @@ private fun Home(
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 HomeTopBarRoute(
                     onOpenSettings = { navController.navigate(SETTINGS) { launchSingleTop = true } },
-                    plates = { ServicePlateRoute() },
+                    plates = { ServicePlateRoute(it) },
                 )
             }
         },

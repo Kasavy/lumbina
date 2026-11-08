@@ -1,11 +1,10 @@
 package dev.lumbina.tv.platform.system
 
-import android.app.Application
 import android.content.Context
-import android.os.Build
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.lumbina.tv.core.common.LumbinaLog
+import dev.lumbina.tv.core.common.currentProcessName
 import dev.lumbina.tv.core.domain.diagnostics.LogArchive
 import java.io.File
 import java.io.RandomAccessFile
@@ -28,13 +27,10 @@ internal class FileLumbinaLog @Inject constructor(@ApplicationContext private va
     LogArchive {
 
     private val file: File? by lazy { context.getExternalFilesDir("logs")?.let { File(it, "lumbina.log") } }
-    private val process: String = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-        // "dev.lumbina.tv:ui" is "ui"; a prefix the build put before it (processNames in build-logic)
-        // is dropped as far as it ends with a dot.
-        Application.getProcessName().substringAfter(':').substringAfterLast('.')
-    } else {
-        "?"
-    }
+
+    // "dev.lumbina.tv:ui" is "ui"; a prefix the build put before it (processNames in build-logic) is
+    // dropped as far as it ends with a dot.
+    private val process: String = currentProcessName()?.substringAfter(':')?.substringAfterLast('.') ?: "?"
     private val format = SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US)
     private val writer = Executors.newSingleThreadExecutor { Thread(it, "lumbina-log").apply { isDaemon = true } }
 

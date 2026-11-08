@@ -20,19 +20,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import dev.lumbina.tv.core.domain.home.HomeAppearance
 import dev.lumbina.tv.core.domain.home.HomeItem
 import dev.lumbina.tv.core.domain.home.HomeRow
 import dev.lumbina.tv.core.domain.home.HomeSection
-import dev.lumbina.tv.core.domain.home.NamesPlace
-import dev.lumbina.tv.core.domain.home.RecommendationsView
-import dev.lumbina.tv.core.domain.home.SectionStyle
-import dev.lumbina.tv.core.domain.home.TileNames
-import dev.lumbina.tv.core.domain.home.TileSize
 import dev.lumbina.tv.core.domain.home.isOfPrograms
-import dev.lumbina.tv.core.ui.Choice
 import dev.lumbina.tv.core.ui.NameDialog
 
 /** A dialog the rows page is showing. */
@@ -133,7 +125,9 @@ internal fun HomeSettingsState.rowPage(key: String): RowPageOf? {
 /**
  * One row's settings, in the same order for every row: whether it is shown, its heading, its view,
  * the size, the backing, the names; then what only this row has. While the page is open and the
- * row shown, home brings it up and keeps it lit, so each change shows on it.
+ * row shown, home brings it up and keeps it lit, so each change shows on it. A shown row that
+ * can't fill yet ("frequently used" without usage access, channels' rows without channels) has
+ * only what keeps it empty and the way to it: how it would look changes nothing on home.
  */
 @Suppress("LongParameterList")
 @Composable
@@ -165,78 +159,30 @@ private fun RowPage(
                 checked = page.visible,
                 onClick = { commands.toggleRow(page.key) },
             )
-            SwitchRow(
-                title = stringResource(R.string.row_title),
-                hint = null,
-                checked = look.showTitleIn(page.key),
-                onClick = { commands.toggleRowTitle(page.key) },
-            )
-            ViewChoice(page, look, commands)
-            SizeRow(page, look.tileSizeOf(page.key))
-            SwitchRow(
-                title = stringResource(R.string.row_plate),
-                hint = stringResource(if (page.ofApps) R.string.row_plate_hint else R.string.row_plate_hint_cards),
-                checked = look.plateIn(page.key),
-                onClick = { commands.toggleRowPlate(page.key) },
-            )
-            NamesChoices(page, look, commands)
+            // Only for a row that is shown: one switched off waits for nothing. Read as the page is
+            // first drawn, then as GrantNeeded reads it again (back from the system's screen).
+            var usageGranted by remember { mutableStateOf(commands.usageGrant.granted()) }
+            if (page.row == HomeRow.Frequent && page.visible) {
+                GrantNeeded(
+                    commands.usageGrant,
+                    note = stringResource(R.string.grant_usage_note),
+                    allow = stringResource(R.string.grant_usage_allow),
+                    onRead = { usageGranted = it },
+                )
+            }
+            if (!rowWaits(page.row, page.visible, usageGranted, state.channelsMissing != null)) {
+                LookRows(page, look, commands)
+            }
             OwnRows(page, state, commands, onRename, onDelete)
         }
     }
 }
 
 /**
- * A section's layout (a row or a grid), or how recommendations come: tabs or a row per channel;
- * other rows have none.
- */
-@Composable
-private fun ViewChoice(page: RowPageOf, look: HomeAppearance, commands: HomeSettingsCommands) {
-    val section = page.section
-    val options = when {
-        section != null -> SectionStyle.entries.map { style ->
-            Choice(stringResource(style.choice), chosen = style == section.style) {
-                commands.setStyle(section.id, style)
-            }
-        }
-
-        page.row == HomeRow.Recommendations -> RecommendationsView.entries.map { view ->
-            Choice(stringResource(view.choice), chosen = view == look.recommendationsView) {
-                commands.setRecommendationsView(view)
-            }
-        }
-
-        else -> return
-    }
-    ChoiceRow(title = stringResource(R.string.row_layout), options = options)
-}
-
-/** Which tiles carry names and, when some do, where: on the tiles or under them. */
-@Composable
-private fun NamesChoices(page: RowPageOf, look: HomeAppearance, commands: HomeSettingsCommands) {
-    val names = look.namesIn(page.key)
-    ChoiceRow(
-        title = stringResource(R.string.row_names),
-        options = TileNames.entries.map { entry ->
-            Choice(stringResource(entry.choice), chosen = entry == names) { commands.setRowNames(page.key, entry) }
-        },
-    )
-    if (names == TileNames.None) return
-    val place = look.namesPlaceIn(page.key)
-    ChoiceRow(
-        title = stringResource(R.string.row_names_place),
-        hint = stringResource(R.string.row_names_under_hint).takeIf { place == NamesPlace.Under && page.ofApps },
-        options = NamesPlace.entries.map { entry ->
-            Choice(stringResource(entry.choiceFor(page)), chosen = entry == place) {
-                commands.setRowNamesPlace(page.key, entry)
-            }
-        },
-    )
-}
-
-/**
  * What only this row has: in a row of apps the tile that opens all apps and the "+", in a category
- * also its name and deleting it; in recommendations the way to the channels shown; in "continue
- * watching" its apps, each to show or take out.
+ * also its name and deleting it; in recommendations the way to the channels shown, or what keeps
+ * channels away; in "continue watching" its apps, each to show or take out, or what keeps them
+ * away. ("Frequently used"'s usage access comes right under "show", in [RowPage].)
  */
 @Composable
 private fun OwnRows(
@@ -274,8 +220,15 @@ private fun OwnRows(
             supportingContent = { Text(stringResource(R.string.home_category_delete_hint)) },
         )
     }
-    if (page.row == HomeRow.WatchNext) WatchNextApps(state.watchNextApps, state.watchNextMissing, commands)
-    if (page.row == HomeRow.Recommendations) {
+    if (page.row == HomeRow.WatchNext) WatchNextApps(state.watchNextApps, state.channelsMissing, commands)
+    // The channels' page may have given the access since: worked out again as the page opens.
+    if (page.row == HomeRow.WatchNext || page.row == HomeRow.Recommendations) {
+        LaunchedEffect(Unit) { commands.recheckChannels() }
+    }
+    val missing = state.channelsMissing
+    if (page.row == HomeRow.Recommendations && missing != null) ChannelsMissing(missing)
+    // Which channels to show: once there are any to choose from.
+    if (page.row == HomeRow.Recommendations && missing == null) {
         val links = LocalSettingsLinks.current
         SettingRow(
             onClick = { links.page(SettingsPage.Channels) },
@@ -287,26 +240,16 @@ private fun OwnRows(
 
 /**
  * The apps of "continue watching", each to show or take out; all are shown until the user says.
- * With none, why: no provider, no access to it (granted on the channels' page), or nothing yet.
+ * Over them what keeps channels away, if anything (no provider, no access to it, granted on the
+ * channels' page); with no app and nothing in the way, that there is nothing yet.
  */
 @Composable
 private fun WatchNextApps(apps: List<WatchNextChoice>, missing: WatchNextMissing?, commands: HomeSettingsCommands) {
     Header(stringResource(R.string.row_watch_next_apps))
+    // What keeps channels away is said even over apps kept from before: the row's look waits for it.
     when {
-        apps.isNotEmpty() -> Unit
-
-        missing == WatchNextMissing.Provider -> Note(stringResource(R.string.channels_no_provider))
-
-        missing == WatchNextMissing.Access -> {
-            Note(stringResource(R.string.channels_access_note))
-            val links = LocalSettingsLinks.current
-            SettingRow(
-                onClick = { links.page(SettingsPage.Channels) },
-                headlineContent = { Text(stringResource(R.string.channels_access_allow)) },
-            )
-        }
-
-        else -> Note(stringResource(R.string.row_watch_next_apps_none))
+        missing != null -> ChannelsMissing(missing)
+        apps.isEmpty() -> Note(stringResource(R.string.row_watch_next_apps_none))
     }
     apps.forEach { app ->
         // Keyed: a switch that reorders the list keeps the focus on its own app.
@@ -327,19 +270,6 @@ internal fun rowTitle(page: RowPageOf): String = when {
     page.section?.isFavorites == true -> stringResource(R.string.home_row_favorites)
     page.section != null -> page.section.name
     else -> builtInTitle(page.row)
-}
-
-/** How big the row's tiles (or cards) are now; OK opens the slider on the home screen itself. */
-@Composable
-private fun SizeRow(page: RowPageOf, now: TileSize) {
-    val adjust = LocalAdjust.current
-    SettingRow(
-        onClick = { adjust(page.key) },
-        headlineContent = {
-            Text(stringResource(if (page.ofApps) R.string.row_tile_size else R.string.row_card_size))
-        },
-        trailingContent = { Text(now.nameFor(page), style = MaterialTheme.typography.bodyMedium) },
-    )
 }
 
 @Composable
@@ -365,29 +295,4 @@ private fun HomePanelDialogs(dialog: HomePanelDialog, commands: HomeSettingsComm
             needsText = true,
         )
     }
-}
-
-private val SectionStyle.choice: Int
-    get() = when (this) {
-        SectionStyle.Row -> R.string.row_style_row
-        SectionStyle.Grid -> R.string.row_style_grid
-    }
-
-private val RecommendationsView.choice: Int
-    get() = when (this) {
-        RecommendationsView.Tabs -> R.string.row_view_tabs
-        RecommendationsView.PerChannel -> R.string.row_view_per_channel
-    }
-
-private val TileNames.choice: Int
-    get() = when (this) {
-        TileNames.None -> R.string.row_names_none
-        TileNames.Focused -> R.string.row_names_focused
-        TileNames.All -> R.string.row_names_all
-    }
-
-/** On the tile or under it; for a row of programs, on the card or under it. */
-private fun NamesPlace.choiceFor(page: RowPageOf): Int = when (this) {
-    NamesPlace.OnTile -> if (page.ofApps) R.string.row_names_on_tile else R.string.row_names_on_card
-    NamesPlace.Under -> if (page.ofApps) R.string.row_names_under_tile else R.string.row_names_under_card
 }

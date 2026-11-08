@@ -5,12 +5,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import dev.lumbina.tv.core.ui.ConfirmDialog
 import dev.lumbina.tv.core.ui.QrCode
 
 /** Switch on the phone remote page, and the QR code that opens it. */
@@ -62,11 +67,31 @@ fun PhoneRemotePanel(
                 checked = state.onScreensaver,
                 onClick = onToggleScreensaver,
             )
-            SettingRow(
-                onClick = onNewKey,
-                headlineContent = { Text(stringResource(R.string.phone_new_key)) },
-                supportingContent = { Text(stringResource(R.string.phone_new_key_hint)) },
-            )
+            NewKeyRow(onNewKey)
         }
+    }
+}
+
+/** A new address for the page, asked first: phones that use the page lose it at once. */
+@Composable
+private fun NewKeyRow(onNewKey: () -> Unit) {
+    var asking by remember { mutableStateOf(false) }
+    SettingRow(
+        onClick = { asking = true },
+        headlineContent = { Text(stringResource(R.string.phone_new_key)) },
+        supportingContent = { Text(stringResource(R.string.phone_new_key_hint)) },
+    )
+    if (asking) {
+        ConfirmDialog(
+            title = stringResource(R.string.phone_new_key_title),
+            text = stringResource(R.string.phone_new_key_text),
+            confirmLabel = stringResource(R.string.phone_new_key_confirm),
+            cancelLabel = stringResource(R.string.action_cancel),
+            onConfirm = {
+                asking = false
+                onNewKey()
+            },
+            onDismiss = { asking = false },
+        )
     }
 }

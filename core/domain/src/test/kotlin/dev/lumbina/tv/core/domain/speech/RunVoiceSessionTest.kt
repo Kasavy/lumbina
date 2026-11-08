@@ -135,13 +135,10 @@ class RunVoiceSessionTest {
     fun `listens before the recognizer is ready, so a slow model load loses no speech`() = runBlocking {
         val spoken = FakeAudioSource(listOf(ByteArray(6_400), ByteArray(6_400)))
         val captured = AtomicInteger()
-        val source = object : AudioSource {
-            override fun open(): AudioStream {
-                val stream = spoken.open()
-                return object : AudioStream by stream {
-                    override fun read(dst: ByteArray): Int =
-                        stream.read(dst).also { if (it > 0) captured.addAndGet(it) }
-                }
+        val source = AudioSource {
+            val stream = spoken.open()
+            object : AudioStream by stream {
+                override fun read(dst: ByteArray): Int = stream.read(dst).also { if (it > 0) captured.addAndGet(it) }
             }
         }
         val fake = FakeSpeechEngine(listOf(Hypothesis("ru", "котики", 1.0)))

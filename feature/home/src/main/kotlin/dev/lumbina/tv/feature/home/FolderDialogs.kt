@@ -7,10 +7,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -29,6 +33,7 @@ import dev.lumbina.tv.core.ui.MenuEntry
 import dev.lumbina.tv.core.ui.TileMenu
 import dev.lumbina.tv.core.ui.TileName
 import dev.lumbina.tv.core.ui.dialogSurface
+import dev.lumbina.tv.core.ui.requestFocusSoon
 
 /** Holding OK on a folder: move, rename, ungroup; opening it comes last, as OK on the tile already does that. */
 @Composable
@@ -93,8 +98,19 @@ private fun FolderDialog(
     menu: MenuState,
     modifier: Modifier = Modifier,
 ) {
+    // The window takes no focus of its own: an app gets it, or a press would be needed first. The
+    // first, or back from an app's menu, that app.
+    val start = remember { FocusRequester() }
+    val startAt = folder.apps.indexOfFirst { it.id.flatten() == menu.inFolder }.coerceAtLeast(0)
     // Back: to the menu the folder was opened from, if any; an app's menu opened here comes back here.
     Dialog(onDismissRequest = menu::back, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        val grid = rememberLazyGridState()
+        // In the window: its grid is laid out a frame or two after it opens. An app far down is not
+        // laid out at all until the grid is brought to it.
+        LaunchedEffect(Unit) {
+            grid.scrollToItem(startAt)
+            start.requestFocusSoon()
+        }
         Column(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier = modifier
@@ -105,18 +121,23 @@ private fun FolderDialog(
             Text(folder.name, style = MaterialTheme.typography.titleLarge)
             LazyVerticalGrid(
                 columns = GridCells.Fixed(FOLDER_COLUMNS),
+                state = grid,
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(8.dp),
             ) {
-                items(folder.apps, key = { it.id.flatten() }) { app ->
+                itemsIndexed(folder.apps, key = { _, app -> app.id.flatten() }) { index, app ->
                     AppCard(
+                        modifier = if (index == startAt) Modifier.focusRequester(start) else Modifier,
                         app = app,
                         onClick = {
                             menu.show(null)
                             commands.open(app)
                         },
-                        onLongClick = { menu.show(HomeDialog.AppActions(app, Place.InFolder(folder.id))) },
+                        onLongClick = {
+                            menu.inFolder = app.id.flatten()
+                            menu.show(HomeDialog.AppActions(app, Place.InFolder(folder.id)))
+                        },
                         name = names,
                     )
                 }

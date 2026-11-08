@@ -3,10 +3,6 @@ package dev.lumbina.tv.feature.settings
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.tv.material3.Text
@@ -17,12 +13,11 @@ import dev.lumbina.tv.core.domain.sleep.SCREENSAVER_CHANGE_MINUTES
 import dev.lumbina.tv.core.domain.sleep.SCREENSAVER_MINUTES
 import dev.lumbina.tv.core.domain.sleep.ScreensaverPhotos
 import dev.lumbina.tv.core.ui.Choice
-import dev.lumbina.tv.core.ui.CommandsDialog
 
 /**
  * The screensaver, its photos chosen from the same list as the wallpaper's, then auto-sleep. When
- * Lumbina may not set the system screensaver, [openAccess] (null where this device has no Access
- * page) leads to the access that lets it.
+ * Lumbina may not set the system screensaver, the ways to it ([screensaverWays]); [openAccess] is
+ * null only in an edition without Lumbina's own debugging, which has no Access page.
  */
 @Composable
 fun SleepPanel(
@@ -34,6 +29,7 @@ fun SleepPanel(
     computerCommands: List<String> = emptyList(),
 ) {
     if (state == null) return
+    val focus = rememberWaysFocus(state.screensaverDenied)
     SettingsList(modifier) {
         photoSources(state, commands)
         item { Header(stringResource(R.string.wallpaper_options)) }
@@ -52,24 +48,15 @@ fun SleepPanel(
                 },
             )
         }
-        item {
-            SettingRow(
-                onClick = commands::selectScreensaver,
-                headlineContent = { Text(stringResource(R.string.screensaver_use_lumbina)) },
-                supportingContent = {
-                    val hint = when {
-                        state.screensaverIsLumbina -> R.string.screensaver_is_lumbina
-                        else -> R.string.screensaver_not_lumbina
-                    }
-                    Text(stringResource(hint))
-                },
-            )
+        item { ScreensaverToggleRow(state.screensaverIsLumbina, commands::selectScreensaver, focus) }
+        if (state.screensaverDenied) {
+            screensaverWays(state.screensaverPicker, commands, openAccess, computerCommands, focus.onWay)
         }
-        if (state.screensaverDenied) item { ScreensaverDenied(openAccess, computerCommands) }
         item {
             SettingRow(
                 onClick = onPreviewScreensaver,
                 headlineContent = { Text(stringResource(R.string.screensaver_preview)) },
+                modifier = focus.offWay,
             )
         }
         item { Header(stringResource(R.string.sleep_header)) }
@@ -168,32 +155,6 @@ private fun DelayRow(state: SleepPanelState, commands: SleepSettingsCommands) {
             }
         },
     )
-}
-
-/** Lumbina may not set the system screensaver: a way to the access that lets it, or the commands for a computer. */
-@Composable
-private fun ScreensaverDenied(openAccess: (() -> Unit)?, computerCommands: List<String>) {
-    if (openAccess != null) {
-        SettingRow(
-            onClick = openAccess,
-            headlineContent = { Text(stringResource(R.string.screensaver_needs_access)) },
-        )
-        return
-    }
-    var showing by remember { mutableStateOf(false) }
-    SettingRow(
-        onClick = { showing = true },
-        headlineContent = { Text(stringResource(R.string.screensaver_from_computer)) },
-        supportingContent = { Text(stringResource(R.string.screensaver_denied)) },
-    )
-    if (showing) {
-        CommandsDialog(
-            title = stringResource(R.string.screensaver_from_computer),
-            text = stringResource(R.string.screensaver_computer_text),
-            lines = computerCommands,
-            onDismiss = { showing = false },
-        )
-    }
 }
 
 @Composable

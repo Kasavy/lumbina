@@ -147,6 +147,9 @@ sealed interface RemoteAction {
     data object OpenDeviceSettings : RemoteAction
     data object ScreenOff : RemoteAction
 
+    /** Every recent app stopped, as "Close all" in the recent apps; asked once more before. */
+    data object CloseAllApps : RemoteAction
+
     /** The sound off, or back on: what a remote's mute key does. */
     data object ToggleMute : RemoteAction
 

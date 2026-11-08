@@ -89,6 +89,7 @@ private val NAMED: Map<String, RemoteAction> = mapOf(
     "device-settings" to RemoteAction.OpenDeviceSettings,
     "screen-off" to RemoteAction.ScreenOff,
     "mute" to RemoteAction.ToggleMute,
+    "close-all-apps" to RemoteAction.CloseAllApps,
     "nothing" to RemoteAction.Nothing,
 )
 

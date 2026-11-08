@@ -1,5 +1,7 @@
 package dev.lumbina.tv.feature.home
 
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,8 +11,12 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -28,6 +34,10 @@ import dev.lumbina.tv.core.ui.line
 internal fun NowPlayingRoute(modifier: Modifier = Modifier, viewModel: NowPlayingViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val current = state ?: return
+    // A skip button the player no longer takes stays while it has the focus: gone from under it,
+    // the focus would go nowhere. It goes once the focus moves on.
+    var onPrevious by remember { mutableStateOf(false) }
+    var onNext by remember { mutableStateOf(false) }
     Row(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -50,11 +60,8 @@ internal fun NowPlayingRoute(modifier: Modifier = Modifier, viewModel: NowPlayin
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        IconButton(onClick = viewModel::previous) {
-            Icon(
-                painterResource(R.drawable.ic_skip_previous),
-                contentDescription = stringResource(R.string.media_previous),
-            )
+        if (current.playing.canPrevious || onPrevious) {
+            SkipButton(R.drawable.ic_skip_previous, R.string.media_previous, viewModel::previous) { onPrevious = it }
         }
         IconButton(onClick = viewModel::playPause) {
             val playing = current.playing.playing
@@ -63,9 +70,16 @@ internal fun NowPlayingRoute(modifier: Modifier = Modifier, viewModel: NowPlayin
                 contentDescription = stringResource(if (playing) R.string.media_pause else R.string.media_play),
             )
         }
-        IconButton(onClick = viewModel::next) {
-            Icon(painterResource(R.drawable.ic_skip_next), contentDescription = stringResource(R.string.media_next))
+        if (current.playing.canNext || onNext) {
+            SkipButton(R.drawable.ic_skip_next, R.string.media_next, viewModel::next) { onNext = it }
         }
+    }
+}
+
+@Composable
+private fun SkipButton(@DrawableRes icon: Int, @StringRes label: Int, onClick: () -> Unit, onFocus: (Boolean) -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.onFocusChanged { onFocus(it.isFocused) }) {
+        Icon(painterResource(icon), contentDescription = stringResource(label))
     }
 }
 

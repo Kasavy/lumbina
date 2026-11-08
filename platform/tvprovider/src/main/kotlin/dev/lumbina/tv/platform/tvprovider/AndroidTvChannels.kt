@@ -23,6 +23,7 @@ import dev.lumbina.tv.core.domain.channels.ChannelCensus
 import dev.lumbina.tv.core.domain.channels.ChannelFeed
 import dev.lumbina.tv.core.domain.channels.ProgramCard
 import dev.lumbina.tv.core.domain.channels.ProgramLauncher
+import dev.lumbina.tv.core.domain.channels.TvChannel
 import dev.lumbina.tv.core.domain.channels.TvChannels
 import dev.lumbina.tv.core.domain.channels.TvListingsPermission
 import java.net.URISyntaxException
@@ -31,16 +32,15 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -50,7 +50,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Reads the TV Provider (`android.media.tv`) and follows its change notifications. Apps publish
- * in bursts (a channel, then ten programs), hence the debounce before re-reading.
+ * in bursts (a channel, then ten programs), hence the pacing of the readings ([paced]).
  */
 @Singleton
 internal class AndroidTvChannels @Inject constructor(
@@ -75,20 +75,45 @@ internal class AndroidTvChannels @Inject constructor(
 
     override fun provider(): String? = context.packageManager.resolveContentProvider(AUTHORITY, 0)?.packageName
 
-    override fun channels(): Flow<List<ChannelFeed>> = observe {
+    /**
+     * The rows, steadied ([steadied]) by what this watcher showed last: home, the settings and
+     * diagnostics watch at the same time, each with its own. A row kept from before waits for the
+     * next reading; when no change brings one, it is read again after the gap, so it can't linger.
+     */
+    override fun channels(): Flow<List<ChannelFeed>> = channelFlow {
+        var shown = ShownFeeds()
+        val show: suspend (Reading) -> Unit = { reading ->
+            shown = steadied(reading.channels, reading.fresh, shown)
+            note("rows", "${provider()}: ${reading.summary}, ${shown.feeds.size} rows to show")
+            send(shown.feeds)
+        }
+        observe(Reading()) { readChannels() }.collectLatest { reading ->
+            show(reading)
+            if (shown.kept.isNotEmpty()) {
+                delay(KEPT_MILLIS)
+                show(readChannels())
+            }
+        }
+    }
+        .distinctUntilChanged()
+        .flowOn(Dispatchers.IO)
+
+    private fun readChannels(): Reading {
         val channels = query(CHANNELS, Columns.CHANNEL) { channelOf(it, ::logoUri) }
         val programs = query(PREVIEW_PROGRAMS, Columns.PREVIEW_PROGRAM) { row ->
             row.long(Columns.CHANNEL_ID)?.let { channel ->
                 programOf(row)?.let { ChannelProgram(channel, it, row.weight()) }
             }
         }
-        feedsOf(channels, programs).also { feeds ->
-            note(
-                "rows",
-                "${provider()}: ${channels.size} channels, ${programs.size} programs, ${feeds.size} rows to show",
-            )
-        }
+        return Reading(channels, feedsOf(channels, programs), "${channels.size} channels, ${programs.size} programs")
     }
+
+    /** One reading of the provider: its channels and the rows they make, before [steadied]. */
+    private data class Reading(
+        val channels: List<TvChannel> = emptyList(),
+        val fresh: List<ChannelFeed> = emptyList(),
+        val summary: String = "no channels",
+    )
 
     /**
      * The system's provider gives other apps' channels and "continue watching" to a holder of
@@ -113,7 +138,7 @@ internal class AndroidTvChannels @Inject constructor(
         refreshes.tryEmit(Unit)
     }
 
-    override fun watchNext(): Flow<List<ProgramCard>> = observe {
+    override fun watchNext(): Flow<List<ProgramCard>> = observe(emptyList()) {
         query(WATCH_NEXT, Columns.WATCH_NEXT) { row -> programOf(row)?.let { it to row.long(Columns.ENGAGED_AT) } }
             .sortedByDescending { it.second ?: 0L }
             .map { it.first }
@@ -125,14 +150,14 @@ internal class AndroidTvChannels @Inject constructor(
      * is installed (Lumbina's companion, see [TvProviderCompanion]).
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    private fun <T> observe(read: () -> List<T>): Flow<List<T>> = refreshes
+    private fun <T> observe(empty: T, read: () -> T): Flow<T> = refreshes
         .onStart { emit(Unit) }
         .map { isAvailable() }
         .distinctUntilChanged()
         .onEach { available -> if (!available) note("provider", "no TV provider on this device") }
-        .flatMapLatest { available -> if (available) observeProvider(read) else flowOf(emptyList()) }
+        .flatMapLatest { available -> if (available) observeProvider(read) else flowOf(empty) }
 
-    private fun <T> observeProvider(read: () -> List<T>): Flow<List<T>> = callbackFlow {
+    private fun <T> observeProvider(read: () -> T): Flow<T> = callbackFlow {
         val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean) {
                 trySend(Unit)
@@ -151,12 +176,11 @@ internal class AndroidTvChannels @Inject constructor(
         .distinctUntilChanged()
         .flowOn(Dispatchers.IO)
 
-    /** The first reading at once; later ones wait for a burst of changes to end. */
-    @OptIn(FlowPreview::class)
-    private fun Flow<Unit>.afterBursts(): Flow<Unit> = flow {
-        var first = true
-        emitAll(debounce { if (first) 0L else DEBOUNCE_MILLIS }.onEach { first = false })
-    }
+    /**
+     * Readings paced ([paced]): an app that keeps rewriting its programs (every second or two on a
+     * Skyworth G6) would have the rows read and rebuilt as often.
+     */
+    private fun Flow<Unit>.afterBursts(): Flow<Unit> = paced(DEBOUNCE_MILLIS, MAX_WAIT_MILLIS, MIN_GAP_MILLIS)
 
     private fun <T> query(uri: Uri, projection: Array<String>, parse: (TvRow) -> T?): List<T> = try {
         resolver.query(uri, projection, null, null, null)?.use { cursor ->
@@ -174,8 +198,6 @@ internal class AndroidTvChannels @Inject constructor(
 
     private fun logoUri(channelId: Long): String = "content://$AUTHORITY/channel/$channelId/logo"
 
-    private fun TvRow.weight(): Long = long(Columns.WEIGHT) ?: 0L
-
     companion object {
         const val AUTHORITY = "android.media.tv"
         val CHANNELS: Uri = Uri.parse("content://$AUTHORITY/channel")
@@ -184,6 +206,11 @@ internal class AndroidTvChannels @Inject constructor(
         private const val READ_TV_LISTINGS = "android.permission.READ_TV_LISTINGS"
         const val COMPANION = "dev.lumbina.tv.tvprovider"
         private const val DEBOUNCE_MILLIS = 500L
+        private const val MAX_WAIT_MILLIS = 3_000L
+        private const val MIN_GAP_MILLIS = 3_000L
+
+        /** A kept row is read again this long after, when nothing changed meanwhile: past the gap and a quiet spell. */
+        private const val KEPT_MILLIS = MIN_GAP_MILLIS + DEBOUNCE_MILLIS
         private val WATCH_NEXT: Uri = Uri.parse("content://$AUTHORITY/watch_next_program")
     }
 }

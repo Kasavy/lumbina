@@ -17,12 +17,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
@@ -45,6 +51,7 @@ import dev.lumbina.tv.core.ui.Choice
 import dev.lumbina.tv.core.ui.PillShape
 import dev.lumbina.tv.core.ui.TICK
 import dev.lumbina.tv.core.ui.brush
+import dev.lumbina.tv.core.ui.requestFocusSoon
 
 /** The "View and language" page: the theme and its accent, text size, the language, then the background. */
 @Composable
@@ -52,12 +59,22 @@ fun LookPanel(
     state: HomeSettingsState?,
     commands: HomeSettingsCommands,
     language: String?,
-    languageSupported: Boolean,
     modifier: Modifier = Modifier,
 ) {
     if (state == null) return
-    SettingsList(modifier) {
-        themeItems(state.appearance, commands, language, languageSupported)
+    // A language chosen makes the screens anew: the focus comes back to the row chosen, not the page's
+    // top. Once the settings have put it on the page (its first row), which they do as the window comes.
+    var chosen by rememberSaveable { mutableStateOf<String?>(null) }
+    val chosenRow = remember { FocusRequester() }
+    var onPage by remember { mutableStateOf(false) }
+    LaunchedEffect(onPage) {
+        if (!onPage || chosen == null) return@LaunchedEffect
+        chosenRow.requestFocusSoon()
+        // Done: a later making anew (for another reason) must not pull the focus here.
+        chosen = null
+    }
+    SettingsList(modifier.onFocusChanged { onPage = it.hasFocus }) {
+        themeItems(state.appearance, commands, language, LanguageFocus(chosen, chosenRow) { chosen = it })
         backgroundItems(state.appearance, commands)
     }
 }
@@ -67,7 +84,7 @@ internal fun LazyListScope.themeItems(
     appearance: HomeAppearance,
     commands: HomeSettingsCommands,
     language: String?,
-    languageSupported: Boolean,
+    focus: LanguageFocus,
 ) {
     item {
         ChoiceRow(
@@ -109,17 +126,20 @@ internal fun LazyListScope.themeItems(
             onClick = commands::toggleTextScale,
         )
     }
-    if (languageSupported) {
-        item { Header(stringResource(R.string.theme_language)) }
-        items(AppLanguage.CHOICES) { tag ->
-            SettingRow(
-                onClick = { commands.setLanguage(tag) },
-                headlineContent = {
-                    Text(tag?.let(::nativeName) ?: stringResource(R.string.theme_language_system))
-                },
-                trailingContent = { RowRadio(selected = tag == language) },
-            )
-        }
+    item { Header(stringResource(R.string.theme_language)) }
+    items(AppLanguage.CHOICES) { tag ->
+        val key = tag ?: SYSTEM_LANGUAGE
+        SettingRow(
+            onClick = {
+                focus.onChosen(key)
+                commands.setLanguage(tag)
+            },
+            modifier = if (focus.chosen == key) Modifier.focusRequester(focus.requester) else Modifier,
+            headlineContent = {
+                Text(tag?.let(::nativeName) ?: stringResource(R.string.theme_language_system))
+            },
+            trailingContent = { RowRadio(selected = tag == language) },
+        )
     }
 }
 
@@ -210,3 +230,8 @@ internal val HomeBackground.title: Int
         HomeBackground.Forest -> R.string.background_forest
         HomeBackground.Plum -> R.string.background_plum
     }
+
+/** The language row chosen last (its tag, or [SYSTEM_LANGUAGE]), kept across the screen made anew. */
+internal class LanguageFocus(val chosen: String?, val requester: FocusRequester, val onChosen: (String) -> Unit)
+
+private const val SYSTEM_LANGUAGE = "system"

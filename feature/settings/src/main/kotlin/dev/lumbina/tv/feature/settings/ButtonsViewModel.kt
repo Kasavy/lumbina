@@ -47,6 +47,8 @@ data class ButtonsState(
     val serviceOn: Boolean = true,
     /** Whether a held volume button needs [RemoteSettings.volumeHold] here ([DeviceProfile.heldVolumeStops]). */
     val volumeHoldable: Boolean = false,
+    /** Whether Lumbina may stop apps here ([DeviceProfile.localAdb]): "Close all apps" is offered. */
+    val closeApps: Boolean = false,
 ) {
     /**
      * The buttons that do something of Lumbina's or were set by the user, besides Home: each has a
@@ -93,6 +95,7 @@ class ButtonsViewModel @Inject constructor(
             mic = profile.hasRemoteMic,
             serviceOn = serviceOn,
             volumeHoldable = profile.heldVolumeStops,
+            closeApps = profile.localAdb,
         )
     }.stateIn(viewModelScope, WhileUiSubscribed, null)
 

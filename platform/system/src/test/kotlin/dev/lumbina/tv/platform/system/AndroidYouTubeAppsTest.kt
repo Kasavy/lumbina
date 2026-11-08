@@ -78,4 +78,12 @@ class AndroidYouTubeAppsTest {
         packages.addChangedPackage(0, "org.other")
         assertEquals(listOf("org.client", "org.other"), apps.installed().map { it.packageName })
     }
+
+    @Test
+    fun `the search link carries the query for the site's clients and for the official TV app`() {
+        val link = youTubeSearchLink("котики")
+        // SmartTube and the like read search_query; the official app for TV reads q, and without it opens its home.
+        assertEquals("котики", link.getQueryParameter("search_query"))
+        assertEquals("котики", link.getQueryParameter("q"))
+    }
 }

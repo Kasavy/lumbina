@@ -19,16 +19,17 @@ accessibility service, and any other button of the remote you choose to give som
   recent apps, sleep timer, the phone remote, the device's settings, another home screen (the
   device's own launcher, or one you choose), Lumbina's settings. On Lumbina's own screens the Menu
   button opens that menu too.
-- Recent apps can be closed, where Lumbina reaches debugging: holding OK closes one, a "Close all"
-  tile at the end closes them all.
+- Recent apps can be closed, where Lumbina reaches debugging: holding OK closes one, "Close all"
+  beside the title (▲ from any app) closes them all.
 - Remote buttons are yours to set: a press, a double press and a hold of a button can each open
   an app or one of Lumbina's screens, control the player, mute or unmute, start the screensaver,
-  turn the screen off, or do nothing. A
+  turn the screen off, close all apps (asked once more first), or do nothing. A
   button can be Lumbina's only on its own screens and stay the app's everywhere else.
 - Search from the home screen goes to the system's search or to YouTube, as you choose.
 - Home screen with favorites, rows and folders, and a row of your apps ending in "See all": every
-  app, with search and filters, on a screen of its own. The "All apps" tile can stand in any row. Rows can be reordered, resized, hidden and
-  put on a glass backing, with app names on the tiles, under them or none; apps renamed and hidden.
+  app, with search and filters, on a screen of its own. The "All apps" tile can stand in any row.
+  Rows can be reordered, resized, hidden and put on a glass backing, with app names on the tiles,
+  under them or none; apps renamed and hidden.
 - A setup that walks through what a fresh install needs, a step at a time; any step can wait.
 - "Continue watching" and the channels apps publish, Google TV included: every app's channels
   are shown, and you hide the rows you don't want in "Channels". An app can be taken out of
@@ -41,18 +42,20 @@ accessibility service, and any other button of the remote you choose to give som
 - Voice search in other apps on Hisense, where the firmware gives them no microphone (Android 13
   or newer, with debugging Lumbina can reach).
 - Voice commands: open or close an app, search, volume, playback, sleep timer. Where a name fits
-  several apps, they are offered to choose from.
+  several apps, they are offered to choose from. In the official YouTube for Android TV, which has
+  no text field, what you say is searched there.
 - Wallpapers: your own pictures and videos, photo of the day (the last ones kept for offline),
   Projectivy wallpaper plugins, or none: the theme's background.
 - A media library for your photos and videos: which go on the wallpaper, which on the screensaver,
-  and pictures for app tiles' banners. They come from a phone, through the phone remote's page. A
-  video plays in its tile when the focus rests on it, and any file opens over the whole screen.
+  and pictures for banners on app tiles, the "All apps" tile and inputs. They come from a phone,
+  through the phone remote's page. A video plays in its tile when the focus rests on it, and any file opens over the whole screen.
 - A top bar with the clock, weather, notifications and now playing, at the right, left or in
   the middle, with the parts you want.
 - HDMI and other inputs, where the device lets apps reach them: as tiles in any row, in the quick
   menu, and as a button in the top bar. Where the device tells, each says what is on it: the name
   of the device working there, a cable with the device asleep, or nothing.
-- Dark and light themes with a choice of accent.
+- Dark and light themes with a choice of accent. Lumbina's own language can be chosen on any
+  Android it runs on, apart from the device's.
 - Screensaver with photos and videos from the same sources as the wallpaper, from a minute idle,
   over Lumbina's own screens only, so it never covers a video. Sleep timer, auto-sleep.
 - Phone as a remote. Scan the QR code and a web page opens, nothing to install. The code can be

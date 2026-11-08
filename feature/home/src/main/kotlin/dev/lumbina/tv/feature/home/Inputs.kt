@@ -28,6 +28,20 @@ internal fun InputDialogs(
     when (dialog) {
         is HomeDialog.InputActions -> InputMenu(dialog, state, commands, menu, startMoving)
 
+        is HomeDialog.InputNameAndBanner -> TileMenu(
+            title = dialog.input.name,
+            entries = listOf(
+                MenuEntry(stringResource(R.string.menu_rename)) { menu.show(HomeDialog.RenameInput(dialog.input)) },
+                MenuEntry(stringResource(R.string.menu_banner)) {
+                    menu.show(HomeDialog.Banner(BannerOf.OfInput(dialog.input)))
+                },
+            ),
+            onDismiss = { menu.done(dialog) },
+            onBack = menu::back,
+            focused = menu.cameBackTo,
+            onChoose = menu::chose,
+        )
+
         is HomeDialog.InputWhere -> OnceTileWhere(
             tile = dialog.input.name,
             layout = state.layout,
@@ -41,7 +55,7 @@ internal fun InputDialogs(
 
 /**
  * Holding OK on an input's tile: as the tile that opens all apps has (move, out of this row, the
- * rows that have it), then its name, then the input itself under its caption.
+ * rows that have it), then its name and banner, then the input itself under its caption.
  */
 @Composable
 private fun InputMenu(
@@ -64,7 +78,7 @@ private fun InputMenu(
             onOut = { commands.removeInput(section.id, input.id, input.name) },
             onWhere = { menu.show(HomeDialog.InputWhere(input)) },
         ) + listOf(
-            MenuEntry(stringResource(R.string.menu_rename)) { menu.show(HomeDialog.RenameInput(input)) },
+            MenuEntry(stringResource(R.string.menu_name_banner)) { menu.show(HomeDialog.InputNameAndBanner(input)) },
             MenuEntry(stringResource(R.string.menu_open), group = group) { commands.openInput(input.id, input.name) },
         ),
         onDismiss = { menu.done(dialog) },
@@ -87,6 +101,7 @@ internal fun LazyGridScope.inputItems(
     items(state.inputs, key = { input -> HomeItem.Input(input.id).key }) { input: InputSource ->
         val inIt = HomeItem.Input(input.id) in section.items
         Box(if (input == state.inputs.first()) first else Modifier) {
+            // Plain, without a banner of the user's: picked by its name, which a banner would hide here.
             InputTile(
                 onClick = { commands.setInput(section.id, input.id, !inIt) },
                 label = input.caption,

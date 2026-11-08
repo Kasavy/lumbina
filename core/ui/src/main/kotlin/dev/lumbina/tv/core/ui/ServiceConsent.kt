@@ -35,7 +35,7 @@ data class ServiceScope(
     val speechForApps: Boolean = false,
     /** Apps that record the microphone themselves may be given the remote's audio. */
     val feedsMicToApps: Boolean = false,
-    /** Lumbina connects to the device's debugging and sets itself up over it. */
+    /** The setup connects to the device's debugging, and Lumbina sets itself up over it. */
     val localAdb: Boolean = false,
 )
 
@@ -44,7 +44,7 @@ fun DeviceProfile.serviceScope() = ServiceScope(
     remoteMic = hasRemoteMic,
     speechForApps = speechForApps,
     feedsMicToApps = feedsMicToApps,
-    localAdb = localAdb,
+    localAdb = setupOverAdb,
 )
 
 /** The consent's paragraphs for [scope], as string resources: what every device is told, then what this one does. */

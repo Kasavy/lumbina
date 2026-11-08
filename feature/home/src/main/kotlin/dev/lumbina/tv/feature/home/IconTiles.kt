@@ -44,8 +44,10 @@ import dev.lumbina.tv.core.domain.device.InputPresence
 import dev.lumbina.tv.core.ui.BANNER_ASPECT
 import dev.lumbina.tv.core.ui.DIMMED_ALPHA
 import dev.lumbina.tv.core.ui.NameOnTile
+import dev.lumbina.tv.core.ui.OVER_PICTURE
 import dev.lumbina.tv.core.ui.TileCard
 import dev.lumbina.tv.core.ui.TileName
+import dev.lumbina.tv.core.ui.UserBanner
 import dev.lumbina.tv.core.ui.onTile
 
 /**
@@ -60,7 +62,8 @@ internal fun AllAppsTile(
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     highlighted: Boolean = false,
-) = IconTile(R.drawable.ic_apps, onClick, label, name, modifier, onLongClick, highlighted)
+    banner: String? = null,
+) = IconTile(R.drawable.ic_apps, onClick, label, name, modifier, onLongClick, highlighted, banner = banner)
 
 /**
  * The tile that switches to a video input, under its [label] ("HDMI 1 · MIBOX4", or the user's
@@ -79,6 +82,7 @@ internal fun InputTile(
     highlighted: Boolean = false,
     presence: InputPresence? = null,
     markAtStart: Boolean = false,
+    banner: String? = null,
 ) = IconTile(
     R.drawable.ic_input_hdmi,
     onClick,
@@ -93,6 +97,7 @@ internal fun InputTile(
         InputPresence.Connected -> TileMark(filled = false, atStart = markAtStart)
         else -> null
     },
+    banner = banner,
 )
 
 /** A mark in a tile's corner: a dot ([filled]) or a ring, at the top left ([atStart]) or right. */
@@ -104,6 +109,9 @@ internal class TileMark(val filled: Boolean, val atStart: Boolean)
  * type: under the tile, or at its bottom. [highlighted] while it is moved or its menu is open;
  * [mark] in the accent colour in its corner. [faded] pales what is on it and under it, not the
  * tile as a whole: a paled whole would cut off the focus frame, which reaches past its edges.
+ * With the user's [banner] the picture fills the tile and the label is named as an app's is: on
+ * it or under it as the row's names say, or not at all; the mark gets a dark ground to be seen on
+ * any picture.
  */
 @Composable
 private fun IconTile(
@@ -116,6 +124,7 @@ private fun IconTile(
     highlighted: Boolean = false,
     faded: Boolean = false,
     mark: TileMark? = null,
+    banner: String? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
     val onTile = !name.under && name.shown(focused)
@@ -132,7 +141,10 @@ private fun IconTile(
                 .onFocusChanged { focused = it.isFocused },
         ) {
             Box(Modifier.fillMaxSize().dimmedIf(faded)) {
-                if (onTile) {
+                if (banner != null) {
+                    UserBanner(banner, label)
+                    if (onTile) NameOnTile(label)
+                } else if (onTile) {
                     // As any tile's name: at its bottom, the icon alone above it.
                     Icon(
                         painterResource(icon),
@@ -144,7 +156,7 @@ private fun IconTile(
                     IconOverLabel(icon, label.takeUnless { name.under })
                 }
             }
-            mark?.let { Mark(it) }
+            mark?.let { Mark(it, onPicture = banner != null) }
         }
         if (name.under) {
             Text(
@@ -161,12 +173,14 @@ private fun IconTile(
 }
 
 @Composable
-private fun BoxScope.Mark(mark: TileMark) {
+private fun BoxScope.Mark(mark: TileMark, onPicture: Boolean) {
     val accent = MaterialTheme.colorScheme.primary
     Box(
         Modifier
             .align(if (mark.atStart) Alignment.TopStart else Alignment.TopEnd)
             .padding(12.dp)
+            // On a picture, a dark ring round it: the accent alone is lost on a light one.
+            .then(if (onPicture) Modifier.background(OVER_PICTURE, CircleShape).padding(MARK_GROUND) else Modifier)
             .size(DOT)
             .then(
                 if (mark.filled) {
@@ -176,6 +190,17 @@ private fun BoxScope.Mark(mark: TileMark) {
                 },
             ),
     )
+}
+
+/**
+ * A tile's look without a tile to press, as the banner picker shows it: [icon] on the tiles' own
+ * ground, unnamed (the chip over it says what it is, and the panel's title whose tile).
+ */
+@Composable
+internal fun IconArt(@DrawableRes icon: Int) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant)) {
+        IconOverLabel(icon, null)
+    }
 }
 
 /**
@@ -246,5 +271,6 @@ private fun FittedLabel(text: String) {
 /** How much of the backdrop Lumbina's own tiles let through: none quite, a little of a photo. */
 private const val TILE_ALPHA = 0.85f
 private val DOT = 10.dp
+private val MARK_GROUND = 5.dp
 private val ICON = 36.dp
 private val LABEL_PADDING = 4.dp

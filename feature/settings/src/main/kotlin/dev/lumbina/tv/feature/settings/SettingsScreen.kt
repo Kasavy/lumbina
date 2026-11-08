@@ -23,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
@@ -160,6 +161,8 @@ fun SettingsRoute(
     var adjusting by remember { mutableStateOf<String?>(null) }
     // The page a link was followed from: Back goes there, not to the root.
     var cameFrom by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
+    // Each page keeps what it had open (a row's page) while another is shown: back from a link, it is there.
+    val pagesState = rememberSaveableStateHolder()
     // The root's list as it was left: coming back shows it where it stood, the row left under the focus.
     val rootList = rememberLazyListState()
     val park = remember { FocusRequester() }
@@ -206,7 +209,9 @@ fun SettingsRoute(
                 LocalSubPage provides { inside = it },
                 LocalAdjust provides { adjusting = it },
             ) {
-                SettingsPageContent(open, onPreviewScreensaver, openAccess)
+                pagesState.SaveableStateProvider(open.name) {
+                    SettingsPageContent(open, onPreviewScreensaver, openAccess)
+                }
             }
         }
     }
@@ -421,8 +426,8 @@ private fun Root(
         }
         groups.forEachIndexed { index, (group, pages) ->
             if (index > 0) item(key = "line:${group.name}") { GroupLine() }
-            items(pages.size, key = { pages[it].name }) {
-                val page = pages[it]
+            items(pages.size, key = { pages[it].name }) { at ->
+                val page = pages[at]
                 SettingRow(
                     onClick = { onOpen(page) },
                     leadingContent = { RootIcon(page.icon) },

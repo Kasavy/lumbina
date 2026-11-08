@@ -49,6 +49,12 @@
         <intent>
             <action android:name="android.settings.MANAGE_APPLICATIONS_SETTINGS" />
         </intent>
+        <!-- The device's own list of screensavers, to choose Lumbina's without adb (AndroidScreensaverSetup). -->
+        <intent>
+            <action android:name="android.settings.DREAM_SETTINGS" />
+        </intent>
+        <!-- Google TV offers only Google's screensaver: no list to send the user to. -->
+        <package android:name="com.google.android.apps.tv.launcherx" />
     </queries>
 
     <application>

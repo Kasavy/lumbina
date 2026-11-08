@@ -26,6 +26,7 @@ import dev.lumbina.tv.core.domain.access.AdbState
 import dev.lumbina.tv.core.domain.access.SetupResult
 import dev.lumbina.tv.core.domain.home.Accent
 import dev.lumbina.tv.core.domain.theme.ThemeRole
+import dev.lumbina.tv.core.ui.CommandsDialog
 import dev.lumbina.tv.core.ui.ConfirmDialog
 import kotlinx.coroutines.flow.first
 
@@ -34,7 +35,12 @@ import kotlinx.coroutines.flow.first
  * the way to connect), each use with its switch, and how to take the access back.
  */
 @Composable
-fun AccessPanel(state: AccessState?, commands: AccessCommands, modifier: Modifier = Modifier) {
+fun AccessPanel(
+    state: AccessState?,
+    commands: AccessCommands,
+    modifier: Modifier = Modifier,
+    computerCommands: List<String> = emptyList(),
+) {
     if (state == null) return
     val connected = state.adb == AdbState.Connected
     // The page's first row: where the focus goes when the row it stood on is taken away.
@@ -48,12 +54,12 @@ fun AccessPanel(state: AccessState?, commands: AccessCommands, modifier: Modifie
     val forget = rememberForgetting(state.micApps.orEmpty(), commands, top)
     SettingsList(modifier) {
         item { Note(stringResource(R.string.access_intro)) }
-        connection(state, commands, top)
+        connection(state, commands, top, computerCommands)
         item { Header(stringResource(R.string.access_uses)) }
         uses(state, connected, commands)
         state.micApps?.let { micApps(it, commands, forget) }
-        // With debugging off there is no access to take back, and nothing for the network to reach.
-        if (state.adb != null && state.adb != AdbState.Off) {
+        // Debugging off or not listening: no access to take back, nothing for the network to reach.
+        if (state.adb != null && state.adb != AdbState.Off && state.adb != AdbState.NotListening) {
             item { Header(stringResource(R.string.access_security)) }
             item { Note(stringResource(R.string.access_security_note)) }
             // Keyed: the row keeps the focus it is given when a row above it goes ([Forgetting]).
@@ -124,7 +130,12 @@ private fun rememberForgetting(apps: List<MicApp>, commands: AccessCommands, top
  * included: it is where the focus stands as the page opens, and a row that gave way to another
  * as the state came in would send the focus on to a switch below.
  */
-private fun LazyListScope.connection(state: AccessState, commands: AccessCommands, top: FocusRequester) {
+private fun LazyListScope.connection(
+    state: AccessState,
+    commands: AccessCommands,
+    top: FocusRequester,
+    computerCommands: List<String>,
+) {
     val connected = state.adb == AdbState.Connected
     item(key = "connection") {
         val now = when {
@@ -144,7 +155,40 @@ private fun LazyListScope.connection(state: AccessState, commands: AccessCommand
             modifier = Modifier.focusRequester(top),
         )
     }
-    if (!connected && state.adb != null) ways(state, commands)
+    when {
+        connected || state.adb == null -> Unit
+
+        // "Connect" can't work here: the commands for a computer instead.
+        state.adb == AdbState.NotListening -> fromComputer(commands, computerCommands)
+
+        else -> ways(state, commands)
+    }
+}
+
+/** Debugging lets only a computer in: what Lumbina would do with it, as commands for one. */
+private fun LazyListScope.fromComputer(commands: AccessCommands, computerCommands: List<String>) {
+    item(key = "connection-hint") { Note(stringResource(R.string.access_not_listening)) }
+    item(key = "computer") {
+        var showing by remember { mutableStateOf(false) }
+        SettingRow(
+            onClick = { showing = true },
+            headlineContent = { Text(stringResource(R.string.access_from_computer)) },
+        )
+        if (showing) {
+            CommandsDialog(
+                title = stringResource(R.string.access_from_computer).removeSuffix("…"),
+                text = stringResource(R.string.computer_commands_text),
+                lines = computerCommands,
+                onDismiss = { showing = false },
+            )
+        }
+    }
+    item(key = "developer") {
+        SettingRow(
+            onClick = commands::openDeveloperSettings,
+            headlineContent = { Text(stringResource(R.string.access_dev_settings)) },
+        )
+    }
 }
 
 /** How to connect, while Lumbina is not: what the state asks for first, and what the last try came to. */
@@ -170,9 +214,11 @@ private fun LazyListScope.ways(state: AccessState, commands: AccessCommands) {
     // "Connect" was pressed and it did not: why, in the warning's color, or the press seems lost.
     // Not what no longer holds: "debugging is off" after it was turned on.
     val tried = state.tried.takeUnless { state.connecting || (it == SetupResult.Off && debuggingOn) } ?: return
+    // Done says nothing here: the page shows what is connected.
+    val why = tried.why ?: return
     item(key = "tried") {
         Text(
-            stringResource(tried.why),
+            stringResource(why),
             style = MaterialTheme.typography.bodySmall,
             color = LocalTheme.current.colorOf(ThemeRole.Warning),
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
@@ -180,13 +226,22 @@ private fun LazyListScope.ways(state: AccessState, commands: AccessCommands) {
     }
 }
 
-private val SetupResult.why: Int
+private val SetupResult.why: Int?
     get() = when (this) {
         SetupResult.NotAllowed -> R.string.access_tried_not_allowed
+
         SetupResult.NotKept -> R.string.access_tried_not_kept
+
         SetupResult.AllowedOnce -> R.string.access_tried_allowed_once
+
         SetupResult.Failed -> R.string.access_tried_failed
-        else -> R.string.access_tried_off
+
+        SetupResult.Off -> R.string.access_tried_off
+
+        // The state's own text too: until the next poll brings the state, the try says it.
+        SetupResult.NotListening -> R.string.access_not_listening
+
+        SetupResult.Done -> null
     }
 
 /**

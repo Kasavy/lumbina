@@ -10,10 +10,17 @@ internal data class StoredAccessSettings(
     val setupCardHidden: Boolean = false,
     val micApps: Map<String, Boolean> = emptyMap(),
     val setupReopened: Boolean = false,
+    val debuggingOffDismissed: Boolean = false,
 )
 
 internal fun StoredAccessSettings.toDomain() =
-    AccessSettings(closeFromRecents, openOnPowerOn, setupCardHidden, micApps, setupReopened)
+    AccessSettings(closeFromRecents, openOnPowerOn, setupCardHidden, micApps, setupReopened, debuggingOffDismissed)
 
-internal fun AccessSettings.toStored() =
-    StoredAccessSettings(closeFromRecents, openOnPowerOn, setupCardHidden, micApps, setupReopened)
+internal fun AccessSettings.toStored() = StoredAccessSettings(
+    closeFromRecents,
+    openOnPowerOn,
+    setupCardHidden,
+    micApps,
+    setupReopened,
+    debuggingOffDismissed,
+)

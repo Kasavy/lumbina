@@ -60,17 +60,13 @@ fun WidgetsPanel(
             show = state.weather.show,
             fahrenheit = state.weather.fahrenheit,
             place = state.weather.place,
+            found = state.weather.found,
             citySearch = citySearch,
             commands = commands,
         )
 
-        Header(stringResource(R.string.widgets_now_playing))
-        SwitchRow(
-            title = stringResource(R.string.widgets_show_now_playing),
-            hint = stringResource(R.string.widgets_now_playing_hint),
-            checked = look.showNowPlaying,
-            onClick = commands::toggleNowPlaying,
-        )
+        // The access is asked for once: under the bell when it is on, else here.
+        NowPlayingSection(look.showNowPlaying, askAccess = !look.topBar.notices, commands)
 
         MutedNotices(state.muted, commands::setMuted)
 
@@ -109,6 +105,8 @@ private fun WeatherSection(
     show: Boolean,
     fahrenheit: Boolean,
     place: Place?,
+    /** The place found by IP last time, named beside "Automatic". */
+    found: Place?,
     citySearch: CitySearch,
     commands: WidgetsCommands,
     modifier: Modifier = Modifier,
@@ -121,11 +119,16 @@ private fun WeatherSection(
         if (!show) return@Column
         Header(stringResource(R.string.weather_header))
         SettingRow(
-            onClick = { typingCity = true },
+            // A new search: what the last one said ("nothing found", "no connection") goes.
+            onClick = {
+                commands.closeSearch()
+                typingCity = true
+            },
             headlineContent = { Text(stringResource(R.string.weather_city)) },
             modifier = Modifier.focusRequester(cityFocus),
             supportingContent = {
-                Text(place?.let(::placeLabel) ?: stringResource(R.string.weather_city_auto))
+                val auto = stringResource(R.string.weather_city_auto)
+                Text(place?.let(::placeLabel) ?: found?.let { "$auto · ${it.name}" } ?: auto)
             },
         )
         if (place != null) {
@@ -144,11 +147,7 @@ private fun WeatherSection(
                 Choice("°F", chosen = fahrenheit) { commands.setFahrenheit(true) },
             ),
         )
-        when (citySearch) {
-            CitySearch.Searching -> Note(stringResource(R.string.weather_searching))
-            CitySearch.Failed -> Note(stringResource(R.string.weather_search_failed))
-            else -> Unit
-        }
+        SearchNote(citySearch)
     }
     if (typingCity) {
         NameDialog(
@@ -164,14 +163,13 @@ private fun WeatherSection(
             needsText = true,
         )
     }
-    if (citySearch is CitySearch.Found) PlaceChoices(citySearch.places, commands)
+    if (citySearch is CitySearch.Found && citySearch.places.isNotEmpty()) PlaceChoices(citySearch.places, commands)
 }
 
 @Composable
 private fun PlaceChoices(places: List<Place>, commands: WidgetsCommands) {
-    val title = stringResource(if (places.isEmpty()) R.string.weather_nothing_found else R.string.weather_choose_city)
     ChoiceDialog(
-        title = title,
+        title = stringResource(R.string.weather_choose_city),
         choices = places.map { place -> Choice(placeLabel(place)) { commands.choosePlace(place) } },
         onDismiss = commands::closeSearch,
     )
@@ -252,6 +250,7 @@ private fun ShownSection(state: WidgetsState, commands: WidgetsCommands) {
         checked = bar.notices,
         onClick = { commands.changeTopBar { it.copy(notices = !it.notices) } },
     )
+    if (bar.notices) NoticesGrant(commands)
     SwitchRow(
         title = stringResource(R.string.bar_search),
         hint = null,
@@ -281,3 +280,45 @@ internal val BarPlace.title: Int
         BarPlace.Left -> R.string.bar_place_left
         BarPlace.Center -> R.string.bar_place_center
     }
+
+/** "Now playing" on or off, and, while on, the access it reads from if Lumbina lacks it. */
+@Composable
+private fun NowPlayingSection(shown: Boolean, askAccess: Boolean, commands: WidgetsCommands) {
+    Header(stringResource(R.string.widgets_now_playing))
+    SwitchRow(
+        title = stringResource(R.string.widgets_show_now_playing),
+        hint = stringResource(R.string.widgets_now_playing_hint),
+        checked = shown,
+        onClick = commands::toggleNowPlaying,
+    )
+    if (shown && askAccess) NoticesGrant(commands)
+}
+
+/** The bell and "Now playing" read notifications: the way to the access while Lumbina lacks it. */
+@Composable
+private fun NoticesGrant(commands: WidgetsCommands) {
+    GrantNeeded(
+        commands.noticesGrant,
+        note = stringResource(R.string.grant_notices_note),
+        allow = stringResource(R.string.grant_notices_allow),
+    )
+}
+
+/** How the city search went, under the weather's rows; nothing while there is nothing to say. */
+@Composable
+private fun SearchNote(citySearch: CitySearch) {
+    when (citySearch) {
+        CitySearch.Searching -> Note(stringResource(R.string.weather_searching))
+
+        CitySearch.Failed -> Note(stringResource(R.string.weather_search_failed))
+
+        // Said on the page: a list with nothing in it would be a dialog with no way but Back.
+        is CitySearch.Found -> if (citySearch.places.isEmpty()) {
+            Note(
+                stringResource(R.string.weather_nothing_found_hint),
+            )
+        }
+
+        else -> Unit
+    }
+}

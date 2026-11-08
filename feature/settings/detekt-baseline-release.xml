@@ -30,7 +30,6 @@
     <ID>MissingReadOnlyComposable:SleepPanel.kt:@Composable private fun autoSleepLabel: String</ID>
     <ID>MissingReadOnlyComposable:VoicePanel.kt:@Composable private fun size: String</ID>
     <ID>MissingReadOnlyComposable:VoiceProvider.kt:@Composable private fun providerName: String</ID>
-    <ID>NoNameShadowing:SettingsScreen.kt:{ { Text(stringResource(it), color = rowWarning()) } }</ID>
     <ID>UnnecessaryLaunchedEffect:HomePanel.kt:LaunchedEffect</ID>
     <ID>UnnecessaryLaunchedEffect:SettingsPages.kt:LaunchedEffect</ID>
     <ID>UnnecessaryLaunchedEffect:SizeSlider.kt:LaunchedEffect</ID>

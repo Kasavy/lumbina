@@ -4,7 +4,8 @@
     <string name="home_favorites">Избранное</string>
     <string name="home_favorites_empty">Избранное пусто. Нажмите «+» и отметьте приложения.</string>
     <string name="home_category_empty">Здесь пока пусто. Нажмите «+» и отметьте приложения.</string>
-    <string name="home_action_unavailable">Устройство не позволяет это сделать</string>
+    <string name="home_details_refused">Устройство не позволяет открыть сведения о приложении</string>
+    <string name="home_uninstall_refused">Устройство не позволяет удалять приложения отсюда</string>
 
     <string name="menu_move">Переместить</string>
     <string name="menu_rename">Переименовать…</string>
@@ -57,6 +58,8 @@
     <string name="banner_phone_off">Чтобы отправить картинку с телефона, включите страницу пульта в разделе настроек «Пульт на телефоне».</string>
     <string name="banner_no_network">Нет сети: чтобы отправить картинку с телефона, подключите устройство к Wi-Fi или Ethernet.</string>
     <string name="banner_service_off">Служба пульта выключена, а без неё страница пульта не открывается. Чтобы отправить картинку с телефона, включите службу в настройках Lumbina.</string>
+    <string name="banner_open_settings">Открыть настройки</string>
+    <string name="banner_open_network">Настройки сети</string>
     <string name="media_play">Играть</string>
     <string name="media_pause">Пауза</string>
     <string name="media_next">Следующий</string>
@@ -116,6 +119,8 @@
     <string name="undo_hidden">Приложение «%1$s» скрыто</string>
     <string name="undo_out_of_favorites">Приложение «%1$s» убрано из «Избранного»</string>
     <string name="undo_out_of_category">Приложение «%1$s» убрано из «%2$s»</string>
+    <string name="undo_input_out_of_favorites">Вход «%1$s» убран из «Избранного»</string>
+    <string name="undo_input_out_of_category">Вход «%1$s» убран из «%2$s»</string>
     <string name="undo_folder_dissolved">Папка «%1$s» расформирована</string>
     <string name="undo_row_hidden">Ряд «%1$s» скрыт</string>
     <string name="shortcut_hint">Открывает экран всех приложений</string>

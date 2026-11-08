@@ -35,9 +35,20 @@ sealed interface HomeItem {
      * each input once, as [AllApps]; one the device lacks is not shown.
      */
     data class Input(val id: String) : HomeItem {
-        override val key: String get() = "input:$id"
+        override val key: String get() = INPUT_KEY_PREFIX + id
     }
 }
+
+private const val INPUT_KEY_PREFIX = "input:"
+
+/**
+ * Whether a key of the user's banners ([HomeAppearance.customBanners]) is a tile of Lumbina's own
+ * ("All apps", an input's: their [HomeItem.key]) rather than an app's ([dev.lumbina.tv.core.domain.app.AppId.flatten]).
+ */
+fun isOwnTileKey(key: String): Boolean = key == HomeItem.AllApps.key || isInputKey(key)
+
+/** Whether a banner key is an input's tile, whichever input. */
+fun isInputKey(key: String): Boolean = key.startsWith(INPUT_KEY_PREFIX)
 
 /**
  * How a section lays its tiles out: a [Row] that scrolls sideways or a [Grid] of several lines.

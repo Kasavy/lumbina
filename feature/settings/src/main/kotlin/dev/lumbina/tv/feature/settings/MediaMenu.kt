@@ -3,6 +3,7 @@ package dev.lumbina.tv.feature.settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -11,6 +12,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
 import dev.lumbina.tv.core.domain.backdrop.MediaKind
+import dev.lumbina.tv.core.domain.home.isInputKey
 import dev.lumbina.tv.core.ui.ConfirmDialog
 import dev.lumbina.tv.core.ui.SidePanel
 import java.text.DateFormat
@@ -44,7 +46,7 @@ internal fun MediaMenu(
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (entry.banner) {
-                val tiles = entry.shownOn.joinToString()
+                val tiles = entry.tileNames()
                 if (tiles.isNotEmpty()) Note(stringResource(R.string.media_banner_on, tiles))
             }
             // A video that won't play here would show only its frame.
@@ -138,4 +140,14 @@ private fun FileEntries(entry: MediaEntry, pick: MediaMark?, commands: MediaComm
             supportingContent = { Text(stringResource(R.string.media_to_banner_hint)) },
         )
     }
+}
+
+/** The tiles that show this banner: the apps' by name, then those of Lumbina's own. */
+@Composable
+@ReadOnlyComposable
+internal fun MediaEntry.tileNames(): String {
+    val own = onOwnTiles.map { key ->
+        stringResource(if (isInputKey(key)) R.string.media_on_input else R.string.media_on_all_apps)
+    }
+    return (shownOn + own.distinct()).joinToString()
 }

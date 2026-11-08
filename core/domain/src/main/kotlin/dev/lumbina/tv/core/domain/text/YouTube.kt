@@ -37,6 +37,9 @@ class YouTube @Inject constructor(private val apps: YouTubeApps, private val set
 
     suspend fun app(): YouTubeApp? = apps.installed().chosen(settings.settings.first())
 
+    /** Whether [packageName] is one of the apps that take a YouTube search. */
+    suspend fun isOne(packageName: String): Boolean = apps.installed().any { it.packageName == packageName }
+
     suspend fun use(app: YouTubeApp) {
         settings.update { it.copy(app = app.packageName) }
     }

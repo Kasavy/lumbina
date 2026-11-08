@@ -66,6 +66,8 @@ internal class RemoteFeatures(
         val debug: DebugCommands?,
         /** Where a held volume button stops repeating ([DeviceProfile.heldVolumeStops]). */
         val volumeHold: VolumeHold?,
+        /** Where Lumbina connects to debugging ([DeviceProfile.localAdb]): it says when debugging is off. */
+        val debugging: DebuggingWarning?,
     )
 
     /**
@@ -80,6 +82,8 @@ internal class RemoteFeatures(
         val mic: AudioSource?,
         /** Takes back what was handed to those who outlive the service. */
         val detach: () -> Unit = {},
+        /** The question's card in the corner, where it asks: a card that comes later stands over it. */
+        val promptCard: CornerCard? = null,
     )
 
     private val interpreter = RemoteKeyInterpreter(
@@ -134,6 +138,7 @@ internal class RemoteFeatures(
             volumeHold?.busy = ::ownScreenShows
             volumeHold?.start()
             capture.start()
+            debugging?.start(scope)
             debug?.key = { code, what ->
                 onKey(KeyEvent(if (what == "up") KeyEvent.ACTION_UP else KeyEvent.ACTION_DOWN, code))
             }
@@ -152,6 +157,7 @@ internal class RemoteFeatures(
             phoneRemote.stop()
             volumeHold?.stop()
             capture.stop()
+            debugging?.stop()
             debug?.unregister()
             switching.dispose()
             quickMenu.hide()
@@ -183,6 +189,7 @@ internal class RemoteFeatures(
     /** Overlays that are showing take keys first (the sleep warning above all), then the remote's bindings. */
     private fun offer(event: KeyEvent): Boolean {
         if (parts.sleep.onKey(event) || parts.forApps.micPrompt?.onKey(event) == true) return true
+        if (parts.debugging?.onKey(event) == true) return true
         if (parts.capture.onKey(event, parts.inLumbina)) return true
         if (parts.quickMenu.onKey(event) || parts.switching.onKey(event)) return true
         if (parts.voice.onKey(event) || parts.debug?.onKey(event) == true) return true
@@ -261,6 +268,8 @@ internal class RemoteFeatures(
 
             RemoteAction.OpenPreviousApp -> parts.switching.previous()
 
+            RemoteAction.CloseAllApps -> parts.switching.closeAllByKey()
+
             else -> parts.bound.perform(action)
         }
     }
@@ -279,6 +288,9 @@ internal class RemoteFeatures(
         } else {
             null
         }
+
+        private fun connectedLately(): ConnectedLately? =
+            if (device.profile.localAdb) ConnectedLately({ apps.localAccess.state() }) else null
 
         private fun keyOf(profile: DeviceProfile, event: KeyEvent): RemoteKey =
             profile.keyMap.map(event.scanCode, event.keyCode) ?: RemoteKey.of(event.scanCode, event.keyCode)
@@ -307,7 +319,7 @@ internal class RemoteFeatures(
             say: (String) -> Unit,
         ): AppSwitching {
             val closing = if (device.profile.localAdb) {
-                AppSwitching.Closing(apps.accessSettings, apps.localAccess)
+                AppSwitching.Closing(apps.accessSettings, apps.localAccess, askForAccess = device.profile.setupOverAdb)
             } else {
                 null
             }
@@ -356,6 +368,8 @@ internal class RemoteFeatures(
             val micKey = MicKey(remoteVoice, forApps.micInjection)
             val debug = debugCommands(service, scope, assembly, readiness, switching, quickMenu, sleep)
             debug?.mic = micKey::debug
+            val capture = KeyCapturing(service, { keyOf(profile, it) }, log)
+            val othersShowing = overlaysShowing(switching, quickMenu, sleep, capture, forApps)
             val parts = Parts(
                 voice = remoteVoice,
                 micKey = micKey,
@@ -367,10 +381,20 @@ internal class RemoteFeatures(
                 sleep = sleep,
                 phoneRemote = PhoneRemote(service, stores.phoneRemote, phonePorts, log),
                 bound = BoundActions(service, apps.launcher, controls, device.screens, { homeNow }, say),
-                capture = KeyCapturing(service, { keyOf(profile, it) }, log),
+                capture = capture,
                 inLumbina = { service.rootInActiveWindow?.packageName == service.packageName },
                 debug = debug,
                 volumeHold = volumeHold,
+                debugging = if (profile.localAdb) {
+                    debuggingWarning(
+                        service,
+                        forApps,
+                        sleep,
+                        othersShowing,
+                    )
+                } else {
+                    null
+                },
             )
             return RemoteFeatures(parts, profile, device.lumbinaHome, stores.remote, scope, log)
         }
@@ -396,6 +420,8 @@ internal class RemoteFeatures(
             appSwitcher = switching::show,
             overlayKey = { event -> quickMenu.onKey(event) || switching.onKey(event) },
             holdOk = holdOk(),
+            // Asked as the page opens: on most devices the connection is an option the user may not have taken.
+            canHoldOk = connectedLately()?.let { it::connected } ?: { false },
             hasMic = device.profile.hasRemoteMic,
         )
 
@@ -470,10 +496,10 @@ internal class RemoteFeatures(
             val recognizerSetup =
                 if (adb && profile.speechForApps) RecognizerSetup(service, apps.localAccess, log) else null
             val asks = profile.feedsMicToApps
-            val prompt = if (asks) {
-                val texts = MicAppPrompt.texts(service)
-                // Over the warning before the device turns off, which has the keys while both show.
-                MicAppPrompt(CornerCard(service, under = sleep.card), texts, apps.accessSettings, inFront, scope, log)
+            // Over the warning before the device turns off, which has the keys while both show.
+            val card = if (asks) CornerCard(service, under = sleep.card) else null
+            val prompt = if (card != null) {
+                MicAppPrompt(card, { MicAppPrompt.texts(service) }, apps.accessSettings, inFront, scope, log)
                     .apply {
                         paused = { sleep.warns }
                         openAccess = { service.openLumbina(LumbinaActions.SETTINGS_PAGE_ACCESS) }
@@ -489,8 +515,42 @@ internal class RemoteFeatures(
             voice.appSpeech.chosen?.let { speech?.feedFromStart(it) }
             voice.appSpeech.feed = speech
             val detach = { if (voice.appSpeech.feed === speech) voice.appSpeech.feed = null }
-            return ForApps(recognizerSetup, micInjection, prompt, mic, detach)
+            return ForApps(recognizerSetup, micInjection, prompt, mic, detach, card)
         }
+
+        /** Whether one of the service's overlays has the keys now: the debugging card waits for it to go. */
+        private fun overlaysShowing(
+            switching: AppSwitching,
+            quickMenu: QuickMenu,
+            sleep: SleepWatcher,
+            capture: KeyCapturing,
+            forApps: ForApps,
+        ): () -> Boolean = {
+            switching.isShowing || quickMenu.isShowing || sleep.warns || capture.isAsking ||
+                forApps.micPrompt?.takesKeys == true
+        }
+
+        /**
+         * Wherever Lumbina connects to debugging; it speaks only to those who connected. Its card stands
+         * over the other corner cards (the mic question, the sleep warning) while they show.
+         */
+        private fun debuggingWarning(
+            service: AccessibilityService,
+            forApps: ForApps,
+            sleep: SleepWatcher,
+            othersShowing: () -> Boolean,
+        ) = DebuggingWarning(
+            service,
+            DebuggingWarning.Device.of(
+                service,
+                { apps.localAccess.keepsService },
+                othersShowing,
+                voiceOverIt = device.profile.setupOverAdb,
+            ),
+            settings = apps.accessSettings,
+            card = CornerCard(service, under = forApps.promptCard ?: sleep.card),
+            log = device.log,
+        )
 
         /** Only in debuggable builds. */
         @Suppress("LongParameterList")

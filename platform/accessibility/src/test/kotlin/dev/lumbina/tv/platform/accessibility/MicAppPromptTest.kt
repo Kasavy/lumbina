@@ -59,7 +59,7 @@ class MicAppPromptTest {
         neverNote = "won't ask",
     )
 
-    private fun TestScope.prompt() = MicAppPrompt(card, texts, settings, { front }, this) { _, _ -> }
+    private fun TestScope.prompt() = MicAppPrompt(card, { texts }, settings, { front }, this) { _, _ -> }
 
     private fun down(code: Int, repeat: Int = 0) = KeyEvent(0, 0, KeyEvent.ACTION_DOWN, code, repeat)
 

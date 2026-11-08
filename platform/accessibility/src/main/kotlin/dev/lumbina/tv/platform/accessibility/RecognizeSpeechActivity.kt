@@ -1,6 +1,7 @@
 package dev.lumbina.tv.platform.accessibility
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognizerIntent.EXTRA_CONFIDENCE_SCORES
@@ -14,9 +15,11 @@ import android.speech.RecognizerIntent.RESULT_NETWORK_ERROR
 import android.speech.RecognizerIntent.RESULT_NO_MATCH
 import android.speech.RecognizerIntent.RESULT_SERVER_ERROR
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.FrameLayout
 import android.widget.TextView
+import dev.lumbina.tv.core.common.LumbinaActions
 import dev.lumbina.tv.core.domain.speech.SpeechUnavailable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
@@ -37,13 +40,50 @@ class RecognizeSpeechActivity : Activity() {
     private val scope = MainScope()
     private lateinit var caption: TextView
 
+    /** The settings page OK opens while the caption names one. */
+    private var okOpens: String? = null
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase.inOwnLanguage())
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         caption = captionView()
-        val app = AppRecognition.current
-            ?: return flashAndFinish(getString(R.string.voice_for_apps_unavailable), RESULT_AUDIO_ERROR)
+        val app = AppRecognition.current ?: return notReady()
         caption.text = intent.getStringExtra(EXTRA_PROMPT) ?: getString(R.string.voice_listening)
         scope.launch { listen(app) }
+    }
+
+    /** Lumbina's voice isn't ready: the caption says where to look, and OK goes there. */
+    private fun notReady() {
+        okOpens = LumbinaActions.SETTINGS_PAGE_VOICE
+        val text = getString(R.string.voice_for_apps_unavailable)
+        flashAndFinish(text + "\n" + getString(R.string.voice_ok_open), RESULT_AUDIO_ERROR)
+    }
+
+    /** The reason, and where the overlay would send the user for it: OK goes there here too. */
+    private fun unavailable(speech: AppSpeech.Unavailable) {
+        val text = getString(speech.reason.message, speech.status)
+        okOpens = placeOf(speech.reason)?.page()
+        val shown = if (okOpens == null) text else text + "\n" + getString(R.string.voice_ok_open)
+        flashAndFinish(shown, speech.reason.result())
+    }
+
+    /**
+     * OK went down on this screen: the release of one pressed in the app that asked (which may
+     * start speech on the press) is not this screen's.
+     */
+    private var okDown = false
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (!event.isOk) return super.dispatchKeyEvent(event)
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) okDown = true
+        val page = okOpens
+        if (page == null || event.action != KeyEvent.ACTION_UP || !okDown) return super.dispatchKeyEvent(event)
+        openLumbina(page)
+        finish()
+        return true
     }
 
     override fun onStop() {
@@ -75,15 +115,11 @@ class RecognizeSpeechActivity : Activity() {
 
                 AppSpeech.NotUnderstood -> flashAndFinish(getString(R.string.voice_not_heard), RESULT_NO_MATCH)
 
-                is AppSpeech.Unavailable -> flashAndFinish(
-                    getString(speech.reason.message, speech.status),
-                    result(speech.reason),
-                    UNAVAILABLE_MILLIS,
-                )
+                is AppSpeech.Unavailable -> unavailable(speech)
 
                 AppSpeech.Failed -> flashAndFinish(getString(R.string.voice_failed), RESULT_AUDIO_ERROR)
 
-                AppSpeech.NotReady -> flashAndFinish(getString(R.string.voice_failed), RESULT_CLIENT_ERROR)
+                AppSpeech.NotReady -> flashAndFinish(getString(R.string.voice_not_started), RESULT_CLIENT_ERROR)
             }
         }
     }
@@ -102,18 +138,12 @@ class RecognizeSpeechActivity : Activity() {
         }
     }
 
-    private fun result(reason: SpeechUnavailable.Reason) = when (reason.side) {
-        SpeechUnavailable.Side.Client -> RESULT_CLIENT_ERROR
-        SpeechUnavailable.Side.Service -> RESULT_SERVER_ERROR
-        SpeechUnavailable.Side.Audio -> RESULT_AUDIO_ERROR
-        SpeechUnavailable.Side.Network -> RESULT_NETWORK_ERROR
-    }
-
-    private fun flashAndFinish(text: String, result: Int, millis: Long = FLASH_MILLIS) {
+    /** Shows [text] as long as the overlay's lines stay (by its length), then hands [result] back. */
+    private fun flashAndFinish(text: String, result: Int) {
         caption.text = text
         setResult(result)
         scope.launch {
-            delay(millis)
+            delay(VoiceAnswers.toRead(text))
             finish()
         }
     }
@@ -132,14 +162,18 @@ class RecognizeSpeechActivity : Activity() {
     }
 
     private companion object {
-        const val FLASH_MILLIS = 1_500L
-
-        /** Longer: these say what to do. */
-        const val UNAVAILABLE_MILLIS = 4_000L
         const val RESULT_MILLIS = 600L
         const val TEXT_SP = 22f
         const val PADDING_DP = 16
         const val CORNER_DP = 24
         const val BOTTOM_MARGIN_DP = 48
     }
+}
+
+/** What an app that asked for speech is told when it can't be had, by whose side failed. */
+private fun SpeechUnavailable.Reason.result() = when (side) {
+    SpeechUnavailable.Side.Client -> RESULT_CLIENT_ERROR
+    SpeechUnavailable.Side.Service -> RESULT_SERVER_ERROR
+    SpeechUnavailable.Side.Audio -> RESULT_AUDIO_ERROR
+    SpeechUnavailable.Side.Network -> RESULT_NETWORK_ERROR
 }

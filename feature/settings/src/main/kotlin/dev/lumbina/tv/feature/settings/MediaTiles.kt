@@ -75,7 +75,7 @@ internal fun LazyGridScope.browseTiles(
     }
     val banners = when (filter) {
         MediaFilter.All, MediaFilter.Banners -> state.banners
-        MediaFilter.Nowhere -> state.banners.filter { it.shownOn.isEmpty() }
+        MediaFilter.Nowhere -> state.banners.filter { it.unusedBanner }
         else -> emptyList()
     }
     if (files.isEmpty() && banners.isEmpty()) {
@@ -97,7 +97,7 @@ internal fun LazyGridScope.browseTiles(
         items(banners, key = { it.file.id }) { entry ->
             val takes = first.takeIf { files.isEmpty() && entry == banners.first() }
             MediaTile(entry, onClick = { onMenu(entry) }, focus = takes, previews) {
-                val tiles = entry.shownOn.joinToString().ifEmpty { stringResource(R.string.media_banner_unused) }
+                val tiles = entry.tileNames().ifEmpty { stringResource(R.string.media_banner_unused) }
                 Labels(listOf(tiles to false))
             }
         }

@@ -19,21 +19,3 @@ sealed interface BackdropPhoto {
     /** A video to play through, by its URI: the user's own or a plugin's. */
     data class Video(val uri: String, override val credit: String? = null) : BackdropPhoto
 }
-
-/**
- * What to run on a computer (adb) where Lumbina may not make [component] the system screensaver
- * itself: the two settings a [ScreensaverSetup] writes.
- */
-fun screensaverCommands(component: String): List<String> = listOf(
-    "adb shell settings put secure screensaver_components $component",
-    "adb shell settings put secure screensaver_enabled 1",
-)
-
-/** Whether Lumbina is the system screensaver, and making it so where the device allows. */
-interface ScreensaverSetup {
-    /** True when the system starts Lumbina's screensaver after idle time. */
-    val isLumbina: Boolean
-
-    /** Makes Lumbina the system screensaver; false without the permission to change it. */
-    fun select(): Boolean
-}

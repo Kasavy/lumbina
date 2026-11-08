@@ -111,7 +111,10 @@ data class HomeAppearance(
     val hiddenRows: Set<String> = emptySet(),
     /** Keys of rows that start off ([HomeRow.defaultVisible]) and the user switched on. */
     val shownRows: Set<String> = emptySet(),
-    /** The user's own banners: app id ([dev.lumbina.tv.core.domain.app.AppId.flatten]) to a picture URI. */
+    /**
+     * The user's own banners, a tile's key to a picture URI: an app's id
+     * ([dev.lumbina.tv.core.domain.app.AppId.flatten]), or a tile of Lumbina's own ([isOwnTileKey]).
+     */
     val customBanners: Map<String, String> = emptyMap(),
     val topBar: TopBarLook = TopBarLook(),
     val clockFormat: ClockFormat = ClockFormat.System,
@@ -191,6 +194,6 @@ fun channelRowKey(channelKey: String): String = CHANNEL_ROW_PREFIX + channelKey
 
 private const val CHANNEL_ROW_PREFIX = "channel:"
 
-/** Shows the picture at [uri] as the banner of the app with [key]; null brings back the app's own. */
+/** Shows the picture at [uri] on the tile with [key] ([customBanners]); null brings back what it shows by itself. */
 fun HomeAppearance.withBanner(key: String, uri: String?): HomeAppearance =
     copy(customBanners = if (uri == null) customBanners - key else customBanners + (key to uri))

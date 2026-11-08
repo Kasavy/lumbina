@@ -42,12 +42,15 @@ internal interface PromptCard {
  */
 internal class MicAppPrompt(
     private val card: PromptCard,
-    private val texts: Texts,
+    private val textsOf: () -> Texts,
     private val settings: AccessSettingsRepository,
     private val inFront: () -> String?,
     private val scope: CoroutineScope,
     private val log: LumbinaLog,
 ) {
+    /** Read as the card shows: Lumbina's own language may have changed since the service started. */
+    private val texts: Texts get() = textsOf()
+
     /** The card's words; [label] names an app the way the user knows it. */
     class Texts(
         val question: (String) -> String,

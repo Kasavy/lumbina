@@ -1,6 +1,7 @@
 package dev.lumbina.tv.platform.accessibility
 
 import android.accessibilityservice.AccessibilityService
+import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.inputmethod.InputMethodManager
@@ -35,8 +36,12 @@ internal class AppSwitching(
     private val ports: Ports,
     private val log: LumbinaLog,
 ) {
-    /** Where Lumbina may stop apps (local adb): the setting, and how. */
-    class Closing(val settings: AccessSettingsRepository, val access: LocalAccess)
+    /**
+     * Where Lumbina may stop apps (local adb): the setting, and how. [askForAccess]: while not
+     * connected, the ribbon says closing needs the connection; not where that connection is only
+     * an option (most TVs and boxes), where it would nag at every showing.
+     */
+    class Closing(val settings: AccessSettingsRepository, val access: LocalAccess, val askForAccess: Boolean)
 
     /** [say] puts a line at the bottom of the screen; [home] is where a closed app leaves the user. */
     class Ports(val say: (String) -> Unit, val home: LumbinaHome)
@@ -54,6 +59,9 @@ internal class AppSwitching(
     /** The app that was on screen when the ribbon opened. */
     private var inFront: String? = null
 
+    /** A button asked to close every app: the same button again soon after closes them. */
+    private val closeAllConfirm = ConfirmByRepeat(CONFIRM_MILLIS, SystemClock::uptimeMillis)
+
     /** A key that is not the ribbon's own closed it: a double Home must not open it again. */
     private val closedByKey = ClosedByKey()
     private var apps: Map<String, App> = emptyMap()
@@ -63,18 +71,19 @@ internal class AppSwitching(
     private val recent = RecentApps(tracked = { it in apps && it !in notListed && it !in keyboards })
     private val overlay = AppSwitcherOverlay(
         context = service,
-        texts = AppSwitcherViews.Texts(
-            title = service.getString(R.string.switcher_title),
-            keys = service.getString(R.string.switcher_hint),
-            closeKeys = service.getString(R.string.switcher_hint_close),
-            needAccess = service.getString(R.string.switcher_need_access),
-            empty = service.getString(R.string.switcher_empty),
-            emptyKeys = service.getString(R.string.switcher_hint_empty),
-            closing = service.getString(R.string.switcher_closing),
-            closeAll = service.getString(R.string.switcher_close_all),
-            closeAllKeys = service.getString(R.string.switcher_hint_close_all),
-            closeAllCount = { service.resources.getQuantityString(R.plurals.switcher_close_all_count, it, it) },
-        ),
+        texts = {
+            AppSwitcherViews.Texts(
+                title = service.getString(R.string.switcher_title),
+                keys = service.getString(R.string.switcher_hint),
+                closeKeys = service.getString(R.string.switcher_hint_close),
+                needAccess = service.getString(R.string.switcher_need_access),
+                empty = service.getString(R.string.switcher_empty),
+                emptyKeys = service.getString(R.string.switcher_hint_empty),
+                closing = service.getString(R.string.switcher_closing),
+                closeAllKeys = service.getString(R.string.switcher_hint_close_all),
+                closeAllCount = { service.getString(R.string.switcher_close_all, it) },
+            )
+        },
         onPick = { app ->
             log.log(TAG, "switch to ${app.id.packageName}")
             if (!launcher.launch(app.id)) ports.say(service.getString(R.string.switcher_open_failed, app.label))
@@ -132,9 +141,13 @@ internal class AppSwitching(
             val now = access.state() == AdbState.Connected
             if (now == connected) return@launch
             connected = now
-            if (overlay.isShowing) overlay.show(listed, overlay.selectedIndex, closeApps, keepKeys = true)
+            if (overlay.isShowing) showAgain(overlay.selectedIndex)
         }
     }
+
+    /** Shown anew over itself, at the card [card] or still on "Close all": a key being held goes on being held. */
+    private fun showAgain(card: Int) =
+        overlay.show(listed, card, closeApps, keepKeys = true, toCloseAll = overlay.closeAllSelected)
 
     /** Straight to the app that was on screen before this one, as the ribbon's first OK would go. */
     fun previous() {
@@ -163,7 +176,8 @@ internal class AppSwitching(
         get() = when {
             closing == null || !canClose -> CloseApps.No
             connected -> CloseApps.Yes
-            else -> CloseApps.NoAccess
+            closing.askForAccess -> CloseApps.NoAccess
+            else -> CloseApps.No
         }
 
     /**
@@ -188,7 +202,7 @@ internal class AppSwitching(
                 }
 
                 // Shown anew over itself: an OK or an arrow being held goes on being held.
-                overlay.isShowing -> overlay.show(listed, overlay.selectedIndex, closeApps, keepKeys = true)
+                overlay.isShowing -> showAgain(overlay.selectedIndex)
             }
         }
     }
@@ -219,8 +233,33 @@ internal class AppSwitching(
                     ports.home.open(toStart = false)
                 }
 
-                overlay.isShowing -> overlay.show(listed, 0, closeApps, keepKeys = true)
+                overlay.isShowing -> showAgain(0)
             }
+        }
+    }
+
+    /**
+     * A button set to "Close all apps": the first press says how many it would close, and the
+     * same again within [CONFIRM_MILLIS] closes them, as "Close all" in the ribbon does. Without
+     * the connection to debugging, or with nothing to close, it says so instead.
+     */
+    fun closeAllByKey() {
+        val access = closing?.access ?: return
+        val targets = listed
+        if (targets.isEmpty()) return ports.say(service.getString(R.string.voice_nothing_to_close))
+        val confirmed = closeAllConfirm.confirms()
+        scope?.launch {
+            if (access.state() != AdbState.Connected) {
+                closeAllConfirm.forget()
+                return@launch ports.say(service.getString(R.string.voice_cant_close))
+            }
+            if (!confirmed) {
+                ports.say(service.resources.getQuantityString(R.plurals.close_all_again, targets.size, targets.size))
+                closeAllConfirm.asked()
+                return@launch
+            }
+            inFront = service.rootInActiveWindow?.packageName?.toString() ?: recent.current
+            closeAll(targets)
         }
     }
 
@@ -256,6 +295,9 @@ internal class AppSwitching(
 
     private companion object {
         const val TAG = "switcher"
+
+        /** As long as the line asking for it stays on screen (the service's notes, RemoteFeatures.NOTE_MILLIS). */
+        const val CONFIRM_MILLIS = 4_000L
 
         /** As many apps as the ribbon shows. */
         const val SHOWN = 8

@@ -3,6 +3,8 @@ package dev.lumbina.tv.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.lumbina.tv.core.domain.access.UsageAccess
+import dev.lumbina.tv.core.domain.access.UserGrant
 import dev.lumbina.tv.core.domain.app.App
 import dev.lumbina.tv.core.domain.app.AppUsage
 import dev.lumbina.tv.core.domain.app.InstalledApps
@@ -67,11 +69,11 @@ data class HomeSettingsState(
     val channels: List<ChannelChoice> = emptyList(),
     /** The apps in "continue watching", or taken out of it, by name. */
     val watchNextApps: List<WatchNextChoice> = emptyList(),
-    /** Why there are none: no provider, no access to it; null when the row simply has nothing yet. */
-    val watchNextMissing: WatchNextMissing? = null,
+    /** What keeps apps' channels away (no provider, no access to it); null when nothing does. */
+    val channelsMissing: WatchNextMissing? = null,
 )
 
-/** What keeps "continue watching" empty, said where its apps would be listed. */
+/** What keeps apps' channels and "continue watching" away, said on those rows' pages. */
 enum class WatchNextMissing { Provider, Access }
 
 /** An app [shown] in "continue watching" or not, with how many [programs] it has there now. */
@@ -86,6 +88,12 @@ data class RemovedCategory(val section: HomeSection, val at: Int, val row: Int, 
 /** What the home settings panel can change. */
 @Suppress("TooManyFunctions") // one per setting
 interface HomeSettingsCommands {
+    /** The access "Frequently used" is built from. */
+    val usageGrant: UserGrant
+
+    /** Works out again what keeps apps' channels away. */
+    fun recheckChannels()
+
     fun setBackground(background: HomeBackground)
 
     /** The row [key]'s own tile size; null puts it back to the general one. */
@@ -179,6 +187,7 @@ class HomeSettingsViewModel @Inject constructor(
     private val channelSettings: ChannelSettingsRepository,
     usage: AppUsage,
     private val listings: TvListingsPermission,
+    override val usageGrant: UsageAccess,
 ) : ViewModel(),
     HomeSettingsCommands {
 
@@ -212,7 +221,17 @@ class HomeSettingsViewModel @Inject constructor(
         val labels: Map<String, String>,
     )
 
-    private fun watchNextMissing(): WatchNextMissing? = when {
+    /**
+     * Read again as a row's page opens: access given on the channels' page re-reads the channels,
+     * but with none to show yet nothing changes there, and the note would stay.
+     */
+    private val gapChecks = MutableStateFlow(0)
+
+    override fun recheckChannels() {
+        gapChecks.update { it + 1 }
+    }
+
+    private fun channelsMissing(): WatchNextMissing? = when {
         !channels.isAvailable() -> WatchNextMissing.Provider
         listings.missing() != null -> WatchNextMissing.Access
         else -> null
@@ -229,11 +248,11 @@ class HomeSettingsViewModel @Inject constructor(
                 layout.favorites,
             )
         }
-            .combine(channelChoices) { state, (found, watchNext) ->
+            .combine(combine(channelChoices, gapChecks) { choices, _ -> choices }) { state, (found, watchNext) ->
                 state.copy(
                     channels = found.all.inChannelOrder(state.appearance.channelOrder) { it.key },
                     watchNextApps = watchNext,
-                    watchNextMissing = watchNextMissing().takeIf { watchNext.isEmpty() },
+                    channelsMissing = channelsMissing(),
                 )
             }
             // Arranging sorts every app by name: off the main thread.
@@ -365,8 +384,6 @@ class HomeSettingsViewModel @Inject constructor(
 
     /** The chosen language tag, null for the device language. */
     val language: String? get() = appLanguage.current()
-
-    val languageSupported: Boolean get() = appLanguage.supported
 
     override fun setLanguage(tag: String?) {
         if (tag != appLanguage.current()) appLanguage.set(tag)

@@ -89,15 +89,7 @@ fun AppCard(
                 .onFocusChanged { focused = it.isFocused },
         ) {
             if (banner != null) {
-                val fill = ColorPainter(MaterialTheme.colorScheme.surfaceVariant)
-                AsyncImage(
-                    model = banner,
-                    contentDescription = app.label,
-                    placeholder = fill,
-                    error = fill,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
+                UserBanner(banner, app.label)
                 if (named && !under) NameOnTile(app.label)
             } else {
                 AppArtwork(app, named = named && !under)
@@ -246,3 +238,17 @@ private const val MORE_ALPHA = 0.3f
 /** The shade under a name on a tile: how much of the tile's height, and how dark at its bottom. */
 private const val SHADE_HEIGHT = 0.5f
 private const val SHADE_ALPHA = 0.75f
+
+/** The user's own [banner] filling a tile; the tiles' ground while it loads, or where it can't be read. */
+@Composable
+fun UserBanner(banner: String, label: String, modifier: Modifier = Modifier) {
+    val fill = ColorPainter(MaterialTheme.colorScheme.surfaceVariant)
+    AsyncImage(
+        model = banner,
+        contentDescription = label,
+        placeholder = fill,
+        error = fill,
+        contentScale = ContentScale.Crop,
+        modifier = modifier.fillMaxSize(),
+    )
+}

@@ -74,8 +74,10 @@ sealed interface UtteranceOutcome {
 
 /**
  * Turns recognized speech into an action: a command when it is one (and commands are on),
- * otherwise text for the focused field, the app's keyboard or a search ([deliver]).
- * "Find X" types X when a text field is on screen, and searches ([search]) when none is.
+ * otherwise text for the focused field, the app's keyboard or a search ([deliver]); with none of
+ * them, in a YouTube app in front its own search ([YouTubeSearch.searchIn]: the official app for
+ * TV has no field). "Find X" types X when a text field is on screen, and searches ([search]) when
+ * none is.
  */
 class HandleUtterance(
     private val apps: suspend () -> List<App>,
@@ -103,10 +105,23 @@ class HandleUtterance(
         }
     }
 
+    /**
+     * Into the field in front; with none, in a YouTube app in front it is searched there: the
+     * official app for TV draws its own keyboard, with no field to put text in.
+     */
     private suspend fun type(text: String): UtteranceOutcome = when (val delivery = deliver.deliver(text)) {
         is Delivery.To -> UtteranceOutcome.Typed(delivery.sink)
+
         is Delivery.Failed -> UtteranceOutcome.SearchFailed
-        Delivery.Nowhere -> UtteranceOutcome.NotDelivered(text)
+
+        Delivery.Nowhere -> {
+            val front = device.appInFront()
+            if (front != null && search.searchIn(front, text)) {
+                UtteranceOutcome.Searched(text)
+            } else {
+                UtteranceOutcome.NotDelivered(text)
+            }
+        }
     }
 
     /** [act] on the app [query] names, or says it is ambiguous or not found. */

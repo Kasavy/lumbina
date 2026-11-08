@@ -2,6 +2,7 @@ package dev.lumbina.tv.core.domain.diagnostics
 
 import dev.lumbina.tv.core.domain.MILLIS_PER_MINUTE
 import dev.lumbina.tv.core.domain.device.DeviceAnswer
+import dev.lumbina.tv.core.domain.device.DeviceConditions
 import dev.lumbina.tv.core.domain.device.FirmwarePart
 import dev.lumbina.tv.core.domain.device.PackageState
 
@@ -13,6 +14,16 @@ interface SystemInfo {
     val model: String
     val androidRelease: String
     val sdkInt: Int
+
+    /**
+     * The device's own languages, as language tags in its order ("ru-RU, en-US"): what Lumbina
+     * speaks unless its own is chosen ([appLanguage]). Empty where unknown; defaulted here only for
+     * the fakes of tests, as [appLanguage].
+     */
+    val systemLanguages: String get() = ""
+
+    /** Lumbina's own language as chosen (a tag), "device" with none chosen; empty where unknown. */
+    val appLanguage: String get() = ""
     val totalRamBytes: Long
     val availableRamBytes: Long
     val freeStorageBytes: Long
@@ -50,6 +61,8 @@ data class SystemFacts(
     val model: String,
     val androidRelease: String,
     val sdkInt: Int,
+    val systemLanguages: String,
+    val appLanguage: String,
     val totalRamBytes: Long,
     val availableRamBytes: Long,
     val freeStorageBytes: Long,
@@ -72,6 +85,8 @@ fun SystemInfo.snapshot(): SystemFacts = SystemFacts(
     model = model,
     androidRelease = androidRelease,
     sdkInt = sdkInt,
+    systemLanguages = systemLanguages,
+    appLanguage = appLanguage,
     totalRamBytes = totalRamBytes,
     availableRamBytes = availableRamBytes,
     freeStorageBytes = freeStorageBytes,
@@ -150,6 +165,8 @@ data class DiagnosticsSnapshot(
     val partsOff: List<FirmwarePart>,
     /** The video inputs Lumbina can switch to, each "name (id)"; empty where there are none it reaches. */
     val inputs: List<String> = emptyList(),
+    /** What decides what this user sees; null where not read. */
+    val conditions: DeviceConditions? = null,
 ) {
     /**
      * Plain-text report (English, for whoever helps), followed by what the device [answered] when
@@ -160,6 +177,7 @@ data class DiagnosticsSnapshot(
         section("App") {
             line("Version", system.appVersion + if (system.debugBuild) " (debug)" else "")
             line("Device profile", deviceProfile)
+            conditions?.let { line("Conditions", it.summary()) }
             line("Stock launcher", stockLauncher ?: "none")
             line("Inputs", inputs.joinToString().ifEmpty { "none" })
         }
@@ -183,6 +201,8 @@ data class DiagnosticsSnapshot(
         section("Device") {
             line("Model", "${system.manufacturer} ${system.model}")
             line("Android", "${system.androidRelease} (API ${system.sdkInt})")
+            if (system.systemLanguages.isNotEmpty()) line("Languages", system.systemLanguages)
+            if (system.appLanguage.isNotEmpty()) line("Lumbina's language", system.appLanguage)
             line("Firmware", system.firmware)
             line("Fingerprint", system.fingerprint)
             line("Hardware", system.hardware)

@@ -60,8 +60,18 @@ interface NotificationFeed {
     fun dismissAll()
 }
 
-/** What another app is playing or has paused (its media session). */
-data class NowPlaying(val title: String, val artist: String?, val packageName: String, val playing: Boolean)
+/**
+ * What another app is playing or has paused (its media session); [canPrevious] and [canNext]: the
+ * player takes those buttons (a stream or a live channel often doesn't).
+ */
+data class NowPlaying(
+    val title: String,
+    val artist: String?,
+    val packageName: String,
+    val playing: Boolean,
+    val canPrevious: Boolean = true,
+    val canNext: Boolean = true,
+)
 
 /** Media sessions of other apps; needs the same access as [NotificationFeed] (else nothing plays). */
 interface MediaSessions {

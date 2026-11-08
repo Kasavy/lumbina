@@ -11,6 +11,7 @@ import dev.lumbina.tv.core.domain.backdrop.ShowOnWallpaper
 import dev.lumbina.tv.core.domain.backdrop.WallpaperSettings
 import dev.lumbina.tv.core.domain.home.HomeAppearance
 import dev.lumbina.tv.core.testing.FakeMediaLibrary
+import dev.lumbina.tv.core.testing.FakeMediaLibrary.Companion.banner
 import dev.lumbina.tv.core.testing.FakeMediaLibrary.Companion.media
 import dev.lumbina.tv.core.testing.FakeSettings
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +27,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -75,5 +77,30 @@ class MediaLibraryViewModelTest {
         val video = viewModel.state.filterNotNull().first().files.single { it.file.id == "2.mp4" }
         viewModel.mark(video, MediaMark.Wallpaper, on = !video.has(MediaMark.Wallpaper))
         assertEquals(emptySet<String>(), marks.current.value.unplayable)
+    }
+
+    @Test
+    fun `a banner on Lumbina's own tiles is counted as shown, under those tiles, not as an app`() = runTest {
+        library.banners = listOf(banner("b1.jpg"), banner("b2.jpg"), banner("b3.jpg"))
+        appearance.update {
+            it.copy(
+                customBanners = mapOf(
+                    "all-apps" to "file:///banners/b1.jpg",
+                    "input:hdmi1" to "file:///banners/b2.jpg",
+                    "tv.gone/tv.gone.Main" to "file:///banners/b2.jpg",
+                ),
+            )
+        }
+        val viewModel = viewModel()
+        backgroundScope.launch { viewModel.state.collect {} }
+        val banners = viewModel.state.filterNotNull().first().banners.associateBy { it.file.id }
+        val onAllApps = banners.getValue("b1.jpg")
+        assertEquals(emptyList<String>(), onAllApps.shownOn)
+        assertEquals(listOf("all-apps"), onAllApps.onOwnTiles)
+        val shared = banners.getValue("b2.jpg")
+        assertEquals(listOf("tv.gone"), shared.shownOn)
+        assertEquals(listOf("input:hdmi1"), shared.onOwnTiles)
+        assertFalse(onAllApps.unusedBanner || shared.unusedBanner)
+        assertTrue(banners.getValue("b3.jpg").unusedBanner)
     }
 }

@@ -52,7 +52,11 @@ internal fun StatusIcons(status: StatusUi, actions: StatusActions, modifier: Mod
         modifier = modifier,
     ) {
         status.notices?.takeIf { it.isNotEmpty() }?.let { notices ->
-            IconButton(onClick = { showingNotices = true }, colors = flat()) {
+            IconButton(
+                onClick = { showingNotices = true },
+                colors = flat(),
+                modifier = Modifier.homeFocus(LocalHomeFocus.current, FocusKey(FocusKey.BAR, "bell")),
+            ) {
                 Box {
                     Icon(
                         painterResource(R.drawable.ic_notifications),

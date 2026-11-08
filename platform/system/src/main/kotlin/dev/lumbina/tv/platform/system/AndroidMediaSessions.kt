@@ -85,11 +85,33 @@ internal class AndroidMediaSessions @Inject constructor(@ApplicationContext priv
             ?: return null
         val artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST)
             ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)
-        val playing = controller.playbackState?.state == PlaybackState.STATE_PLAYING
-        return NowPlaying(title, artist?.takeIf { it.isNotBlank() }, controller.packageName, playing)
+        val state = controller.playbackState
+        val skips = Skips.of(state?.actions)
+        return NowPlaying(
+            title = title,
+            artist = artist?.takeIf { it.isNotBlank() },
+            packageName = controller.packageName,
+            playing = state?.state == PlaybackState.STATE_PLAYING,
+            canPrevious = skips.previous,
+            canNext = skips.next,
+        )
     }
 
     private fun pick(controllers: List<MediaController>): MediaController? =
         controllers.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING }
             ?: controllers.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PAUSED }
+}
+
+/** Which skip buttons a player takes, by the actions its playback state names. */
+internal data class Skips(val previous: Boolean, val next: Boolean) {
+    companion object {
+        /** A player that names no actions at all is not taken at its word: both buttons stay. */
+        fun of(actions: Long?): Skips {
+            val named = actions?.takeIf { it != 0L } ?: return Skips(previous = true, next = true)
+            return Skips(
+                previous = named and PlaybackState.ACTION_SKIP_TO_PREVIOUS != 0L,
+                next = named and PlaybackState.ACTION_SKIP_TO_NEXT != 0L,
+            )
+        }
+    }
 }

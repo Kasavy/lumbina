@@ -35,6 +35,7 @@ import dev.lumbina.tv.core.domain.home.createFolderWith
 import dev.lumbina.tv.core.domain.home.withBanner
 import dev.lumbina.tv.core.domain.phone.PhonePage
 import dev.lumbina.tv.core.domain.phone.PhoneRemoteLink
+import dev.lumbina.tv.core.domain.status.DeviceScreens
 import dev.lumbina.tv.core.ui.UNDO_MILLIS
 import dev.lumbina.tv.core.ui.WhileUiSubscribed
 import java.util.Locale
@@ -147,17 +148,20 @@ interface HomeCommands {
 
     fun unhide(app: App)
 
-    /** The user's own pictures that can become an app's banner, again whenever one comes or goes. */
+    /** The user's own pictures that can become a tile's banner, again whenever one comes or goes. */
     fun bannerChoices(): Flow<BannerChoices>
 
-    /** Shows [uri] as the app's banner; null brings back the app's own. */
-    fun setBanner(app: App, uri: String?)
+    /** Shows [uri] on the tile [key] ([BannerOf.key]); null brings back what it shows by itself. */
+    fun setBanner(key: String, uri: String?)
 
-    /** Makes a banner of a copy of the library's [photo] and shows it on the app's tile. */
-    fun bannerFromPhoto(app: App, photo: MediaFile)
+    /** Makes a banner of a copy of the library's [photo] and shows it on the tile [key]. */
+    fun bannerFromPhoto(key: String, photo: MediaFile)
 
     /** The phone remote page that pictures are sent from, or why a phone can't reach it now. */
     suspend fun phonePage(): PhonePage
+
+    /** The device's network settings; false when it has none to open. */
+    fun openNetwork(): Boolean
 }
 
 @Suppress("TooManyFunctions") // implements HomeCommands
@@ -177,6 +181,7 @@ class HomeViewModel @Inject constructor(
     private val inputs: InputCatalog,
     spotlight: RowSpotlight,
     private val phoneLink: PhoneRemoteLink,
+    private val deviceScreens: DeviceScreens,
 ) : ViewModel(),
     HomeCommands {
 
@@ -330,7 +335,8 @@ class HomeViewModel @Inject constructor(
 
     override fun removeInput(sectionId: String, input: String, name: String) {
         val section = state.value?.layout?.section(sectionId)
-        val kind = if (section == null || section.isFavorites) UndoKind.OutOfFavorites else UndoKind.OutOfCategory
+        val favorites = section == null || section.isFavorites
+        val kind = if (favorites) UndoKind.InputOutOfFavorites else UndoKind.InputOutOfCategory
         editUndoable(kind, name, section?.name.orEmpty()) { it.withInput(sectionId, input, false) }
     }
 
@@ -388,18 +394,20 @@ class HomeViewModel @Inject constructor(
         }
     }.distinctUntilChanged().flowOn(Dispatchers.IO)
 
-    override fun setBanner(app: App, uri: String?) {
-        viewModelScope.launch { appearance.update { it.withBanner(app.id.flatten(), uri) } }
+    override fun setBanner(key: String, uri: String?) {
+        viewModelScope.launch { appearance.update { it.withBanner(key, uri) } }
     }
 
-    override fun bannerFromPhoto(app: App, photo: MediaFile) {
+    override fun bannerFromPhoto(key: String, photo: MediaFile) {
         viewModelScope.launch {
             val uri = withContext(Dispatchers.IO) { media.copyToBanner(photo.id) } ?: return@launch
-            appearance.update { it.withBanner(app.id.flatten(), uri) }
+            appearance.update { it.withBanner(key, uri) }
         }
     }
 
     override suspend fun phonePage(): PhonePage = withContext(Dispatchers.IO) { phoneLink.current() }
+
+    override fun openNetwork(): Boolean = deviceScreens.openNetwork()
 
     private val undoable = MutableStateFlow<Undo?>(null)
 

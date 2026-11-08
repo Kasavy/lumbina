@@ -41,7 +41,7 @@
         errorLine2="                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/dev/lumbina/tv/platform/accessibility/PhoneRemote.kt"
-            line="221"
+            line="223"
             column="19"/>
     </issue>
 

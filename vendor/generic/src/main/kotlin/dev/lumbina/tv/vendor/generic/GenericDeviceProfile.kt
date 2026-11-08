@@ -37,5 +37,11 @@ class GenericDeviceProfile @Inject internal constructor(
 
     override val diagnostics: DeviceDiagnostics? by lazy { GenericDiagnostics(context).takeIf { systemInputs.isTv } }
 
+    /**
+     * An option in the settings, not the setup's way: many TVs and boxes (Mi Box, Chromecast with
+     * Google TV) open the port with "USB debugging", others only for a computer or not at all.
+     */
+    override val localAdb = true
+
     override fun matches(device: DeviceFingerprint): Boolean = true
 }

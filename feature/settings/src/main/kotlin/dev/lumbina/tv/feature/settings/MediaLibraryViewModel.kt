@@ -15,6 +15,7 @@ import dev.lumbina.tv.core.domain.backdrop.MediaMarksRepository
 import dev.lumbina.tv.core.domain.backdrop.ShowOnWallpaper
 import dev.lumbina.tv.core.domain.backdrop.WallpaperSettingsRepository
 import dev.lumbina.tv.core.domain.home.HomeAppearanceRepository
+import dev.lumbina.tv.core.domain.home.isOwnTileKey
 import dev.lumbina.tv.core.ui.WhileUiSubscribed
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
@@ -35,7 +36,8 @@ enum class MediaMark { Wallpaper, Screensaver }
 enum class MediaFilter { All, Wallpaper, Screensaver, Banners, Nowhere }
 
 /**
- * One file with its marks, or a [banner] with [shownOn], the apps whose tiles show it. A video that
+ * One file with its marks, or a [banner] with [shownOn], the apps whose tiles show it, and
+ * [onOwnTiles], the keys of Lumbina's own tiles that do ("all apps", inputs'). A video that
  * won't play is on neither, as the wallpaper and screensaver skip it: putting it on gives it another try.
  */
 data class MediaEntry(
@@ -45,15 +47,20 @@ data class MediaEntry(
     val unplayable: Boolean,
     val banner: Boolean = false,
     val shownOn: List<String> = emptyList(),
+    val onOwnTiles: List<String> = emptyList(),
 ) {
     val nowhere: Boolean get() = !onWallpaper && !onScreensaver
+
+    /** A banner no tile shows. */
+    val unusedBanner: Boolean get() = shownOn.isEmpty() && onOwnTiles.isEmpty()
 
     fun has(mark: MediaMark) = if (mark == MediaMark.Wallpaper) onWallpaper else onScreensaver
 }
 
 data class MediaLibraryState(val files: List<MediaEntry>, val banners: List<MediaEntry>) {
     /** Files with no mark and banners no tile shows: what "Delete unused" takes. */
-    val unused: Int get() = files.count { it.nowhere } + banners.count { it.shownOn.isEmpty() }
+    val unused: Int get() = files.count { it.nowhere } +
+        banners.count { it.unusedBanner }
 
     fun count(filter: MediaFilter): Int = when (filter) {
         MediaFilter.All -> files.size + banners.size
@@ -95,13 +102,20 @@ class MediaLibraryViewModel @Inject constructor(
         combine(listings(), marks.settings, appearance.settings, apps.observe()) { listed, marked, look, installed ->
             val (files, banners) = listed
             val names = installed.associate { it.id.flatten() to it.label }
-            // Per banner, the apps whose tiles show it; a package's name where the app is gone.
-            val tiles = look.customBanners.entries.groupBy({ it.value }) { (key, _) ->
-                names[key] ?: key.substringBefore('/')
-            }
+            // Per banner, the apps whose tiles show it (a package's name where the app is gone),
+            // and the tiles of Lumbina's own.
+            val (own, ofApps) = look.customBanners.entries.partition { (key, _) -> isOwnTileKey(key) }
+            val tiles = ofApps.groupBy({ it.value }) { (key, _) -> names[key] ?: key.substringBefore('/') }
+            val ownTiles = own.groupBy({ it.value }) { it.key }
             MediaLibraryState(
                 files = files.map { it.entry(marked) },
-                banners = banners.map { it.entry(marked).copy(banner = true, shownOn = tiles[it.uri].orEmpty()) },
+                banners = banners.map {
+                    it.entry(marked).copy(
+                        banner = true,
+                        shownOn = tiles[it.uri].orEmpty(),
+                        onOwnTiles = ownTiles[it.uri].orEmpty(),
+                    )
+                },
             )
         }.flowOn(Dispatchers.Default)
             .stateIn(viewModelScope, WhileUiSubscribed, null)

@@ -166,7 +166,7 @@ class ScreensaverModel @Inject constructor(
     }
 
     private suspend fun nextPhoto(): ShownPhoto? {
-        repeat(PHOTO_ATTEMPTS) {
+        repeat(PHOTO_ATTEMPTS) { _ ->
             val photo = backdrop.next(PHOTO_WIDTH, PHOTO_HEIGHT, videos = System.currentTimeMillis() >= videosFrom)
                 ?: return null
             when (photo) {

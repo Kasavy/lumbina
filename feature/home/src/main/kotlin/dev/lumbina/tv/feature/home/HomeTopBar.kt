@@ -68,7 +68,8 @@ import kotlinx.coroutines.launch
 fun HomeTopBarRoute(
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
-    plates: @Composable () -> Unit = {},
+    /** The caller's plates; the modifier registers them with home's focus, so Back to home finds them. */
+    plates: @Composable (Modifier) -> Unit = {},
     viewModel: TopBarViewModel = hiltViewModel(),
     statusViewModel: StatusViewModel = hiltViewModel(),
     homeViewModel: HomeViewModel = hiltViewModel(),
@@ -94,11 +95,13 @@ fun HomeTopBarRoute(
         onSystemSearch = { if (!viewModel.openSystemSearch()) homeViewModel.say(Failed.SystemSearch) },
         onInput = { input -> viewModel.openInput(input) { homeViewModel.say(Failed.Input(input.name)) } },
         modifier = modifier,
-        leading = { NowPlayingRoute() },
+        // Registered with home's focus, as the capsule's buttons are: back on home, the focus returns
+        // to "now playing" (its first button, whichever was pressed).
+        leading = { Box(Modifier.homeFocus(focus, FocusKey(FocusKey.BAR, "playing"))) { NowPlayingRoute() } },
         plates = {
             NetworkPlate(status.network?.problem(), statusViewModel::openNetwork)
             // What the caller adds stands nearest the capsule.
-            plates()
+            plates(Modifier.homeFocus(focus, FocusKey(FocusKey.BAR, "plates")))
         },
         status = {
             if (state.look.notices) {

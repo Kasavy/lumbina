@@ -19,7 +19,7 @@
         errorLine2="                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/dev/lumbina/tv/platform/tvprovider/AndroidTvChannels.kt"
-            line="181"
+            line="180"
             column="29"/>
     </issue>
 
@@ -30,7 +30,7 @@
         errorLine2="                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/dev/lumbina/tv/platform/tvprovider/AndroidTvChannels.kt"
-            line="182"
+            line="181"
             column="37"/>
     </issue>
 
@@ -41,7 +41,7 @@
         errorLine2="                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/dev/lumbina/tv/platform/tvprovider/AndroidTvChannels.kt"
-            line="187"
+            line="188"
             column="39"/>
     </issue>
 

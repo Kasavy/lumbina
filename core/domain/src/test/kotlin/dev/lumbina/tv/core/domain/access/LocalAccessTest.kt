@@ -65,7 +65,26 @@ class LocalAccessTest {
                 "appops set dev.lumbina.tv ACCESS_RESTRICTED_SETTINGS allow",
                 "cmd notification allow_listener dev.lumbina.tv/dev.lumbina.tv.Listener",
             ),
-            adb.commands,
+            adb.commands.flatMap { it.split(SHELL_AND_THEN) },
+        )
+    }
+
+    @Test
+    fun `a device whose debugging lets only a computer in is told apart from debugging off`() = runTest {
+        assertEquals(SetupResult.NotListening, access(FakeAdb(AdbState.NotListening)).connectAndSetUp())
+        assertEquals(SetupResult.Off, access(FakeAdb(AdbState.Off)).connectAndSetUp())
+    }
+
+    @Test
+    fun `the commands for a computer give what connecting gives`() = runTest {
+        val adb = FakeAdb(AdbState.Connected)
+        access(adb).connectAndSetUp()
+        val computer = access(FakeAdb(AdbState.NotListening)).computerCommands
+        assertEquals(
+            adb.commands.flatMap {
+                it.split(SHELL_AND_THEN)
+            }.map { "adb shell $it" }.toSet(),
+            computer.toSet(),
         )
     }
 
@@ -90,8 +109,10 @@ class LocalAccessTest {
                 "appops set dev.lumbina.tv ACCESS_RESTRICTED_SETTINGS allow",
                 "cmd notification allow_listener dev.lumbina.tv/dev.lumbina.tv.Listener",
             ),
-            adb.commands,
+            adb.commands.flatMap { it.split(SHELL_AND_THEN) },
         )
+        // In one connection: each costs a handshake.
+        assertEquals(1, adb.commands.size)
         assertEquals(1, companion.installs)
 
         val away = FakeCompanion(wanted = true)

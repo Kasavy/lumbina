@@ -18,14 +18,21 @@ internal class AndroidYouTubeSearch @Inject constructor(
 
     override suspend fun search(query: String): Boolean {
         val app = youTube.app() ?: return false
+        return open(app.packageName, query)
+    }
+
+    override suspend fun searchIn(packageName: String, query: String): Boolean =
+        youTube.isOne(packageName) && open(packageName, query)
+
+    private fun open(packageName: String, query: String): Boolean {
         val intent = Intent(Intent.ACTION_VIEW, youTubeSearchLink(query))
-            .setPackage(app.packageName)
+            .setPackage(packageName)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         return try {
             context.startActivity(intent)
             true
         } catch (e: ActivityNotFoundException) {
-            log.log(TAG, "${app.label} not available: $e")
+            log.log(TAG, "$packageName not available: $e")
             false
         }
     }

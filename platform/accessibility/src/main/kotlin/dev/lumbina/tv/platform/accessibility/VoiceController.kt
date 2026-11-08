@@ -2,6 +2,7 @@ package dev.lumbina.tv.platform.accessibility
 
 import android.os.SystemClock
 import android.view.KeyEvent
+import dev.lumbina.tv.core.common.LumbinaActions
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.domain.speech.EndOfSpeech
 import dev.lumbina.tv.core.domain.speech.RunVoiceSession
@@ -35,10 +36,12 @@ internal class VoiceController(
     private val language: VoiceLanguageSetting,
     private val handle: HandleUtterance,
     private val overlay: VoiceOverlay,
-    private val strings: Strings,
+    /** Read as each is said: Lumbina's language may change while the service runs (before Android 13). */
+    private val stringsOf: () -> Strings,
     private val log: LumbinaLog,
 ) {
-    private val answers = VoiceAnswers(scope, overlay, strings, log)
+    private val strings: Strings get() = stringsOf()
+    private val answers = VoiceAnswers(scope, overlay, stringsOf, log)
 
     /** The same recognition, with the capture's drain suited to each way of ending. */
     class Sessions(val pushToTalk: RunVoiceSession, val handsFree: RunVoiceSession)
@@ -244,7 +247,8 @@ internal class VoiceController(
     }
 }
 
-private fun placeOf(reason: SpeechUnavailable.Reason): VoiceController.Place? = when (reason) {
+/** Where a reason's notice sends the user, if anywhere; shared with speech for other apps. */
+internal fun placeOf(reason: SpeechUnavailable.Reason): VoiceController.Place? = when (reason) {
     // A key is pasted from the phone's page: the remote can't type one.
     SpeechUnavailable.Reason.NoKey, SpeechUnavailable.Reason.KeyRefused -> VoiceController.Place.Phone
 
@@ -253,4 +257,14 @@ private fun placeOf(reason: SpeechUnavailable.Reason): VoiceController.Place? = 
     SpeechUnavailable.Reason.MicNotGiven -> VoiceController.Place.Access
 
     else -> null
+}
+
+/** The settings page this place is; null for home. */
+internal fun VoiceController.Place.page(): String? = when (this) {
+    VoiceController.Place.Diagnostics -> LumbinaActions.SETTINGS_PAGE_STATE
+    VoiceController.Place.Voice -> LumbinaActions.SETTINGS_PAGE_VOICE
+    VoiceController.Place.Phone -> LumbinaActions.SETTINGS_PAGE_PHONE
+    VoiceController.Place.Access -> LumbinaActions.SETTINGS_PAGE_ACCESS
+    VoiceController.Place.Widgets -> LumbinaActions.SETTINGS_PAGE_WIDGETS
+    VoiceController.Place.Home -> null
 }

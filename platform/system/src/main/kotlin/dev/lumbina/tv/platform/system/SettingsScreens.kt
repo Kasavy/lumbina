@@ -16,6 +16,13 @@ internal class SettingsScreens @Inject constructor(@ApplicationContext private v
     /** What answers [intent]; null is unknown, not missing (package visibility). */
     fun target(intent: Intent): ComponentName? = intent.resolveActivity(context.packageManager)
 
+    /**
+     * Whether another app may start what [intent] resolves to: before Android 12 the system also
+     * resolves screens that aren't exported, and starting one fails (TV Settings on some firmware).
+     */
+    fun startable(intent: Intent): Boolean =
+        context.packageManager.resolveActivity(intent, 0)?.activityInfo?.exported == true
+
     /** Whether [intent] leads to Android TV's "not supported" screen. */
     fun isStub(intent: Intent): Boolean = target(intent)?.packageName == STUBS
 
@@ -31,16 +38,20 @@ internal class SettingsScreens @Inject constructor(@ApplicationContext private v
 
     /**
      * Opens a special access screen, or the apps' settings, where Android TV 9 (Mi Box 4) keeps it
-     * under "special access" with no action of its own, or the settings; false when nothing opens.
+     * under "special access" with no action of its own; false when neither opens. Not the settings'
+     * first page: on firmware without these screens (Vidda) the user would be left there with
+     * nothing to find, while the caller has a way that works (Lumbina's own access).
      */
     fun openSpecialAccess(action: String): Boolean = listOf(
         intent(action),
         intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS),
-        intent(Settings.ACTION_SETTINGS),
     ).filterNot(::isStub).any(::start)
 
-    private companion object {
+    companion object {
         /** Android TV's catch-all for settings screens the device doesn't have. */
-        const val STUBS = "com.google.android.tv.frameworkpackagestubs"
+        private const val STUBS = "com.google.android.tv.frameworkpackagestubs"
+
+        /** Android TV's own settings app (firmware may bring its own instead). */
+        const val TV_SETTINGS = "com.android.tv.settings"
     }
 }

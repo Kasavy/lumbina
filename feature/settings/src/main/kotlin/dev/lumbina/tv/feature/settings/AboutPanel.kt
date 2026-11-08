@@ -75,7 +75,9 @@ fun AboutPanel(
         }
     }
     if (showing) {
-        MenuDialog(title = stringResource(R.string.about_components), onDismiss = { showing = false }) {
+        MenuDialog(title = stringResource(R.string.about_components).removeSuffix("…"), onDismiss = {
+            showing = false
+        }) {
             items(components) { component ->
                 ListItem(
                     selected = false,

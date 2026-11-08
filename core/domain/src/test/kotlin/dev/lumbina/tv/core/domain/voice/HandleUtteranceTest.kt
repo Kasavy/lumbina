@@ -6,6 +6,7 @@ import dev.lumbina.tv.core.domain.sleep.SleepSettings
 import dev.lumbina.tv.core.domain.text.DeliverText
 import dev.lumbina.tv.core.domain.text.Taking
 import dev.lumbina.tv.core.domain.text.TextSink
+import dev.lumbina.tv.core.domain.text.YouTubeSearch
 import dev.lumbina.tv.core.testing.FakeSettings
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -125,6 +126,33 @@ class HandleUtteranceTest {
         assertEquals(UtteranceOutcome.Typed("field"), handler()("котики"))
         fieldOnScreen = false
         assertEquals(UtteranceOutcome.NotDelivered("котики"), handler()("котики"))
+    }
+
+    @Test
+    fun `with no field, a YouTube app in front searches what was said itself`() = runTest {
+        val youTube = "com.google.android.youtube.tv"
+        val handler = HandleUtterance(
+            apps = { installed },
+            launcher = { true },
+            device = device,
+            search = object : YouTubeSearch {
+                override suspend fun search(query: String) = false
+
+                override suspend fun searchIn(packageName: String, query: String) =
+                    packageName == youTube && searched.add(query)
+            },
+            deliver = DeliverText(listOf(field)),
+            sleep = sleep,
+            now = { 1_000L },
+        )
+        inFront = "ru.kinopoisk.tv"
+        assertEquals(UtteranceOutcome.NotDelivered("котики"), handler("котики"))
+        inFront = youTube
+        assertEquals(UtteranceOutcome.Searched("котики"), handler("котики"))
+        assertEquals(listOf("котики"), searched)
+        // Its search would not open: there is nowhere for the phrase after all.
+        inFront = "com.google.android.youtube.tvkids"
+        assertEquals(UtteranceOutcome.NotDelivered("котики"), handler("котики"))
     }
 
     @Test

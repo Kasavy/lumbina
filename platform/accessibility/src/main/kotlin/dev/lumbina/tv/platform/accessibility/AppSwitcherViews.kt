@@ -23,7 +23,7 @@ import dev.lumbina.tv.core.domain.app.App
 import dev.lumbina.tv.core.domain.app.AppId
 import java.util.concurrent.Executors
 
-/** Whether holding OK in the recent apps closes one, and a tile at the end closes them all. */
+/** Whether holding OK in the recent apps closes one, and "Close all" beside the title closes them all. */
 internal enum class CloseApps {
     /** This device or edition never does. */
     No,
@@ -36,13 +36,16 @@ internal enum class CloseApps {
 /**
  * The views of [AppSwitcherOverlay]: a ribbon of cards along the bottom of the screen, over a
  * shade that leaves the app above it in sight. Only the selected card carries its app's name.
- * Where apps may be closed and there are two or more, a "Close all" tile ends the ribbon.
+ * Where apps may be closed and there are two or more, "Close all" stands beside the title.
  */
-internal class AppSwitcherViews(private val context: Context, private val texts: Texts) {
+internal class AppSwitcherViews(private val context: Context, private val textsOf: () -> Texts) {
+
+    /** Read anew as each ribbon is made: Lumbina's own language may have changed since the service started. */
+    private var texts: Texts = textsOf()
 
     /**
      * What the ribbon says; [closeKeys] replaces [keys] where holding OK closes apps, and
-     * [closeAllKeys] while the "Close all" tile is selected. [closeAllCount] says how many it closes.
+     * [closeAllKeys] while "Close all" is selected. [closeAllCount] is "Close all" with how many it closes.
      */
     class Texts(
         val title: String,
@@ -52,7 +55,6 @@ internal class AppSwitcherViews(private val context: Context, private val texts:
         val empty: String,
         val emptyKeys: String,
         val closing: String,
-        val closeAll: String,
         val closeAllKeys: String,
         val closeAllCount: (Int) -> String,
     )
@@ -60,12 +62,12 @@ internal class AppSwitcherViews(private val context: Context, private val texts:
     /** One app's card and the line under it. */
     class Card(val app: App, val frame: FrameLayout, val caption: TextView)
 
-    /** The "Close all" tile and the line under it. */
-    class Tile(val frame: FrameLayout, val caption: TextView)
+    /** "Close all" beside the title: a button as the service's cards have, a cross and how many. */
+    class Tile(val frame: LinearLayout, val icon: ImageView, val label: TextView)
 
     /**
      * The whole ribbon; [scroller] is null when there are no apps, [closeAll] when the ribbon has
-     * no such tile. [keys] is the hint line, saying [keysText] unless the tile is selected.
+     * no "Close all". [keys] is the hint line, saying [keysText] unless "Close all" is selected.
      */
     class Ribbon(
         val view: View,
@@ -91,6 +93,7 @@ internal class AppSwitcherViews(private val context: Context, private val texts:
     }
 
     fun ribbon(apps: List<App>, close: CloseApps): Ribbon {
+        texts = textsOf()
         val side = context.dp(SIDE_DP)
         val column = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -104,7 +107,8 @@ internal class AppSwitcherViews(private val context: Context, private val texts:
         val line = { text: String, sp: Float, color: Int ->
             context.label(text, sp, color).apply { setPadding(side, 0, side, 0) }
         }
-        column.addView(line(texts.title, TITLE_SP, OverlayPalette.text).apply { typeface = MEDIUM })
+        val closeAll = if (close == CloseApps.Yes && apps.size >= CLOSE_ALL_FROM) closeAllButton(apps.size) else null
+        column.addView(header(closeAll))
         if (apps.isEmpty()) {
             column.addView(
                 line(texts.empty, LABEL_SP, OverlayPalette.text).apply {
@@ -124,8 +128,6 @@ internal class AppSwitcherViews(private val context: Context, private val texts:
             setPadding(side - context.dp(OverlayDimens.GAP_DP) / 2, 0, side, 0)
         }
         val cards = apps.map { app -> card(app).also { row.addView(it.frame.parent as View) } }
-        val closeAll = if (close == CloseApps.Yes && apps.size >= CLOSE_ALL_FROM) closeAllTile(apps.size) else null
-        closeAll?.let { row.addView(it.frame.parent as View) }
         val scroller = HorizontalScrollView(context).apply {
             isHorizontalScrollBarEnabled = false
             clipChildren = false
@@ -157,47 +159,45 @@ internal class AppSwitcherViews(private val context: Context, private val texts:
         card.caption.visibility = if (on || closing) View.VISIBLE else View.INVISIBLE
     }
 
-    /** How the "Close all" tile looks, as a card does: [on] is selected; the hint follows it. */
+    /** How "Close all" looks, as a card's button does: [on] is selected; the hint follows it. */
     fun markCloseAll(ribbon: Ribbon, on: Boolean, count: Int) {
         val tile = ribbon.closeAll ?: return
-        tile.caption.text = texts.closeAllCount(count)
-        tile.frame.alpha = if (on) 1f else UNSELECTED_ALPHA
-        tile.frame.foreground = if (on) selectionBorder() else null
-        tile.caption.visibility = if (on) View.VISIBLE else View.INVISIBLE
+        tile.label.text = texts.closeAllCount(count)
+        tile.frame.background =
+            context.rounded(if (on) OverlayPalette.selected else OverlayPalette.card, BUTTON_CORNER_DP)
+        val color = if (on) OverlayPalette.selectedText else OverlayPalette.text
+        tile.label.setTextColor(color)
+        tile.icon.setColorFilter(color)
         ribbon.keys?.text = if (on) texts.closeAllKeys else ribbon.keysText
     }
 
-    /** A cross over "Close all" in a card's place, how many it closes under it. */
-    private fun closeAllTile(count: Int): Tile {
-        val frame = FrameLayout(context).apply {
-            background = context.rounded(OverlayPalette.card, CARD_CORNER_DP)
-        }
-        val content = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
+    /** The title and "Close all" on one line, centered on each other; the button ends at the side margin. */
+    private fun header(closeAll: Tile?) = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        val side = context.dp(SIDE_DP)
+        setPadding(side, 0, side, 0)
+        val title = context.label(texts.title, TITLE_SP, OverlayPalette.text).apply { typeface = MEDIUM }
+        addView(title, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        closeAll?.let { addView(it.frame) }
+    }
+
+    /** A cross and "Close all · N" in a rounded button, as the service's cards have. */
+    private fun closeAllButton(count: Int): Tile {
+        val icon = ImageView(context).apply { setImageResource(R.drawable.ic_close) }
+        val label = context.label(texts.closeAllCount(count), BUTTON_SP).apply { setSingleLine() }
+        val frame = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            val v = context.dp(BUTTON_V_DP)
+            setPadding(context.dp(BUTTON_START_DP), v, context.dp(BUTTON_END_DP), v)
+            addView(icon, LinearLayout.LayoutParams(context.dp(CLOSE_ICON_DP), context.dp(CLOSE_ICON_DP)))
             addView(
-                ImageView(context).apply {
-                    setImageResource(R.drawable.ic_close)
-                    setColorFilter(OverlayPalette.text)
-                },
-                LinearLayout.LayoutParams(context.dp(CLOSE_ICON_DP), context.dp(CLOSE_ICON_DP)),
-            )
-            addView(
-                context.label(texts.closeAll, CLOSE_ALL_SP).apply {
-                    typeface = MEDIUM
-                    setPadding(0, context.dp(CAPTION_GAP_DP), 0, 0)
-                },
-                // A vertical layout's default is the full width: the icon's, the text cut to it.
-                LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT),
+                label,
+                LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).apply { marginStart = context.dp(ICON_GAP_DP) },
             )
         }
-        frame.addView(content, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.CENTER))
-        val caption = context.label(texts.closeAllCount(count), LABEL_SP).apply {
-            setSingleLine()
-            setPadding(0, context.dp(CAPTION_GAP_DP), 0, context.dp(OverlayDimens.GAP_DP))
-        }
-        cell(frame, caption)
-        return Tile(frame, caption)
+        return Tile(frame, icon, label)
     }
 
     /** A card's place in the row: the card, the line under it. */
@@ -275,8 +275,15 @@ internal class AppSwitcherViews(private val context: Context, private val texts:
         const val CARD_HEIGHT_DP = 99
         const val CAPTION_GAP_DP = 6
         const val ICON_PADDING_DP = 20
-        const val CLOSE_ICON_DP = 24
-        const val CLOSE_ALL_SP = 16f
+        const val CLOSE_ICON_DP = 16
+        const val ICON_GAP_DP = 6
+
+        // As the service's cards' buttons (CornerCard), a little roomier on the side of the cross.
+        const val BUTTON_START_DP = 16
+        const val BUTTON_END_DP = 20
+        const val BUTTON_V_DP = 9
+        const val BUTTON_CORNER_DP = 20
+        const val BUTTON_SP = 13f
 
         /** With one app, holding OK on it closes as much. */
         const val CLOSE_ALL_FROM = 2

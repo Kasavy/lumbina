@@ -1,6 +1,7 @@
 package dev.lumbina.tv.platform.adb
 
 import android.content.Context
+import android.provider.Settings
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.domain.access.AdbState
@@ -8,6 +9,7 @@ import dev.lumbina.tv.core.domain.access.LocalAdb
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.net.ConnectException
 import java.security.GeneralSecurityException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -45,7 +47,8 @@ internal class AndroidLocalAdb @Inject constructor(
 
     override suspend fun shellQuietly(command: String): String? {
         val result = open(offerKey = false) { it.shell(command, SHELL_TIMEOUT_MILLIS) }
-        if (result.value == null) log.log(TAG, "shell \"$command\": ${result.state}")
+        // Debugging off or not let in is the device's state, said elsewhere: not one line per opening.
+        if (result.value == null && result.state !in QUIET) log.log(TAG, "shell \"$command\": ${result.state}")
         return result.value
     }
 
@@ -64,8 +67,12 @@ internal class AndroidLocalAdb @Inject constructor(
                     val connection = AdbConnection.open(HOST, PORT, key, offerKey, PROMPT_MILLIS)
                         ?: return@withLock Result(AdbState.NotAllowed)
                     connection.use { Result(AdbState.Connected, use(it)) }
-                } catch (_: IOException) {
-                    Result(AdbState.Off)
+                } catch (_: ConnectException) {
+                    Result(unreached(refused = true, debuggingOn()))
+                } catch (e: IOException) {
+                    val state = unreached(refused = false, debuggingOn())
+                    if (state == AdbState.Failed) log.log(TAG, "connection: $e")
+                    Result(state)
                 } catch (e: GeneralSecurityException) {
                     // Lumbina's key or the challenge's signature: debugging is on, the failure is ours.
                     log.log(TAG, "key: $e")
@@ -74,8 +81,15 @@ internal class AndroidLocalAdb @Inject constructor(
             }
         }
 
+    /** "USB debugging" as Android's settings have it. */
+    private fun debuggingOn(): Boolean =
+        Settings.Global.getInt(context.contentResolver, Settings.Global.ADB_ENABLED, 0) == 1
+
     private companion object {
         const val TAG = "adb"
+
+        /** States a quiet shell doesn't log: the device's, told by the pages that need debugging. */
+        val QUIET = setOf(AdbState.Off, AdbState.NotListening, AdbState.NotAllowed)
         const val HOST = "127.0.0.1"
         const val PORT = 5555
         const val KEY_DIR = "adb"
@@ -86,4 +100,16 @@ internal class AndroidLocalAdb @Inject constructor(
         // device may take a while over writing the package before that.
         const val EXEC_TIMEOUT_MILLIS = 120_000
     }
+}
+
+/**
+ * The state when Lumbina couldn't get through to debugging: [refused] (nothing listens on the port)
+ * or the connection timed out or closed. With "USB debugging" off that is the reason; with it on, a
+ * refusal means the device opens it to a computer only, and a dropped connection is a failure whose
+ * cause the log has ("turn debugging on" would be wrong advice).
+ */
+internal fun unreached(refused: Boolean, debuggingOn: Boolean): AdbState = when {
+    !debuggingOn -> AdbState.Off
+    refused -> AdbState.NotListening
+    else -> AdbState.Failed
 }

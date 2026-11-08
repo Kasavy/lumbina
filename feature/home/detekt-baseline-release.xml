@@ -19,9 +19,6 @@
     <ID>MissingReadOnlyComposable:MoveMode.kt:@Composable internal fun Modifier.bottomMessage: Modifier</ID>
     <ID>MissingReadOnlyComposable:StatusIcons.kt:@Composable private fun flat</ID>
     <ID>MissingReadOnlyComposable:Undo.kt:@Composable private fun MediaArrival.message: String</ID>
-    <ID>NoNameShadowing:HomeJumps.kt:{ it.index &lt; from &amp;&amp; !isOfRow(it.key, id) }</ID>
-    <ID>NoNameShadowing:HomeJumps.kt:{ it.index }</ID>
-    <ID>NoNameShadowing:HomeJumps.kt:{ matches(it.key) }</ID>
     <ID>UnnecessaryLaunchedEffect:AllAppsScreen.kt:LaunchedEffect</ID>
     <ID>UnnecessaryLaunchedEffect:Failures.kt:LaunchedEffect</ID>
     <ID>UnnecessaryLaunchedEffect:FolderDialogs.kt:LaunchedEffect</ID>

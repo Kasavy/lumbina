@@ -2,50 +2,6 @@
 <issues format="6" by="lint 9.4.1" type="baseline" client="gradle" dependencies="true" name="AGP (9.4.1)" variant="all" version="9.4.1">
 
     <issue
-        id="ExifInterface"
-        message="Avoid using `android.media.ExifInterface`; use `androidx.exifinterface.media.ExifInterface` instead"
-        errorLine1="import android.media.ExifInterface"
-        errorLine2="       ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/dev/lumbina/tv/core/ui/MediaThumbnails.kt"
-            line="6"
-            column="8"/>
-    </issue>
-
-    <issue
-        id="ExifInterface"
-        message="Avoid using `android.media.ExifInterface`; use `androidx.exifinterface.media.ExifInterface` instead"
-        errorLine1="        ExifInterface(file.path).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/dev/lumbina/tv/core/ui/MediaThumbnails.kt"
-            line="76"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="ExifInterface"
-        message="Avoid using `android.media.ExifInterface`; use `androidx.exifinterface.media.ExifInterface` instead"
-        errorLine1="import android.media.ExifInterface"
-        errorLine2="       ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/dev/lumbina/tv/feature/screensaver/PhotoDecode.kt"
-            line="8"
-            column="8"/>
-    </issue>
-
-    <issue
-        id="ExifInterface"
-        message="Avoid using `android.media.ExifInterface`; use `androidx.exifinterface.media.ExifInterface` instead"
-        errorLine1="    val tag = runCatching { ExifInterface(bytes.inputStream()).getAttributeInt(ExifInterface.TAG_ORIENTATION, normal) }"
-        errorLine2="                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/dev/lumbina/tv/feature/screensaver/PhotoDecode.kt"
-            line="88"
-            column="29"/>
-    </issue>
-
-    <issue
         id="UseKtx"
         message="Use the KTX extension function `String.toColorInt` instead?"
         errorLine1="    runCatching { Color(android.graphics.Color.parseColor(value)) }.getOrDefault(Color.Black)"

@@ -59,4 +59,23 @@ class RemoteSettingsStoreTest {
             stored.toDomain().bindings,
         )
     }
+
+    @Test
+    fun `every action a button can be given is stored under a name and read back`() {
+        // Every object of the sealed interface, found through Java's reflection (Kotlin's isn't on the classpath).
+        val named = RemoteAction::class.java.declaredClasses
+            .mapNotNull { runCatching { it.getField("INSTANCE").get(null) as? RemoteAction }.getOrNull() }
+            .filterNot { it in SPOKEN_ONLY }
+        assertTrue(RemoteAction.CloseAllApps in named)
+        named.forEach { action ->
+            val stored = encodeAction(action)
+            assertTrue("$action has no stored name", stored != null)
+            assertEquals(action, decodeAction(stored!!))
+        }
+    }
+
+    private companion object {
+        /** What the service does by itself with the mic key: never a choice of the user's. */
+        val SPOKEN_ONLY = setOf(RemoteAction.StartVoice, RemoteAction.StopVoice, RemoteAction.CancelVoice)
+    }
 }

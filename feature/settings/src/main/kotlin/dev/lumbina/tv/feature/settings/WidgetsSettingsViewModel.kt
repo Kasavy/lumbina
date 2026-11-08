@@ -3,6 +3,8 @@ package dev.lumbina.tv.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.lumbina.tv.core.domain.access.NotificationAccess
+import dev.lumbina.tv.core.domain.access.UserGrant
 import dev.lumbina.tv.core.domain.app.InstalledApps
 import dev.lumbina.tv.core.domain.app.labelsByPackage
 import dev.lumbina.tv.core.domain.device.InputCatalog
@@ -54,6 +56,9 @@ sealed interface CitySearch {
 /** What the top bar's page can change. */
 @Suppress("TooManyFunctions") // one per setting
 interface WidgetsCommands {
+    /** The access "Now playing" and the bell read. */
+    val noticesGrant: UserGrant
+
     /** Changes where the top bar stands, how it writes the date or which of its parts show. */
     fun changeTopBar(change: (TopBarLook) -> TopBarLook)
     fun setClockFormat(format: ClockFormat)
@@ -81,6 +86,7 @@ class WidgetsSettingsViewModel @Inject constructor(
     installedApps: InstalledApps,
     private val spotlight: RowSpotlight,
     inputs: InputCatalog,
+    override val noticesGrant: NotificationAccess,
 ) : ViewModel(),
     WidgetsCommands {
 

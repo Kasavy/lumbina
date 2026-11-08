@@ -3,6 +3,5 @@
   <ManuallySuppressedIssues/>
   <CurrentIssues>
     <ID>InjectDispatcher:VoskSpeechModels.kt:VoskSpeechModels$IO</ID>
-    <ID>UnsafeCallOnNullableType:RemoteSpeechEngine.kt:RemoteSpeechEngine.Connection$engine!!</ID>
   </CurrentIssues>
 </SmellBaseline>

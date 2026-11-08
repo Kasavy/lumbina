@@ -4,7 +4,8 @@
     <string name="home_favorites">Favorites</string>
     <string name="home_favorites_empty">No favorites yet. Press “+” and tick the apps.</string>
     <string name="home_category_empty">Nothing here yet. Press “+” and tick the apps.</string>
-    <string name="home_action_unavailable">This device does not allow that</string>
+    <string name="home_details_refused">This device does not let Lumbina open the app’s details</string>
+    <string name="home_uninstall_refused">This device does not let apps be uninstalled from here</string>
 
     <string name="menu_move">Move</string>
     <string name="menu_rename">Rename…</string>
@@ -37,10 +38,10 @@
     <string name="home_watch_next">Continue watching</string>
     <string name="status_notifications">Notifications</string>
     <string name="status_clear_notifications">Clear all</string>
-    <string name="notices_hint">OK opens · hold OK to dismiss or mute</string>
+    <string name="notices_hint">OK opens · hold OK to dismiss or hide</string>
     <string name="notice_nothing_to_open">OK dismisses</string>
     <string name="notice_dismiss">Dismiss</string>
-    <string name="notice_mute">Mute “%1$s”</string>
+    <string name="notice_mute">Hide notifications from “%1$s”</string>
     <string name="undo_notices_muted">Notifications from “%1$s” are hidden</string>
     <string name="failed_notice">Couldn’t open the notification</string>
     <string name="notices_none">No more notifications</string>
@@ -53,10 +54,12 @@
     <string name="banner_photos">Photos from the library</string>
     <string name="banner_photos_hint">becomes this tile’s banner</string>
     <string name="banner_add">Add a banner from a phone</string>
-    <string name="banner_add_how">With the phone on the same Wi-Fi, point its camera at the code: the remote page opens. Under “More”, choose “Tile banner” and send a photo: it shows up here.</string>
+    <string name="banner_add_how">With the phone on the same Wi-Fi, point its camera at the code: the remote page opens. Under “More”, select “Tile banner” and send a photo: it shows up here.</string>
     <string name="banner_phone_off">To send a picture from a phone, turn on the remote page under “Phone remote” in the settings.</string>
     <string name="banner_no_network">No network: connect the device to Wi-Fi or Ethernet to send a picture from a phone.</string>
     <string name="banner_service_off">The remote’s service is off, and the remote page doesn’t open without it. Turn the service on in Lumbina’s settings to send a picture from a phone.</string>
+    <string name="banner_open_settings">Open settings</string>
+    <string name="banner_open_network">Network settings</string>
     <string name="media_play">Play</string>
     <string name="media_pause">Pause</string>
     <string name="media_next">Next</string>
@@ -118,6 +121,8 @@
     <string name="undo_hidden">“%1$s” is hidden</string>
     <string name="undo_out_of_favorites">“%1$s” is out of Favorites</string>
     <string name="undo_out_of_category">“%1$s” is out of “%2$s”</string>
+    <string name="undo_input_out_of_favorites">The input “%1$s” is out of Favorites</string>
+    <string name="undo_input_out_of_category">The input “%1$s” is out of “%2$s”</string>
     <string name="undo_folder_dissolved">The folder “%1$s” is ungrouped</string>
     <string name="undo_row_hidden">The row “%1$s” is hidden</string>
     <string name="shortcut_hint">Opens the screen of all apps</string>
@@ -135,7 +140,7 @@
     <string name="pick_apps_hint_inputs">OK ticks an app or an input, the row changes at once</string>
     <string name="pick_apps_title">What to show in “%1$s”</string>
     <string name="pick_apps_title_favorites">What to show in Favorites</string>
-    <string name="pick_apps_count" tools:ignore="PluralsCandidate">%1$d chosen</string>
+    <string name="pick_apps_count" tools:ignore="PluralsCandidate">%1$d selected</string>
     <string name="pick_apps_in_row">In the row</string>
     <string name="pick_apps_rest">The rest, alphabetical</string>
     <string name="pick_apps_inputs">Inputs</string>

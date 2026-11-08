@@ -62,10 +62,7 @@ enum class ServicePath {
 /** The commands for a computer; without the device's address they hold a placeholder the user fills in. */
 data class ComputerCommands(val lines: List<String>, val addressKnown: Boolean)
 
-/**
- * Where pressing "Connect" got; null before the first press, and again if the service doesn't
- * come on within a while of [TurningOn].
- */
+/** Where pressing "Connect" got; null before the first press. */
 enum class ConnectResult {
     Connecting,
     NotAllowed,
@@ -79,6 +76,9 @@ enum class ConnectResult {
 
     /** Connected and set up: the service is coming on, until the next poll sees it (or gives up). */
     TurningOn,
+
+    /** Set up, but the service didn't come on within a while of [TurningOn]. */
+    NotOn,
 
     /** Connecting failed on Lumbina's side (its key); the log says why. */
     Failed,
@@ -113,7 +113,7 @@ data class SetupStatus(
     val userSteps: Int get() = if (starting && !serviceRunning) steps - 1 else steps
 
     /** Debugging is known to be on, so "Connect" can work. */
-    val debuggingOn: Boolean get() = adb != null && adb != AdbState.Off
+    val debuggingOn: Boolean get() = adb != null && adb != AdbState.Off && adb != AdbState.NotListening
 }
 
 /** What a poll of the device found: none of it has a callback. */
@@ -146,13 +146,10 @@ class SetupViewModel @Inject constructor(
 ) : ViewModel() {
 
     /** With its own debugging Lumbina gives itself notification access as it connects: no step for the user. */
-    private val noticesByUser = !profile.localAdb
-
-    /** Whether Lumbina's language can be chosen apart from the device's. */
-    val languageSupported: Boolean = appLanguage.supported
+    private val noticesByUser = !profile.setupOverAdb
 
     /** Whether to ask the language before anything else: see [DeviceProfile.languageFirst]. */
-    val languageFirst: Boolean = profile.languageFirst && appLanguage.supported && appLanguage.current() == null
+    val languageFirst: Boolean = profile.languageFirst && appLanguage.current() == null
 
     val hasAccessibilitySettings: Boolean get() = screens.hasAccessibilitySettings
 
@@ -170,14 +167,15 @@ class SetupViewModel @Inject constructor(
     val serviceScope = profile.serviceScope()
 
     private val path = when {
-        profile.localAdb -> ServicePath.LocalAdb
+        profile.setupOverAdb -> ServicePath.LocalAdb
         screens.hasAccessibilitySettings -> ServicePath.AccessibilitySettings
         else -> ServicePath.Computer
     }
 
     init {
-        // What a newer Lumbina sets up over its connection reaches those who connected before.
-        if (path == ServicePath.LocalAdb) viewModelScope.launch(Dispatchers.IO) { access.renew() }
+        // What a newer Lumbina sets up over its connection reaches those who connected before, the
+        // setup's way or from "Access" where the connection is an option.
+        if (profile.localAdb) viewModelScope.launch(Dispatchers.IO) { access.renew() }
     }
 
     /**
@@ -286,13 +284,11 @@ class SetupViewModel @Inject constructor(
         viewModelScope.launch { accessSettings.update { it.copy(setupCardHidden = false, setupReopened = true) } }
     }
 
-    fun openDeveloperSettings() {
-        screens.openDeveloperSettings()
-    }
+    /** False when the device did not open the screen. */
+    fun openDeveloperSettings(): Boolean = screens.openDeveloperSettings()
 
-    fun openAccessibilitySettings() {
-        screens.openAccessibilitySettings()
-    }
+    /** False when the device did not open the screen. */
+    fun openAccessibilitySettings(): Boolean = screens.openAccessibilitySettings()
 
     /** Connects to debugging (the device may ask the user) and lets Lumbina keep its service on. */
     fun connect() {
@@ -301,16 +297,22 @@ class SetupViewModel @Inject constructor(
         viewModelScope.launch {
             connect.value = when (access.connectAndSetUp()) {
                 SetupResult.Done -> ConnectResult.TurningOn
+
                 SetupResult.NotKept -> ConnectResult.NotKept
+
                 SetupResult.AllowedOnce -> ConnectResult.AllowedOnce
+
                 SetupResult.NotAllowed -> ConnectResult.NotAllowed
+
                 SetupResult.Off -> ConnectResult.DebuggingOff
-                SetupResult.Failed -> ConnectResult.Failed
+
+                // Not on firmware whose setup goes this way (setupOverAdb): its debugging always listens.
+                SetupResult.NotListening, SetupResult.Failed -> ConnectResult.Failed
             }
             if (connect.value == ConnectResult.TurningOn) {
-                // The step is done once a poll sees the service; if it doesn't come, back to the plain hint.
+                // The step is done once a poll sees the service; if it doesn't come, the user is told so.
                 delay(TURN_ON_MILLIS)
-                connect.compareAndSet(ConnectResult.TurningOn, null)
+                connect.compareAndSet(ConnectResult.TurningOn, ConnectResult.NotOn)
             }
         }
     }

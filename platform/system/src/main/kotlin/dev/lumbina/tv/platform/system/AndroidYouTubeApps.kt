@@ -58,7 +58,12 @@ internal class AndroidYouTubeApps @Inject constructor(@ApplicationContext privat
     }
 }
 
-/** The address of YouTube's results for [query]: clients show the results even when started by it. */
+/**
+ * The address of YouTube's results for [query]: clients show the results even when started by it.
+ * The query twice: the site's own parameter, which SmartTube and the like read, and the one the
+ * official app for TV reads (it opens its home screen without it, seen on a Vidda).
+ */
 internal fun youTubeSearchLink(query: String): Uri = Uri.parse("https://www.youtube.com/results").buildUpon()
     .appendQueryParameter("search_query", query)
+    .appendQueryParameter("q", query)
     .build()

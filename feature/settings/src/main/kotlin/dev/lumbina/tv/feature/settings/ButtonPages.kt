@@ -69,6 +69,7 @@ internal fun ButtonsState.actionsOf(kind: ActionKind, key: RemoteKey): List<Remo
         RemoteAction.OpenDeviceSettings.takeIf { deviceSettings },
         RemoteAction.ToggleMute,
         RemoteAction.ScreenOff,
+        RemoteAction.CloseAllApps.takeIf { closeApps },
     )
 }
 

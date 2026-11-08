@@ -69,6 +69,9 @@ internal fun channelOf(row: TvRow, logoUri: (Long) -> String): TvChannel? {
     )
 }
 
+/** A preview program's weight (higher first); none is 0. */
+internal fun TvRow.weight(): Long = long(Columns.WEIGHT) ?: 0L
+
 /** A preview program as stored: the channel it names and its weight (higher first). */
 internal class ChannelProgram(val channelId: Long, val card: ProgramCard, val weight: Long)
 
@@ -86,6 +89,25 @@ internal fun feedsOf(channels: List<TvChannel>, programs: List<ChannelProgram>):
         }.sortedByDescending { it.weight }.map { it.card }
         cards.takeIf { it.isNotEmpty() }?.let { ChannelFeed(same.first(), it) }
     }
+}
+
+/** The rows shown after a reading, and the channels among them whose programs were kept from before. */
+internal data class ShownFeeds(val feeds: List<ChannelFeed> = emptyList(), val kept: Set<String> = emptySet())
+
+/**
+ * The rows to show after a reading ([fresh], in its channels' order), [before] being what showed.
+ * A row whose programs are all gone while its channel stays keeps them for this one reading: an app
+ * may rewrite its programs by deleting them all first (seen with NUM on a Skyworth G6, every few
+ * seconds), and the row would drop out and come back. Kept once only: still empty next time, it goes.
+ */
+internal fun steadied(channels: List<TvChannel>, fresh: List<ChannelFeed>, before: ShownFeeds): ShownFeeds {
+    val now = fresh.associateBy { it.channel.key }
+    val shown = before.feeds.associateBy { it.channel.key }
+    val kept = mutableSetOf<String>()
+    val feeds = channels.map { it.key }.distinct().mapNotNull { key ->
+        now[key] ?: shown[key]?.takeIf { key !in before.kept }?.also { kept += key }
+    }
+    return ShownFeeds(feeds, kept)
 }
 
 /** A preview or watch-next program, or null when it has no title or is marked not to show. */

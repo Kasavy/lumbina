@@ -1,5 +1,6 @@
 package dev.lumbina.tv.feature.settings
 
+import dev.lumbina.tv.core.domain.access.UsageAccess
 import dev.lumbina.tv.core.domain.app.App
 import dev.lumbina.tv.core.domain.app.AppId
 import dev.lumbina.tv.core.domain.channels.ChannelFeed
@@ -43,8 +44,6 @@ class HomeSettingsViewModelTest {
     }
 
     private val language = object : AppLanguage {
-        override val supported = false
-
         override fun current(): String? = null
 
         override fun set(tag: String?) = Unit
@@ -68,6 +67,7 @@ class HomeSettingsViewModelTest {
             FakeSettings(ChannelSettings()),
             { flowOf(emptyMap()) },
             Granted,
+            UsageGranted,
         )
 
     private fun channelsOf(feeds: List<ChannelFeed>) = object : TvChannels {
@@ -160,6 +160,7 @@ class HomeSettingsViewModelTest {
             FakeSettings(ChannelSettings()),
             { flowOf(emptyMap()) },
             Granted,
+            UsageGranted,
         )
         val shown = channels.state.first { it?.channels?.size == 3 }!!.channels.map { it.key }
 
@@ -182,6 +183,7 @@ class HomeSettingsViewModelTest {
             FakeSettings(ChannelSettings()),
             { flowOf(emptyMap()) },
             Granted,
+            UsageGranted,
         )
         val key = HomeRow.Recent.key
         val sizes = TileSize.entries.sortedByDescending { it.perRow }
@@ -213,6 +215,7 @@ class HomeSettingsViewModelTest {
             settings,
             { flowOf(emptyMap()) },
             Granted,
+            UsageGranted,
         )
         assertEquals(
             listOf(WatchNextChoice("kino", "Kino", 0, false), WatchNextChoice("tube", "Tube", 1, true)),
@@ -224,6 +227,33 @@ class HomeSettingsViewModelTest {
         assertEquals(emptySet<String>(), settings.settings.first().hiddenWatchNext)
         val shownAgain = viewModel.state.first { state -> state?.watchNextApps?.all { it.shown } == true }!!
         assertEquals(listOf("kino", "tube"), shownAgain.watchNextApps.map { it.packageName })
+    }
+
+    @Test
+    fun `access given elsewhere with no channels yet is seen when the row's page opens`() = runTest {
+        val listings = object : TvListingsPermission {
+            var missing: String? = "android.permission.READ_TV_LISTINGS"
+
+            override fun missing(): String? = missing
+
+            override fun onGranted() = Unit
+        }
+        val viewModel = HomeSettingsViewModel(
+            { flowOf(emptyList()) },
+            Layouts(HomeLayout()),
+            FakeSettings(HomeAppearance()),
+            language,
+            RowSpotlight(),
+            watching(),
+            FakeSettings(ChannelSettings()),
+            { flowOf(emptyMap()) },
+            listings,
+            UsageGranted,
+        )
+        assertEquals(WatchNextMissing.Access, viewModel.state.first { it != null }!!.channelsMissing)
+        listings.missing = null
+        viewModel.recheckChannels()
+        assertEquals(null, viewModel.state.first { it?.channelsMissing == null }!!.channelsMissing)
     }
 
     private fun watching(vararg cards: ProgramCard) = object : TvChannels {
@@ -238,5 +268,11 @@ class HomeSettingsViewModelTest {
         override fun missing(): String? = null
 
         override fun onGranted() = Unit
+    }
+
+    private object UsageGranted : UsageAccess {
+        override fun granted() = true
+
+        override fun openSettings() = true
     }
 }

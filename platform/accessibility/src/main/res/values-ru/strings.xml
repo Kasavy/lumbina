@@ -97,19 +97,24 @@
     <string name="sleep_refused">Устройство не позволяет Lumbina выключить его</string>
     <string name="switcher_hint_close">◀ ▶ выбрать · OK открыть · удержание OK закрыть · Назад выйти</string>
     <string name="switcher_no_previous">Предыдущего приложения нет</string>
-    <string name="switcher_close_all">Закрыть все</string>
-    <string name="switcher_hint_close_all">◀ ▶ выбрать · OK закрыть все · Назад выйти</string>
-    <plurals name="switcher_close_all_count">
-        <item quantity="one">Закроет %d приложение</item>
-        <item quantity="few">Закроет %d приложения</item>
-        <item quantity="many">Закроет %d приложений</item>
-        <item quantity="other">Закроет %d приложения</item>
-    </plurals>
+    <string name="switcher_close_all">Закрыть все · %1$d</string>
+    <string name="switcher_hint_close_all">▼ к приложениям · OK закрыть все · Назад выйти</string>
     <string name="voice_silence">Ничего не слышно</string>
     <string name="voice_which">Какое именно?</string>
     <string name="voice_too_many">Нашлось несколько. Скажите название точнее</string>
     <string name="voice_nothing_to_close">Закрывать нечего</string>
     <string name="voice_cant_close">Чтобы закрывать приложения, нужно подключение к отладке</string>
+    <string name="debugging_off">Отладка выключена</string>
+    <string name="debugging_off_hint">Без неё не работают голос с пульта и закрытие приложений</string>
+    <string name="debugging_off_hint_apps">Без неё не работает закрытие приложений</string>
+    <string name="debugging_connect">Подключить…</string>
+    <string name="debugging_not_now">Не сейчас</string>
+    <plurals name="close_all_again">
+        <item quantity="one">Нажмите ещё раз, чтобы закрыть %d приложение</item>
+        <item quantity="few">Нажмите ещё раз, чтобы закрыть %d приложения</item>
+        <item quantity="many">Нажмите ещё раз, чтобы закрыть %d приложений</item>
+        <item quantity="other">Нажмите ещё раз, чтобы закрыть %d приложения</item>
+    </plurals>
     <string name="voice_no_timer">Таймер сна не включён</string>
     <string name="voice_one_language">Голос понимает только %1$s. Другие языки добавляются в разделе «Голосовой ввод»</string>
 </resources>

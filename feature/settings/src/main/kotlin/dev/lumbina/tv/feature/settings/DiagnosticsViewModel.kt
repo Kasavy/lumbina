@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.lumbina.tv.core.domain.access.AccessSettingsRepository
+import dev.lumbina.tv.core.domain.access.AdbState
 import dev.lumbina.tv.core.domain.access.LocalAccess
 import dev.lumbina.tv.core.domain.access.NotificationAccess
 import dev.lumbina.tv.core.domain.access.UsageAccess
@@ -16,6 +17,7 @@ import dev.lumbina.tv.core.domain.device.DeviceProfile
 import dev.lumbina.tv.core.domain.device.FirmwarePart
 import dev.lumbina.tv.core.domain.device.FirmwareParts
 import dev.lumbina.tv.core.domain.device.PackageStates
+import dev.lumbina.tv.core.domain.device.ReadDeviceConditions
 import dev.lumbina.tv.core.domain.diagnostics.AccessFacts
 import dev.lumbina.tv.core.domain.diagnostics.AskDevice
 import dev.lumbina.tv.core.domain.diagnostics.ChannelsFacts
@@ -45,6 +47,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -80,6 +83,7 @@ class DiagnosticsViewModel @Inject constructor(
     private val census: ChannelCensus,
     private val channels: TvChannels,
     private val listings: TvListingsPermission,
+    private val readConditions: ReadDeviceConditions,
     accessSettings: AccessSettingsRepository,
     voiceLanguages: VoiceLanguages,
     inputSettings: InputSettingsRepository,
@@ -106,17 +110,26 @@ class DiagnosticsViewModel @Inject constructor(
     /** Granted in the system's settings, with no callback: re-read with the rest. */
     private val grants = ticks.map { notificationAccess.granted() to usageAccess.granted() }.flowOn(Dispatchers.IO)
 
-    /** Reading the adb state opens a connection to it, so it is polled only as often as the log. */
+    /**
+     * Reading the adb state opens a connection to it, so it is polled only as often as the log,
+     * and once for all who read it (the access facts and the device's conditions).
+     */
     private val debugging = flow {
         while (true) {
-            emit(if (profile.localAdb) localAccess.state().name else null)
+            emit(if (profile.localAdb) localAccess.state() else null)
             delay(LOG_REFRESH_MILLIS)
         }
-    }.flowOn(Dispatchers.IO)
+    }.flowOn(Dispatchers.IO).shareIn(viewModelScope, WhileUiSubscribed, replay = 1)
 
     private val access = combine(accessSettings.settings, debugging, grants) { settings, debugging, (notes, usage) ->
-        AccessFacts(debugging, settings.openOnPowerOn, notifications = notes, usage = usage)
+        AccessFacts(debugging?.name, settings.openOnPowerOn, notifications = notes, usage = usage)
     }
+
+    /**
+     * The device's conditions, read as often as debugging is polled: they change as rarely, and
+     * reading them asks the system a lot (activities, settings, the inputs' service on Hisense).
+     */
+    private val deviceConditions = debugging.map { conditions(it) }.flowOn(Dispatchers.IO)
 
     private val channelFacts = combine(channels.channels(), channels.watchNext(), ticks) { feeds, next, _ ->
         ChannelsFacts(
@@ -133,8 +146,9 @@ class DiagnosticsViewModel @Inject constructor(
         inputSettings.settings,
         installedApps.observe(),
         layouts.layout,
-        combine(access, channelFacts, ::Pair),
-    ) { voice, input, apps, layout, (allowed, tv) ->
+        combine(access, channelFacts, deviceConditions, ::Triple),
+    ) { voice, input, apps, layout, (allowed, tv, conditions) ->
+        val inputs = profile.inputs?.list().orEmpty().map { "${it.name} (${it.id})" }
         DiagnosticsSnapshot(
             system = system.snapshot(),
             deviceProfile = profile.id,
@@ -162,7 +176,8 @@ class DiagnosticsViewModel @Inject constructor(
                 )
                 .map { FirmwarePackage(it, system.packageVersion(it), packages.of(it)) },
             partsOff = firmware.off(),
-            inputs = profile.inputs?.list().orEmpty().map { "${it.name} (${it.id})" },
+            inputs = inputs,
+            conditions = conditions,
         )
     }.flowOn(Dispatchers.IO)
 
@@ -170,13 +185,14 @@ class DiagnosticsViewModel @Inject constructor(
         DiagnosticsState(snapshot, log, notifications = snapshot.access.notifications, usage = snapshot.access.usage)
     }.stateIn(viewModelScope, WhileUiSubscribed, null)
 
-    fun openNotificationAccess() {
-        notificationAccess.openSettings()
-    }
+    // A function of the class, not the property in the flow's lambda: detekt's analysis misses that use.
+    private suspend fun conditions(debugging: AdbState?) = readConditions(debugging)
 
-    fun openUsageAccess() {
-        usageAccess.openSettings()
-    }
+    /** False when the device has no screen for it. */
+    fun openNotificationAccess(): Boolean = notificationAccess.openSettings()
+
+    /** False when the device has no screen for it. */
+    fun openUsageAccess(): Boolean = usageAccess.openSettings()
 
     private val mutableParts = MutableStateFlow(PartsState(firmware.canTurnOn))
     val parts: StateFlow<PartsState> = mutableParts.asStateFlow()

@@ -299,7 +299,10 @@ fun CommandsDialog(
     modifier: Modifier = Modifier,
     note: String? = null,
 ) {
+    // The window takes no focus of its own: "Close" gets it, so the first press already closes.
+    val close = remember { FocusRequester() }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        LaunchedEffect(Unit) { close.requestFocusSoon() }
         Column(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier = modifier.width(COMMANDS_WIDTH).dialogSurface().padding(28.dp),
@@ -320,7 +323,9 @@ fun CommandsDialog(
                 }
                 QrCode(lines.joinToString("\n"), size = COMMANDS_QR)
             }
-            Button(onClick = onDismiss) { Text(stringResource(R.string.commands_close)) }
+            Button(onClick = onDismiss, modifier = Modifier.focusRequester(close)) {
+                Text(stringResource(R.string.commands_close))
+            }
         }
     }
 }

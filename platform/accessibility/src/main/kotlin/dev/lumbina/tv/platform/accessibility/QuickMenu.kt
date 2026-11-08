@@ -53,10 +53,12 @@ internal class QuickMenu(
 
     private val overlay = QuickMenuOverlay(
         context = service,
-        texts = QuickMenuOverlay.Texts(
-            title = service.getString(R.string.quick_title),
-            pageKeys = service.getString(R.string.quick_page_keys),
-        ),
+        textsOf = {
+            QuickMenuOverlay.Texts(
+                title = service.getString(R.string.quick_title),
+                pageKeys = service.getString(R.string.quick_page_keys),
+            )
+        },
     )
     private var scope: CoroutineScope? = null
     private var sleep = SleepSettings()

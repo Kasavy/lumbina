@@ -4,7 +4,6 @@
   <CurrentIssues>
     <ID>InjectDispatcher:AppArtwork.kt:IO</ID>
     <ID>InjectDispatcher:Images.kt:IO</ID>
-    <ID>MaxLineLength:AppArtwork.kt:if (artwork.image.hasAlpha) Modifier.background(MaterialTheme.colorScheme.surfaceVariant) else Modifier</ID>
     <ID>MissingReadOnlyComposable:Dialogs.kt:@Composable fun Modifier.dialogSurface: Modifier</ID>
     <ID>MissingReadOnlyComposable:ScreenMarks.kt:@Composable fun panelTopClearOf: Dp</ID>
     <ID>MissingReadOnlyComposable:TileCard.kt:@Composable fun focusGlow: CardGlow</ID>

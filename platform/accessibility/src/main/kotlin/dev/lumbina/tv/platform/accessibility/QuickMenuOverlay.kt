@@ -21,7 +21,10 @@ import android.widget.TextView
  * so a video underneath keeps playing. A held ▲ or ▼ goes on by itself ([HeldArrow]); ◀ ▶ change a
  * value a step per press, not racing to the end of it.
  */
-internal class QuickMenuOverlay(context: Context, private val texts: Texts) {
+internal class QuickMenuOverlay(context: Context, private val textsOf: () -> Texts) {
+
+    /** Read as the panel is made: Lumbina's own language may have changed since the service started. */
+    private val texts: Texts get() = textsOf()
 
     /**
      * The panel's own words: its [title], and what the keys do on a page, where Back goes back to the
