@@ -38,6 +38,11 @@ internal class DebuggingWarning(
     private val log: LumbinaLog,
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) {
+    init {
+        // A button clicked is OK on it.
+        card.takesKeys(::onKey)
+    }
+
     /**
      * What the card asks of the device: whether Lumbina keeps the permission its setup over
      * debugging gave it, whether debugging is on, "Access" to open, and whether another of the

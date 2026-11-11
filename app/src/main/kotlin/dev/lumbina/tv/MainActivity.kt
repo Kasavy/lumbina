@@ -7,6 +7,8 @@ import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
+import android.view.InputDevice
+import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -35,10 +37,15 @@ import dev.lumbina.tv.core.domain.input.InputSettings
 import dev.lumbina.tv.core.domain.input.InputSettingsRepository
 import dev.lumbina.tv.core.domain.theme.Themes
 import dev.lumbina.tv.core.ui.LocalScreenMarks
+import dev.lumbina.tv.core.ui.LocalTapWindows
 import dev.lumbina.tv.core.ui.LocalUseLumbinaKeyboard
 import dev.lumbina.tv.core.ui.LocalVoiceInput
+import dev.lumbina.tv.core.ui.ProvideMouseClicks
 import dev.lumbina.tv.core.ui.ScreenMarks
+import dev.lumbina.tv.core.ui.TapWindows
 import dev.lumbina.tv.core.ui.inOwnLanguage
+import dev.lumbina.tv.core.ui.mouseClicks
+import dev.lumbina.tv.platform.accessibility.PointerUse
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,6 +80,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** Lumbina's dialogs and popups as they show, for the phone touchpad's taps. */
+    private val taps = TapWindows()
+
+    /** The phone touchpad clicked where accessibility finds nothing to click: the screen taps there. */
+    private val tapAt = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val x = intent.getIntExtra(LumbinaActions.EXTRA_X, -1)
+            val y = intent.getIntExtra(LumbinaActions.EXTRA_Y, -1)
+            if (x >= 0 && y >= 0) taps.tapAt(x, y, window.decorView)
+        }
+    }
+
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(newBase.inOwnLanguage())
     }
@@ -83,6 +102,12 @@ class MainActivity : ComponentActivity() {
             val filter = IntentFilter(LumbinaActions.LANGUAGE_CHANGED)
             ContextCompat.registerReceiver(this, languageChanged, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         }
+        ContextCompat.registerReceiver(
+            this,
+            tapAt,
+            IntentFilter(LumbinaActions.TAP_AT),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
         val page = intent.getStringExtra(LumbinaActions.EXTRA_SETTINGS_PAGE)
         returns.created(savedInstanceState != null, freshProcess = !createdInThisProcess, page)?.let(::navigate)
         createdInThisProcess = true
@@ -96,17 +121,21 @@ class MainActivity : ComponentActivity() {
                     LocalUseLumbinaKeyboard provides input.useLumbinaKeyboard,
                     LocalVoiceInput provides voiceInput,
                     LocalScreenMarks provides remember { ScreenMarks() },
+                    LocalTapWindows provides taps,
                 ) {
-                    // Surface provides the default content color; the wallpaper is the background.
-                    Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        colors = SurfaceDefaults.colors(
-                            containerColor = Color.Transparent,
-                            contentColor = MaterialTheme.colorScheme.onSurface,
-                        ),
-                    ) {
-                        val request by navRequests.collectAsStateWithLifecycle()
-                        LumbinaNavHost(request)
+                    ProvideMouseClicks(onPointer = pointer::used) {
+                        // Surface provides the default content color; the wallpaper is the background.
+                        Surface(
+                            // A mouse or an air mouse clicks too; dialogs and popups have this of their own.
+                            modifier = Modifier.fillMaxSize().mouseClicks(),
+                            colors = SurfaceDefaults.colors(
+                                containerColor = Color.Transparent,
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                            ),
+                        ) {
+                            val request by navRequests.collectAsStateWithLifecycle()
+                            LumbinaNavHost(request)
+                        }
                     }
                 }
             }
@@ -121,6 +150,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) unregisterReceiver(languageChanged)
+        unregisterReceiver(tapAt)
         super.onDestroy()
     }
 
@@ -128,6 +158,21 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         (application as? LumbinaApplication)?.healOnUiOpen()
         returns.started(SystemClock.elapsedRealtime())?.let(::navigate)
+    }
+
+    /** A mouse in use here is told to the service, so its screensaver and auto-sleep wait. */
+    private val pointer by lazy { PointerUse(this) }
+
+    // A mouse click comes as a touch; its moves and wheel as generic motion. The remote's keys the
+    // service hears itself.
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        pointer.used()
+        return super.dispatchTouchEvent(event)
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (event.isFromSource(InputDevice.SOURCE_CLASS_POINTER)) pointer.used()
+        return super.dispatchGenericMotionEvent(event)
     }
 
     override fun onResume() {

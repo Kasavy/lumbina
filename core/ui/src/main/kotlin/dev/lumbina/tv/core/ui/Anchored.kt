@@ -30,8 +30,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
@@ -88,16 +86,17 @@ private class AnchorNode(var anchor: TileAnchor) :
 @Composable
 internal fun AnchoredPanel(anchor: Rect?, width: Dp, onDismiss: () -> Unit, content: @Composable () -> Unit) {
     val clear = LocalPanelTop.current
-    Popup(onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
+    LumbinaPopup(onDismissRequest = onDismiss) {
         Layout(
             content = {
                 Box(
                     Modifier
                         .width(width)
+                        .keepsClicks()
                         .dialogSurface(),
                 ) { content() }
             },
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().closedByClickOutside(onDismiss),
         ) { measurables, constraints ->
             val panel = measurables.first().measure(constraints.copy(minWidth = 0, minHeight = 0))
             val margin = MARGIN.roundToPx()

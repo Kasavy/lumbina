@@ -25,7 +25,12 @@ import kotlinx.coroutines.cancel
  * service's lifecycle, keys and events to the [RemoteFeatures] built on connecting.
  */
 @AndroidEntryPoint
-class LumbinaAccessibilityService : AccessibilityService() {
+class LumbinaAccessibilityService :
+    AccessibilityService(),
+    OverlayOwner {
+
+    /** Its own overlay windows, which accessibility doesn't list to it. */
+    override val overlays = Overlays()
 
     @Inject internal lateinit var featuresFactory: RemoteFeatures.Factory
 

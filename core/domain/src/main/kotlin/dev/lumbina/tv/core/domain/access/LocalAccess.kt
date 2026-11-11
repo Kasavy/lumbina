@@ -1,6 +1,5 @@
 package dev.lumbina.tv.core.domain.access
 
-import dev.lumbina.tv.core.domain.health.AccessibilityServiceList
 import dev.lumbina.tv.core.domain.health.HealResult
 import dev.lumbina.tv.core.domain.health.SecureSettings
 import dev.lumbina.tv.core.domain.settings.SettingsRepository
@@ -112,15 +111,16 @@ typealias AccessSettingsRepository = SettingsRepository<AccessSettings>
  * firmware drops it.
  */
 // One function per thing Lumbina asks of the device's shell; splitting them would only scatter the commands.
-@Suppress("TooManyFunctions")
+// Each parameter is a part of the device it asks or a fact about it; grouping them would only hide what it takes.
+@Suppress("TooManyFunctions", "LongParameterList")
 class LocalAccess(
     private val adb: LocalAdb,
     private val secureSettings: SecureSettings,
     /** Brings the service on (HealAccessibilityService) and tells how it went. */
     private val heal: suspend () -> HealResult,
     private val packageName: String,
-    /** The class of Lumbina's notification listener. */
-    private val notificationListener: String,
+    /** How Lumbina's notification listener is let in on this device. */
+    private val notifications: NotificationGrant,
     /** Apps Lumbina carries for devices that lack a part of the system. */
     private val companions: List<CompanionApp> = emptyList(),
 ) {
@@ -154,13 +154,13 @@ class LocalAccess(
      * companions are seen to while connected even if the commands timed out.
      */
     suspend fun renew(): Boolean {
-        val commands = listOf(
+        // Without the connection too, where the way allows; first, so the shell has nothing left to do.
+        notifications.byItself()
+        val commands = listOfNotNull(
             usageStats(),
             // Also for those who connected before a version that lifts it: their service stays off the list till then.
             unrestricted(),
-            // Notifications for the bell and "now playing": firmware that needs this connection has
-            // no screen where the user could allow Lumbina's listener.
-            notificationAccess(),
+            notifications.command(),
         )
         // Done at every opening of Lumbina, in one connection (each costs a handshake, slow on a Mi
         // Box): the log hears of it only when it fails. One failing doesn't stop the next.
@@ -176,14 +176,12 @@ class LocalAccess(
      * ([AdbState.NotListening]). Companions and the speech recognizer are not set up this way.
      */
     val computerCommands: List<String>
-        get() = listOf(
+        get() = listOfNotNull(
             "pm grant $packageName $WRITE_SECURE_SETTINGS",
             unrestricted(),
             usageStats(),
-            notificationAccess(),
-        ).map { "adb shell $it" }
-
-    private fun notificationAccess() = "cmd notification allow_listener $packageName/$notificationListener"
+            notifications.command(),
+        ).map(ComputerSetup::adbShell)
 
     /** Gives or takes back the permission, and with it brings the service on. False when not connected or refused. */
     suspend fun setKeepService(on: Boolean): Boolean {
@@ -203,7 +201,7 @@ class LocalAccess(
      * Allowed from the shell, the service binds as for an app installed over adb. Older Android
      * doesn't know the operation and only prints an error.
      */
-    private fun unrestricted() = unrestricted(packageName)
+    private fun unrestricted() = "appops set $packageName ACCESS_RESTRICTED_SETTINGS allow"
 
     /** `pm` prints its error rather than failing the shell, so the permission itself tells whether it took. */
     private suspend fun grantSecureSettings(on: Boolean): Boolean {
@@ -261,23 +259,7 @@ interface SetupScreens {
     fun openDeveloperSettings(): Boolean
 }
 
-/** What to run on a computer (adb) where Lumbina can't turn its service on by itself. */
-object ComputerSetup {
-    fun commands(address: String?, enabledServices: String?, ourService: String, packageName: String): List<String> {
-        val services = AccessibilityServiceList.withoutOurs(enabledServices, ourService) + ourService
-        return listOf(
-            "adb connect ${address ?: "<IP>"}",
-            "adb shell ${unrestricted(packageName)}",
-            "adb shell settings put secure enabled_accessibility_services ${AccessibilityServiceList.join(services)}",
-            "adb shell pm grant $packageName $WRITE_SECURE_SETTINGS",
-        )
-    }
-}
-
 private const val WRITE_SECURE_SETTINGS = "android.permission.WRITE_SECURE_SETTINGS"
-
-/** Lifts Android 13's restriction on an app installed from a file, see [LocalAccess]. */
-private fun unrestricted(packageName: String) = "appops set $packageName ACCESS_RESTRICTED_SETTINGS allow"
 
 /** Commands in one shell, each run whatever the one before gave. */
 internal const val SHELL_AND_THEN = " ; "

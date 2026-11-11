@@ -3,7 +3,9 @@ package dev.lumbina.tv.platform.accessibility
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.WindowManager
@@ -65,6 +67,12 @@ internal class CornerCard(private val context: Context, private val under: Corne
         if (show(message, emptyList(), fraction = null, hint = null)) handler.postDelayed(hideRunnable, millis)
     }
 
+    private var keys: (KeyEvent) -> Boolean = { false }
+
+    override fun takesKeys(keys: (KeyEvent) -> Boolean) {
+        this.keys = keys
+    }
+
     /** ◀ ▶ move between the buttons. */
     override fun move(step: Int) {
         select(selected + step)
@@ -72,7 +80,7 @@ internal class CornerCard(private val context: Context, private val under: Corne
 
     override fun hide() {
         handler.removeCallbacks(hideRunnable)
-        root?.let(windowManager::removeView)
+        root?.let(windowManager::removeOverlay)
         root = null
         text = null
         bar = null
@@ -100,7 +108,7 @@ internal class CornerCard(private val context: Context, private val under: Corne
         }
         val message = context.label("", MESSAGE_SP).apply { maxLines = if (made.withBar) 1 else MESSAGE_LINES }
         card.addView(message)
-        val fill = if (made.withBar) bar(card, gap) else null
+        val fill = if (made.withBar) context.bar(card, gap) else null
         val row = buttons(made.buttons, gap)
         // The message wraps to the card's width, and the card is as wide as its buttons need.
         val width = maxOf(context.dp(CARD_INNER_DP), row.measuredWidth)
@@ -130,12 +138,24 @@ internal class CornerCard(private val context: Context, private val under: Corne
                 row.addView(view, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).apply { marginEnd = gap })
             }
         }
+        // A button clicked is chosen and OK pressed on it, as the owner hears OK from the remote.
+        buttonViews.forEachIndexed { index, view ->
+            view.setOnClickListener {
+                select(index)
+                keys.pressOk()
+            }
+        }
         row.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         return row
     }
 
     /** In the corner, or over the card [under] this one while that one shows. */
-    private fun params(card: View) = overlayParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.BOTTOM or Gravity.END).apply {
+    private fun params(card: View) = overlayParams(
+        WRAP_CONTENT,
+        WRAP_CONTENT,
+        Gravity.BOTTOM or Gravity.END,
+        touchable = true,
+    ).apply {
         x = context.dp(MARGIN_DP)
         y = context.dp(MARGIN_DP) + (under?.height()?.takeIf { it > 0 }?.plus(context.dp(STACK_GAP_DP)) ?: 0)
         // Measured here so a card that comes first knows its own height before it is laid out.
@@ -150,17 +170,6 @@ internal class CornerCard(private val context: Context, private val under: Corne
     }
 
     /** The bar under the message: a track with the part still left filled. */
-    private fun bar(card: LinearLayout, gap: Int): View {
-        val track = FrameLayout(context).apply { background = context.rounded(OverlayPalette.track, BAR_CORNER_DP) }
-        val fill = View(context).apply { background = context.rounded(OverlayPalette.accent, BAR_CORNER_DP) }
-        track.addView(fill, FrameLayout.LayoutParams(context.dp(CARD_INNER_DP), context.dp(BAR_DP)))
-        card.addView(
-            track,
-            LinearLayout.LayoutParams(context.dp(CARD_INNER_DP), context.dp(BAR_DP)).apply { topMargin = gap },
-        )
-        return fill
-    }
-
     private fun select(index: Int) {
         if (buttonViews.isEmpty()) return
         selected = index.coerceIn(0, buttonViews.lastIndex)
@@ -173,6 +182,15 @@ internal class CornerCard(private val context: Context, private val under: Corne
     }
 
     private companion object {
+        /** The bar under the message, added to [card]; its fill is returned, to be sized as time goes. */
+        fun Context.bar(card: LinearLayout, gap: Int): View {
+            val track = FrameLayout(this).apply { background = rounded(OverlayPalette.track, BAR_CORNER_DP) }
+            val fill = View(this).apply { background = rounded(OverlayPalette.accent, BAR_CORNER_DP) }
+            track.addView(fill, FrameLayout.LayoutParams(dp(CARD_INNER_DP), dp(BAR_DP)))
+            card.addView(track, LinearLayout.LayoutParams(dp(CARD_INNER_DP), dp(BAR_DP)).apply { topMargin = gap })
+            return fill
+        }
+
         const val PADDING_DP = 20
         const val GAP_DP = 14
         const val CORNER_DP = 18
@@ -188,4 +206,11 @@ internal class CornerCard(private val context: Context, private val under: Corne
         const val MESSAGE_LINES = 4
         const val BUTTON_SP = 13f
     }
+}
+
+/** OK pressed and let go, to these keys. */
+private fun ((KeyEvent) -> Boolean).pressOk() {
+    val time = SystemClock.uptimeMillis()
+    this(KeyEvent(time, time, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_CENTER, 0))
+    this(KeyEvent(time, SystemClock.uptimeMillis(), KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_CENTER, 0))
 }

@@ -57,7 +57,11 @@ data class ThemeSpec(
     val colors: Map<ThemeRole, Long>,
     /** How dense [ThemeRole.Veil] is over the top of the wallpaper, 0 to 1. */
     val veilTop: Float,
-    /** How dense it is under the rows of tiles, where text has to be read. */
+    /**
+     * How dense it is under the rows of tiles, where text has to be read. Kept near the dark
+     * theme's in every theme: a light veil as dense washed the picture out to white, a black one
+     * at 1 hid its lower half.
+     */
     val veilBottom: Float,
 ) {
     init {
@@ -131,8 +135,8 @@ object Themes {
             ThemeRole.Error to 0xFFB3261E,
             ThemeRole.Veil to 0xFFF0F3F5,
         ),
-        veilTop = 0.35f,
-        veilBottom = 0.93f,
+        veilTop = 0.15f,
+        veilBottom = 0.75f,
     )
 
     /** Pure black for projectors and OLED screens in a dark room: the picture ends where the light ends. */
@@ -145,8 +149,8 @@ object Themes {
             ThemeRole.PanelRaised to 0xFF17191D,
             ThemeRole.Line to 0xFF2C3037,
         ),
-        veilTop = 0.25f,
-        veilBottom = 1f,
+        veilTop = 0.18f,
+        veilBottom = 0.9f,
     )
 
     val builtIn: List<ThemeSpec> = listOf(Dark, Light, Black)

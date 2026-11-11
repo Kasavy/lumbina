@@ -2,6 +2,7 @@ package dev.lumbina.tv.core.domain.diagnostics
 
 import dev.lumbina.tv.core.domain.MILLIS_PER_SECOND
 import dev.lumbina.tv.core.domain.access.AdbState
+import dev.lumbina.tv.core.domain.access.ENABLED_NOTIFICATION_LISTENERS
 import dev.lumbina.tv.core.domain.access.LocalAdb
 import dev.lumbina.tv.core.domain.device.DeviceAnswer
 import dev.lumbina.tv.core.domain.device.DeviceProfile
@@ -53,13 +54,14 @@ class AskDevice(
     /**
      * Why the remote's service may not run: the list the system keeps and what it made of it, and
      * whether Lumbina came from a file, which Android 13+ restricts (the installer and the
-     * restriction's state).
+     * restriction's state). Then the notification listeners, which the bell and "now playing" need.
      */
     private fun accessibility() = listOf(
         "settings get secure enabled_accessibility_services",
         "dumpsys accessibility | grep -E 'Enabled services|Binding services|Crashed services'",
         "appops get $packageName ACCESS_RESTRICTED_SETTINGS",
         "dumpsys package $packageName | grep -E 'installerPackageName|initiatingPackageName|packageSource'",
+        "settings get secure $ENABLED_NOTIFICATION_LISTENERS",
     )
 
     /** A service dump runs to hundreds of lines; its head says what a report needs. */

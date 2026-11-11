@@ -6,7 +6,6 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -23,7 +22,7 @@ internal class QuickMenuViews(private val context: Context) {
     /** The window is the panel and the gap around it. */
     val windowWidth: Int get() = context.dp(PANEL_WIDTH_DP + 2 * PANEL_MARGIN_DP)
 
-    fun frame() = FrameLayout(context).apply {
+    fun frame() = PointerFrame(context).apply {
         val margin = context.dp(PANEL_MARGIN_DP)
         setPadding(margin, margin, margin, margin)
     }

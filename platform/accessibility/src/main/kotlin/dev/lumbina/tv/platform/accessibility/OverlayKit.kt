@@ -1,5 +1,6 @@
 package dev.lumbina.tv.platform.accessibility
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -10,6 +11,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.TypedValue
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
@@ -158,22 +160,61 @@ internal fun Context.label(text: String, sp: Float, color: Int = OverlayPalette.
 /**
  * Adds an overlay window, or returns false when the service has no window token yet (or any
  * more): right after (re)connecting the system can refuse it, and that must not crash the service.
+ * The service's [Overlays] hear of it, unless it is not to be [listed] (the touchpad's pointer).
  */
-internal fun WindowManager.addOverlay(view: View, params: WindowManager.LayoutParams): Boolean = try {
-    addView(view, params)
-    true
-} catch (_: WindowManager.BadTokenException) {
-    false
+internal fun WindowManager.addOverlay(view: View, params: WindowManager.LayoutParams, listed: Boolean = true): Boolean =
+    try {
+        addView(view, params)
+        if (listed) view.context.overlays?.added(view)
+        true
+    } catch (_: WindowManager.BadTokenException) {
+        false
+    }
+
+/** Takes an overlay window off, the service's [Overlays] told. */
+internal fun WindowManager.removeOverlay(view: View) {
+    view.context.overlays?.removed(view)
+    removeView(view)
 }
 
 /**
- * An accessibility overlay window: needs no extra permission, and never takes focus or touches,
- * so the app underneath keeps running (the service feeds the overlay the remote's keys).
+ * An accessibility overlay window: needs no extra permission, and never takes focus, so the app
+ * underneath keeps running (the service feeds the overlay the remote's keys). Not [touchable] it
+ * lets every touch through; [touchable] it takes a mouse's clicks on itself (an air mouse) and
+ * lets the ones elsewhere through, hearing of them as [MotionEvent.ACTION_OUTSIDE] ([closedByClickOutside]).
  */
-internal fun overlayParams(width: Int, height: Int, gravity: Int, extraFlags: Int = 0) = WindowManager.LayoutParams(
-    width,
-    height,
-    WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or extraFlags,
-    PixelFormat.TRANSLUCENT,
-).also { it.gravity = gravity }
+internal fun overlayParams(
+    width: Int,
+    height: Int,
+    gravity: Int,
+    extraFlags: Int = 0,
+    touchable: Boolean = false,
+): WindowManager.LayoutParams {
+    val touches = if (touchable) {
+        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+    } else {
+        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+    }
+    return WindowManager.LayoutParams(
+        width,
+        height,
+        WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or touches or extraFlags,
+        PixelFormat.TRANSLUCENT,
+    ).also { it.gravity = gravity }
+}
+
+/**
+ * A click of a mouse outside this touchable overlay's window runs [close]; the click goes on to
+ * what is there. So does one in the window's margin around what it shows ([holds]), but that click,
+ * inside the window, goes no further.
+ */
+// Not a click on this view: only the touch outside what it shows is heard.
+@SuppressLint("ClickableViewAccessibility")
+internal fun View.closedByClickOutside(close: () -> Unit) {
+    setOnTouchListener { view, event ->
+        val inMargin = event.actionMasked == MotionEvent.ACTION_DOWN && !view.holds(event.x, event.y)
+        if (event.actionMasked == MotionEvent.ACTION_OUTSIDE || inMargin) close()
+        false
+    }
+}

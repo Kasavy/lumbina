@@ -103,8 +103,8 @@ fun HomeRoute(
     // One message at a time at the bottom: the move's, a failure, then "Undo", then the hint.
     val offered = undo.takeIf { moving == null && failed == null }
     // "All apps" is inside too, so what is hidden there can be undone there.
-    UndoHost(offered, onUndo, modifier.hiddenFromFocus(!visible, over), busy = moving != null) {
-        Box(Modifier.fillMaxSize().hiddenFromFocus(!homeShown, null)) {
+    UndoHost(offered, onUndo, modifier.hiddenUnder(!visible, over), busy = moving != null) {
+        Box(Modifier.fillMaxSize().hiddenUnder(!homeShown, null)) {
             HomeScreen(
                 state = current,
                 channels = channels,

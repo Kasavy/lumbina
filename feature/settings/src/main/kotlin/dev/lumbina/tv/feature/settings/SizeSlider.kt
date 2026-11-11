@@ -33,9 +33,9 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
@@ -44,6 +44,7 @@ import dev.lumbina.tv.core.domain.home.HomeAppearance
 import dev.lumbina.tv.core.domain.home.HomeSection
 import dev.lumbina.tv.core.domain.home.TileSize
 import dev.lumbina.tv.core.ui.FreshPressGuard
+import dev.lumbina.tv.core.ui.LumbinaPopup
 import dev.lumbina.tv.core.ui.PillShape
 import kotlin.math.abs
 
@@ -97,13 +98,12 @@ internal fun SizeSlider(start: String, onDone: () -> Unit, viewModel: HomeSettin
     val all = current.rows.map { it.row.key }
     val around = if (page.key in rows) rows else (rows + page.key).sortedBy { all.indexOf(it) }
     val go = { by: Int -> around.getOrNull(around.indexOf(page.key) + by)?.let { key = it } }
-    Popup(
+    LumbinaPopup(
         alignment = Alignment.BottomCenter,
         onDismissRequest = {
             viewModel.setRowTileSizes(before)
             onDone()
         },
-        properties = PopupProperties(focusable = true),
     ) {
         SliderCard(
             title = rowTitle(page),
@@ -155,6 +155,13 @@ internal fun SliderCard(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
             .padding(bottom = 28.dp)
+            // A mouse: a click on the card is OK, on an arrow a step.
+            .semantics {
+                onClick {
+                    onKey(Key.DirectionCenter)
+                    true
+                }
+            }
             .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(22.dp))
             .padding(horizontal = 32.dp, vertical = 18.dp)
             .focusRequester(focus)
@@ -171,8 +178,9 @@ internal fun SliderCard(
         note?.let {
             Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("◀", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // No gaps of the row's own: the arrows' boxes keep the bars and the value apart.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Arrow("◀") { onKey(Key.DirectionLeft) }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 repeat(count) { index ->
                     val color = MaterialTheme.colorScheme.run { if (index == at) primary else surfaceVariant }
@@ -188,7 +196,7 @@ internal fun SliderCard(
                     }
                 }
             }
-            Text("▶", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Arrow("▶") { onKey(Key.DirectionRight) }
             Text(value, style = MaterialTheme.typography.titleMedium)
         }
         Text(
@@ -201,3 +209,26 @@ internal fun SliderCard(
 
 /** Per-row counts that cards of programs come in: small, medium, large. */
 private val CARD_SIZES = setOf(TileSize.Small.perRow, TileSize.Medium.perRow, TileSize.Large.perRow)
+
+/**
+ * An arrow of the scale; a mouse clicks it. Its box is as big as a touch target: an air mouse's
+ * pointer missing a bare glyph would land on the card, which closes the slider.
+ */
+@Composable
+private fun Arrow(glyph: String, onClick: () -> Unit) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(ARROW_TARGET)
+            .semantics {
+                onClick {
+                    onClick()
+                    true
+                }
+            },
+    ) {
+        Text(glyph, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+private val ARROW_TARGET = 48.dp

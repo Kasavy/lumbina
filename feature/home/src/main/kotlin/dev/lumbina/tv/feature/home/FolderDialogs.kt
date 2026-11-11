@@ -17,7 +17,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -29,6 +28,7 @@ import dev.lumbina.tv.core.domain.home.TileContent
 import dev.lumbina.tv.core.domain.home.TileNames
 import dev.lumbina.tv.core.domain.home.folder
 import dev.lumbina.tv.core.ui.AppCard
+import dev.lumbina.tv.core.ui.LumbinaDialog
 import dev.lumbina.tv.core.ui.MenuEntry
 import dev.lumbina.tv.core.ui.TileMenu
 import dev.lumbina.tv.core.ui.TileName
@@ -103,7 +103,7 @@ private fun FolderDialog(
     val start = remember { FocusRequester() }
     val startAt = folder.apps.indexOfFirst { it.id.flatten() == menu.inFolder }.coerceAtLeast(0)
     // Back: to the menu the folder was opened from, if any; an app's menu opened here comes back here.
-    Dialog(onDismissRequest = menu::back, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    LumbinaDialog(onDismissRequest = menu::back, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         val grid = rememberLazyGridState()
         // In the window: its grid is laid out a frame or two after it opens. An app far down is not
         // laid out at all until the grid is brought to it.

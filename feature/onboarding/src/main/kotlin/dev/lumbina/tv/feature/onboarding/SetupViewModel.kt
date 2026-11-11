@@ -228,7 +228,7 @@ class SetupViewModel @Inject constructor(
         accessSettings.settings.map { it.setupCardHidden to it.setupReopened },
         justOpened,
     ) { polled, voice, connect, (hidden, again), justOpened ->
-        val starting = justOpened && !polled.running && secureSettings.canWrite
+        val starting = justOpened && !polled.running && access.keepsService
         SetupStatus(
             serviceRunning = polled.running,
             voice = voice,
@@ -260,7 +260,7 @@ class SetupViewModel @Inject constructor(
         accessSettings.settings.map { it.setupCardHidden },
         justOpened,
     ) { polled, dismissed, justOpened ->
-        dismissed && !polled.running && !(justOpened && secureSettings.canWrite)
+        dismissed && !polled.running && !(justOpened && access.keepsService)
     }.stateIn(viewModelScope, WhileUiSubscribed, false)
 
     /** How many of the setup's steps are not done, whether or not the setup is on screen. */
@@ -268,7 +268,7 @@ class SetupViewModel @Inject constructor(
         SetupStatus(
             serviceRunning = polled.running,
             voice = voice,
-            starting = justOpened && !polled.running && secureSettings.canWrite,
+            starting = justOpened && !polled.running && access.keepsService,
             channels = polled.channels,
             noticesMissing = polled.noticesMissing,
         ).userSteps
@@ -318,10 +318,15 @@ class SetupViewModel @Inject constructor(
     }
 
     /** The commands for a computer, with this device's address and current services filled in. */
-    suspend fun computerCommands(packageName: String): ComputerCommands = withContext(Dispatchers.IO) {
+    suspend fun computerCommands(): ComputerCommands = withContext(Dispatchers.IO) {
         val ip = address.ipv4()
         ComputerCommands(
-            ComputerSetup.commands(ip, secureSettings.enabledAccessibilityServices(), ourService, packageName),
+            ComputerSetup.commands(
+                ip,
+                access.computerCommands,
+                secureSettings.enabledAccessibilityServices(),
+                ourService,
+            ),
             addressKnown = ip != null,
         )
     }

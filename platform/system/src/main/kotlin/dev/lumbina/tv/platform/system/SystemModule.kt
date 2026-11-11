@@ -6,6 +6,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dev.lumbina.tv.core.common.LumbinaLog
 import dev.lumbina.tv.core.domain.access.NotificationAccess
+import dev.lumbina.tv.core.domain.access.NotificationListeners
 import dev.lumbina.tv.core.domain.access.SetupScreens
 import dev.lumbina.tv.core.domain.access.UsageAccess
 import dev.lumbina.tv.core.domain.app.AppLauncher
@@ -47,6 +48,8 @@ internal interface SystemModule {
     @Binds fun keyCapture(impl: AndroidKeyCapture): KeyCapture
 
     @Binds fun secureSettings(impl: AndroidSecureSettings): SecureSettings
+
+    @Binds fun notificationListeners(impl: AndroidNotificationListeners): NotificationListeners
 
     @Binds fun health(impl: AndroidAccessibilityHealth): AccessibilityHealth
 

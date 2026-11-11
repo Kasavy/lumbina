@@ -74,13 +74,18 @@ internal class VoiceOverlay(private val context: Context) {
         val row = options ?: return
         val made = Choice(answers.size, millis, onPick)
         choice = made
-        answers.forEach { answer ->
+        answers.forEachIndexed { index, answer ->
             val pad = context.dp(OPTION_PAD_DP)
             val button = context.label(answer, OPTION_SP).apply {
                 setPadding(pad * 2, pad, pad * 2, pad)
                 maxLines = 1
                 ellipsize = TextUtils.TruncateAt.END
                 maxWidth = context.dp(OPTION_WIDTH_DP)
+                // A click (a mouse, the phone touchpad) takes this answer, as OK on it does.
+                setOnClickListener {
+                    hide()
+                    onPick(index)
+                }
             }
             row.addView(button, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).apply { marginEnd = pad })
         }
@@ -104,7 +109,7 @@ internal class VoiceOverlay(private val context: Context) {
 
     fun hide() {
         handler.removeCallbacks(hideRunnable)
-        root?.let(windowManager::removeView)
+        root?.let(windowManager::removeOverlay)
         root = null
         sign = null
         label = null
@@ -218,8 +223,18 @@ internal class VoiceOverlay(private val context: Context) {
             addView(icon, LinearLayout.LayoutParams(side, side).apply { marginEnd = pad })
             addView(words)
         }
-        val params = overlayParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
-            .apply { y = context.dp(BOTTOM_MARGIN_DP) }
+        val params = overlayParams(
+            WRAP_CONTENT,
+            WRAP_CONTENT,
+            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
+            touchable = true,
+        ).apply { y = context.dp(BOTTOM_MARGIN_DP) }
+        // A click on a notice with an action runs it, as OK does (a mouse, the phone touchpad).
+        plate.setOnClickListener {
+            val run = action?.run ?: return@setOnClickListener
+            hide()
+            run()
+        }
         if (!windowManager.addOverlay(plate, params)) return
         root = plate
         sign = icon

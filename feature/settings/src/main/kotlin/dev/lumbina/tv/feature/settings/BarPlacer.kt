@@ -6,13 +6,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.lumbina.tv.core.domain.home.BarPlace
 import dev.lumbina.tv.core.domain.home.RowSpotlight
 import dev.lumbina.tv.core.domain.home.TopBarLook
+import dev.lumbina.tv.core.ui.LumbinaPopup
 
 /** What is set on home itself while the panel steps aside: the top bar's place, or a row's size (by its key). */
 @Composable
@@ -34,13 +33,12 @@ internal fun BarPlacer(onDone: () -> Unit, viewModel: WidgetsSettingsViewModel =
     val move = { by: Int ->
         PLACES.getOrNull(at + by)?.let { place -> viewModel.changeTopBar { it.copy(place = place) } }
     }
-    Popup(
+    LumbinaPopup(
         alignment = Alignment.BottomCenter,
         onDismissRequest = {
             viewModel.changeTopBar { it.copy(place = before) }
             onDone()
         },
-        properties = PopupProperties(focusable = true),
     ) {
         SliderCard(
             title = stringResource(R.string.bar_place_title),

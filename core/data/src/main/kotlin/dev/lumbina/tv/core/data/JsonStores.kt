@@ -137,6 +137,8 @@ internal data class StoredWallpaperSettings(
     val dimAtNight: Boolean = true,
     val mediaChangedAt: Long = 0,
     val startWith: String? = null,
+    val shown: String? = null,
+    val shownAt: Long = 0,
 ) {
     companion object {
         const val GRADIENT = "gradient"
@@ -157,6 +159,8 @@ internal fun StoredWallpaperSettings.toDomain() = WallpaperSettings(
     dimAtNight = dimAtNight,
     mediaChangedAt = mediaChangedAt,
     startWith = startWith,
+    shown = shown,
+    shownAt = shownAt,
 )
 
 internal fun WallpaperSettings.toStored() = StoredWallpaperSettings(
@@ -171,4 +175,6 @@ internal fun WallpaperSettings.toStored() = StoredWallpaperSettings(
     dimAtNight = dimAtNight,
     mediaChangedAt = mediaChangedAt,
     startWith = startWith,
+    shown = shown,
+    shownAt = shownAt,
 )

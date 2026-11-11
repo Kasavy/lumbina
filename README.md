@@ -23,8 +23,11 @@ accessibility service, and any other button of the remote you choose to give som
   beside the title (▲ from any app) closes them all.
 - Remote buttons are yours to set: a press, a double press and a hold of a button can each open
   an app or one of Lumbina's screens, control the player, mute or unmute, start the screensaver,
-  turn the screen off, close all apps (asked once more first), or do nothing. A
-  button can be Lumbina's only on its own screens and stay the app's everywhere else.
+  turn the screen off, close all apps (asked once more first), or do nothing. A button can be
+  Lumbina's only on its own screens and stay the app's everywhere else.
+- A mouse or an air mouse clicks on Lumbina's screens, its quick menu and recent apps as OK does,
+  and held, it opens a tile's menu; a click beside a panel closes it as Back does. The screensaver
+  closes at a click, not when the pointer drifts.
 - Search from the home screen goes to the system's search or to YouTube, as you choose.
 - Home screen with favorites, rows and folders, and a row of your apps ending in "See all": every
   app, with search and filters, on a screen of its own. The "All apps" tile can stand in any row.
@@ -48,7 +51,8 @@ accessibility service, and any other button of the remote you choose to give som
   Projectivy wallpaper plugins, or none: the theme's background.
 - A media library for your photos and videos: which go on the wallpaper, which on the screensaver,
   and pictures for banners on app tiles, the "All apps" tile and inputs. They come from a phone,
-  through the phone remote's page. A video plays in its tile when the focus rests on it, and any file opens over the whole screen.
+  through the phone remote's page. A video plays in its tile when the focus rests on it, and any
+  file opens over the whole screen.
 - A top bar with the clock, weather, notifications and now playing, at the right, left or in
   the middle, with the parts you want.
 - HDMI and other inputs, where the device lets apps reach them: as tiles in any row, in the quick
@@ -58,8 +62,9 @@ accessibility service, and any other button of the remote you choose to give som
   Android it runs on, apart from the device's.
 - Screensaver with photos and videos from the same sources as the wallpaper, from a minute idle,
   over Lumbina's own screens only, so it never covers a video. Sleep timer, auto-sleep.
-- Phone as a remote. Scan the QR code and a web page opens, nothing to install. The code can be
-  shown on the screensaver, and a saved diagnostics report can be taken with the phone.
+- Phone as a remote. Scan the QR code and a web page opens, nothing to install: buttons, a
+  touchpad with a pointer and two-finger scrolling, text input. The code can be shown on the
+  screensaver, and a saved diagnostics report can be taken with the phone.
 - Checks for a new version and installs it, when you ask.
 - No ads, no telemetry, no account.
 

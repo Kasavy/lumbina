@@ -9,6 +9,8 @@ import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.lumbina.tv.core.common.OUR_ACCESSIBILITY_SERVICE
+import dev.lumbina.tv.core.domain.access.ENABLED_NOTIFICATION_LISTENERS
+import dev.lumbina.tv.core.domain.access.NotificationListeners
 import dev.lumbina.tv.core.domain.health.AccessibilityHealth
 import dev.lumbina.tv.core.domain.health.SecureSettings
 import javax.inject.Inject
@@ -30,6 +32,20 @@ internal class AndroidSecureSettings @Inject constructor(@ApplicationContext pri
 
     override fun setAccessibilityEnabled() {
         Settings.Secure.putInt(context.contentResolver, Settings.Secure.ACCESSIBILITY_ENABLED, 1)
+    }
+}
+
+internal class AndroidNotificationListeners @Inject constructor(@ApplicationContext private val context: Context) :
+    NotificationListeners {
+
+    override val canWrite: Boolean
+        get() = context.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) ==
+            PackageManager.PERMISSION_GRANTED
+
+    override fun get(): String? = Settings.Secure.getString(context.contentResolver, ENABLED_NOTIFICATION_LISTENERS)
+
+    override fun set(value: String) {
+        Settings.Secure.putString(context.contentResolver, ENABLED_NOTIFICATION_LISTENERS, value)
     }
 }
 

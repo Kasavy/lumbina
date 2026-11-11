@@ -45,7 +45,6 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -53,6 +52,7 @@ import androidx.tv.material3.Button
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
+import dev.lumbina.tv.core.ui.LumbinaDialog
 import dev.lumbina.tv.core.ui.PillShape
 import dev.lumbina.tv.core.ui.dialogSurface
 import dev.lumbina.tv.core.ui.keyScroll
@@ -142,11 +142,11 @@ private fun Wizard(
     // A language other than the screen's was chosen: the screen is about to be made anew in it.
     // Until then the next page is not drawn, or it would show for a moment in the old language.
     var relanguaging by remember { mutableStateOf(false) }
-    Dialog(
+    LumbinaDialog(
         onDismissRequest = { if (at > 0 && pages[at - 1] != WizardStep.Language) onAt(at - 1) },
         properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false),
     ) {
-        if (relanguaging) return@Dialog Cover()
+        if (relanguaging) return@LumbinaDialog Cover()
         WizardFrame(
             // The language is asked before the steps begin: it is not one of them.
             position = pages.filter { it != WizardStep.Language }.indexOf(step).takeIf { it >= 0 },

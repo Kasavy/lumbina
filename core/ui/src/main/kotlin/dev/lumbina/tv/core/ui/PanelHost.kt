@@ -19,8 +19,6 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
 
 /**
  * One window for the panels [content] shows one after another, as a tile's menu and a page an entry
@@ -33,7 +31,7 @@ fun PanelHost(content: @Composable () -> Unit) {
     val host = remember { PanelHostState() }
     CompositionLocalProvider(LocalPanelHost provides host, content = content)
     host.shown?.let { panel ->
-        Popup(onDismissRequest = { panel.dismiss() }, properties = PopupProperties(focusable = true)) {
+        LumbinaPopup(onDismissRequest = { panel.dismiss() }) {
             val focus = LocalFocusManager.current
             SideEffect { host.clearFocus = { focus.clearFocus(force = true) } }
             var within by remember { mutableStateOf(false) }

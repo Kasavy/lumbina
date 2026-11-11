@@ -152,7 +152,7 @@
   document.documentElement.lang = ru ? 'ru' : 'en';
   var T = ru ? {
     remote: 'Пульт', touchpad: 'Тачпад', more: 'Ещё', hold: 'Удержать',
-    padHint: 'Водите пальцем, курсор на экране.\nКасание: нажать. Два пальца: прокрутка.',
+    padHint: 'Водите пальцем, курсор на экране.\nКасание: нажать. Два пальца или колесо мыши: прокрутка.',
     send: 'Ввести', textHint: 'Попадёт в поле ввода на экране устройства', typed: 'Введено',
     noField: 'На экране нет поля ввода',
     open: 'Открыть', linkHint: 'Ссылки YouTube откроются в приложении, выбранном для YouTube',
@@ -179,7 +179,7 @@
     goneText: 'Откройте Lumbina на устройстве: настройки, раздел «Пульт на телефоне», и наведите камеру на код.'
   } : {
     remote: 'Remote', touchpad: 'Touchpad', more: 'More', hold: 'Hold',
-    padHint: 'Move your finger to move the pointer.\nTap to click. Two fingers to scroll.',
+    padHint: 'Move your finger to move the pointer.\nTap to click. Two fingers or a mouse wheel to scroll.',
     send: 'Type', textHint: 'Goes into the text field on the device’s screen', typed: 'Typed',
     noField: 'There is no text field on the screen',
     open: 'Open', linkHint: 'YouTube links open in the app chosen for YouTube',
@@ -347,14 +347,93 @@
   });
 
   // Touchpad, by a finger or a mouse: moves are summed and sent at most every 40 ms; a short
-  // touch without movement clicks; two fingers, or the wheel, scroll.
+  // touch without movement clicks. Two fingers, or the wheel, scroll in steps along the axis the
+  // swipe took first: the faster the fingers, the shorter a step (STEP_SLOW to STEP_FAST px). Let
+  // go while moving, it goes on and slows down as on a phone, until a touch stops it. Steps go one
+  // after another, at most one per STEP_MS, a few queued; one the TV doesn't answer in STEP_WAIT
+  // ms is let go, so a dropped connection doesn't hold the rest.
+  var STEP_SLOW = 60, STEP_FAST = 30, SLOW = 0.3, FAST = 1.5, QUEUED = 8, STEP_MS = 60, STEP_WAIT = 1500;
+  // A wheel's line and page, in px (deltaMode 1 and 2); the wheel is let alone this long before its next turn is new.
+  var LINE = 16, PAGE = 400, WHEEL_PAUSE = 300;
+  // Speeds in px per ms; what is left of a fling's speed after each ms.
+  var FLING_FROM = 0.6, FLING_TO = 0.08, FRICTION = 0.993;
+  var steps = [], stepping = false;
+  function scrollStep(dir) {
+    if (steps.length >= QUEUED) return;
+    steps.push(dir);
+    if (!stepping) nextStep();
+  }
+  function nextStep() {
+    var dir = steps.shift();
+    stepping = !!dir;
+    if (!dir) return;
+    var sent = Date.now(), done = false;
+    function next() {
+      if (done) return;
+      done = true;
+      setTimeout(nextStep, Math.max(0, STEP_MS - (Date.now() - sent)));
+    }
+    call('scroll', 'dir=' + dir).then(next);
+    setTimeout(next, STEP_WAIT);
+  }
+  function stepAt(speed) {
+    var fast = Math.min(1, Math.max(0, (speed - SLOW) / (FAST - SLOW)));
+    return STEP_SLOW - fast * (STEP_SLOW - STEP_FAST);
+  }
   document.querySelectorAll('[data-pad]').forEach(function (pad) {
     var dx = 0, dy = 0, last = null, moved = 0, fingers = 0, started = 0, timer = null;
+    var sx = 0, sy = 0, axis = null, vx = 0, vy = 0, flushed = 0, flinging = 0, wheeled = 0;
+    // The page put away (another app, the screen off): a fling and what is queued stop, not carry on when it is back.
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) return;
+      if (flinging) { cancelAnimationFrame(flinging); flinging = 0; }
+      steps.length = 0;
+    });
+    function travel(ddx, ddy, speed) {
+      sx += ddx; sy += ddy;
+      var step = stepAt(speed);
+      if (!axis && Math.max(Math.abs(sx), Math.abs(sy)) >= step) axis = Math.abs(sy) >= Math.abs(sx) ? 'y' : 'x';
+      if (!axis) return;
+      var along = axis === 'y' ? sy : sx;
+      while (Math.abs(along) >= step && steps.length < QUEUED) {
+        // The content goes with the fingers, as on a touchscreen: fingers up, on to what is below.
+        scrollStep(axis === 'y' ? (along < 0 ? 'down' : 'up') : (along < 0 ? 'right' : 'left'));
+        along -= along < 0 ? -step : step;
+      }
+      // What the queue has no room for waits, up to a queue's worth more: a swipe doesn't run on long after.
+      along = Math.max(-QUEUED * step, Math.min(QUEUED * step, along));
+      if (axis === 'y') sy = along; else sx = along;
+    }
+    function fling(v) {
+      var prev = null;
+      function frame(now) {
+        if (prev !== null) {
+          var dt = Math.min(50, now - prev);
+          travel(axis === 'x' ? v * dt : 0, axis === 'y' ? v * dt : 0, Math.abs(v));
+          v *= Math.pow(FRICTION, dt);
+        }
+        prev = now;
+        flinging = Math.abs(v) >= FLING_TO ? requestAnimationFrame(frame) : 0;
+      }
+      flinging = requestAnimationFrame(frame);
+    }
+    // The last move's request, sent or on its way: a click waits for it.
+    var lastMove = null;
+    // Sends what the fingers moved.
     function flush() {
       timer = null;
-      if (fingers >= 2) { if (dy) call('scroll', 'dy=' + Math.round(dy)); }
-      else if (dx || dy) call('move', 'dx=' + Math.round(dx) + '&dy=' + Math.round(dy));
-      dx = 0; dy = 0;
+      var now = Date.now();
+      if (fingers >= 2) {
+        var dt = Math.max(1, Math.min(100, now - flushed));
+        vx = (vx + dx / dt) / 2; vy = (vy + dy / dt) / 2;
+        travel(dx, dy, Math.sqrt(vx * vx + vy * vy));
+      } else if (dx || dy) lastMove = call('move', 'dx=' + Math.round(dx) + '&dy=' + Math.round(dy));
+      flushed = now; dx = 0; dy = 0;
+    }
+    // A tap clicks where the pointer is once the last of its moves has got there, not before.
+    function clickAfterMove() {
+      if (timer) { clearTimeout(timer); flush(); }
+      Promise.resolve(lastMove).then(function () { call('click'); });
     }
     function moveTo(point) {
       if (last) { dx += point.clientX - last.clientX; dy += point.clientY - last.clientY; moved += Math.abs(point.clientX - last.clientX) + Math.abs(point.clientY - last.clientY); }
@@ -363,14 +442,28 @@
     }
     pad.addEventListener('touchstart', function (e) {
       e.preventDefault();
+      // A touch stops a fling, and what is still queued.
+      if (flinging) { cancelAnimationFrame(flinging); flinging = 0; }
+      steps.length = 0;
+      // A finger put down beside one already moving: what that one moved goes to the pointer, not to a scroll.
+      if (timer) { clearTimeout(timer); flush(); }
       fingers = e.touches.length; last = e.touches[0]; moved = 0; started = Date.now();
+      sx = 0; sy = 0; axis = null; vx = 0; vy = 0; flushed = started;
     }, { passive: false });
     pad.addEventListener('touchmove', function (e) { e.preventDefault(); moveTo(e.touches[0]); }, { passive: false });
     pad.addEventListener('touchend', function (e) {
       e.preventDefault();
       if (e.touches.length === 0) {
-        if (moved < 8 && fingers === 1 && Date.now() - started < 400) call('click');
+        if (moved < 8 && fingers === 1 && Date.now() - started < 400) clickAfterMove();
+        if (timer) { clearTimeout(timer); flush(); }
+        // Let go while still moving: a fling.
+        var v = axis === 'y' ? vy : vx;
+        if (fingers >= 2 && axis && Math.abs(v) >= FLING_FROM && Date.now() - flushed < 120) fling(v);
         last = null;
+      } else {
+        // One of two fingers up: the other goes on from where it is, not from where the first was,
+        // and goes on scrolling: the touch is still the two fingers' until all are up.
+        last = e.touches[0];
       }
     }, { passive: false });
     var mouse = false;
@@ -379,10 +472,26 @@
     window.addEventListener('mouseup', function () {
       if (!mouse) return;
       mouse = false;
-      if (moved < 8 && Date.now() - started < 400) call('click');
+      if (moved < 8 && Date.now() - started < 400) clickAfterMove();
       last = null;
     });
-    pad.addEventListener('wheel', function (e) { e.preventDefault(); call('scroll', 'dy=' + Math.round(-e.deltaY)); }, { passive: false });
+    // The wheel as the fingers, the other way round: turned down, on to what is below. A laptop's
+    // touchpad sends many small turns, a mouse's wheel a few big ones; both add up the same way.
+    pad.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      var unit = e.deltaMode === 1 ? LINE : e.deltaMode === 2 ? PAGE : 1;
+      var wx = -e.deltaX * unit, wy = -e.deltaY * unit;
+      var now = Date.now();
+      if (now - wheeled > WHEEL_PAUSE) {
+        sx = 0; sy = 0; axis = null;
+        // A turn of a notch (a line or more) is at least a step, though its browser counts it short
+        // of one: Firefox's three lines are 48 px. A touchpad's small first turns are left to add up.
+        var big = Math.max(Math.abs(wx), Math.abs(wy)), step = stepAt(SLOW);
+        if (big >= LINE && big < step) { wx *= step / big; wy *= step / big; }
+      }
+      wheeled = now;
+      travel(wx, wy, SLOW);
+    }, { passive: false });
   });
   $('longclick').addEventListener('click', function () { call('longclick'); });
 

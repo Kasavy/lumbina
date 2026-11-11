@@ -25,8 +25,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
 import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -148,7 +146,12 @@ private fun PanelWindow(
 ) {
     val guard = remember { FreshPressGuard() }
     val window: @Composable () -> Unit = {
-        Box(modifier.fillMaxSize().background(Color.Black.copy(alpha = if (dim) SCRIM_ALPHA else 0f))) {
+        Box(
+            modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = if (dim) SCRIM_ALPHA else 0f))
+                .closedByClickOutside(onDismiss),
+        ) {
             panel(Modifier.onPreviewKeyEvent(guard::swallow))
         }
     }
@@ -156,7 +159,7 @@ private fun PanelWindow(
     if (host != null) {
         HostedPanel(host, onDismiss, window)
     } else {
-        Popup(onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) { window() }
+        LumbinaPopup(onDismissRequest = onDismiss) { window() }
     }
 }
 
@@ -176,6 +179,7 @@ private fun PanelBody(
     Column(
         verticalArrangement = Arrangement.spacedBy(2.dp),
         modifier = modifier
+            .keepsClicks()
             .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(PANEL_CORNER))
             .padding(padding),
     ) {

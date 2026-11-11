@@ -51,7 +51,7 @@ data class RowLook(
 
 /**
  * The highlight color (focus, switches, progress), by its ARGB value: light enough for dark text
- * on it, bright enough to mark focus from across the room.
+ * on it; all but [Grey] bright enough to mark focus from across the room.
  */
 @Suppress("MagicNumber") // the colors are the values
 enum class Accent(val argb: Long) {
@@ -60,6 +60,9 @@ enum class Accent(val argb: Long) {
     Mint(0xFF6FE3B4),
     Rose(0xFFFF8FA8),
     Violet(0xFFC3A6FF),
+
+    /** Quiet, for one who finds the colored frames too bright; dark enough to show on a light theme too. */
+    Grey(0xFF8A9099),
 }
 
 /** Text size across Lumbina: Large for a far-away screen or weaker eyes. */

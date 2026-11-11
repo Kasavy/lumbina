@@ -27,6 +27,12 @@ internal interface PromptCard {
     fun move(step: Int)
 
     fun hide()
+
+    /**
+     * The keys of the card's owner: a button clicked (a mouse, the phone touchpad) is chosen and
+     * sent to them as OK, so it does what OK on it does.
+     */
+    fun takesKeys(keys: (KeyEvent) -> Boolean) {}
 }
 
 /**
@@ -48,6 +54,11 @@ internal class MicAppPrompt(
     private val scope: CoroutineScope,
     private val log: LumbinaLog,
 ) {
+    init {
+        // A button clicked is OK on it.
+        card.takesKeys(::onKey)
+    }
+
     /** Read as the card shows: Lumbina's own language may have changed since the service started. */
     private val texts: Texts get() = textsOf()
 

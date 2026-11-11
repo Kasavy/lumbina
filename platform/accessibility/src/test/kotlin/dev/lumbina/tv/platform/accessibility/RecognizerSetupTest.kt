@@ -7,6 +7,7 @@ import android.provider.Settings
 import dev.lumbina.tv.core.domain.access.AdbState
 import dev.lumbina.tv.core.domain.access.LocalAccess
 import dev.lumbina.tv.core.domain.access.LocalAdb
+import dev.lumbina.tv.core.domain.access.NotificationGrant
 import dev.lumbina.tv.core.domain.health.HealAccessibilityService
 import dev.lumbina.tv.core.testing.FakeHealLock
 import dev.lumbina.tv.core.testing.FakeSecureSettings
@@ -57,7 +58,7 @@ class RecognizerSetupTest {
             context,
             LocalAccess(adb, settings, {
                 heal()
-            }, context.packageName, "x.Listener"),
+            }, context.packageName, NotificationGrant.ByCommand("${context.packageName}/x.Listener")),
         ) { _, _ -> }
     }
 

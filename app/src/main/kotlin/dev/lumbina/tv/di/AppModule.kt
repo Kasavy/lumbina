@@ -2,6 +2,7 @@ package dev.lumbina.tv.di
 
 import android.content.ComponentName
 import android.content.Context
+import android.os.Build
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -15,6 +16,8 @@ import dev.lumbina.tv.core.common.OUR_SCREENSAVER
 import dev.lumbina.tv.core.domain.access.CompanionApp
 import dev.lumbina.tv.core.domain.access.LocalAccess
 import dev.lumbina.tv.core.domain.access.LocalAdb
+import dev.lumbina.tv.core.domain.access.NotificationGrant
+import dev.lumbina.tv.core.domain.access.NotificationListeners
 import dev.lumbina.tv.core.domain.app.AppsWithoutPlugins
 import dev.lumbina.tv.core.domain.app.InstalledApps
 import dev.lumbina.tv.core.domain.backdrop.WallpaperPlugins
@@ -67,6 +70,7 @@ object AppModule {
     fun localAccess(
         adb: LocalAdb,
         secureSettings: SecureSettings,
+        listeners: NotificationListeners,
         heal: HealAccessibilityService,
         companions: Set<@JvmSuppressWildcards CompanionApp>,
         log: LumbinaLog,
@@ -76,9 +80,17 @@ object AppModule {
         secureSettings,
         { heal().also { log.log("heal", "after the grant: $it") } },
         context.packageName,
-        LumbinaComponents.NOTIFICATION_LISTENER,
+        notificationGrant(ComponentName(context.packageName, LumbinaComponents.NOTIFICATION_LISTENER), listeners),
         companions.toList(),
     )
+
+    /** Below Android 8.1 `cmd notification` has no commands: there the listener goes into the setting. */
+    private fun notificationGrant(listener: ComponentName, listeners: NotificationListeners): NotificationGrant =
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O_MR1) {
+            NotificationGrant.BySetting(listener.flattenToString(), listeners)
+        } else {
+            NotificationGrant.ByCommand(listener.flattenToString())
+        }
 
     @Provides
     @Named(OUR_ACCESSIBILITY_SERVICE)

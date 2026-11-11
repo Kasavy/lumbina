@@ -70,7 +70,16 @@ internal class PhoneRemote(
         val hasMic: Boolean = false,
     )
 
-    private val cursor by lazy { PhoneCursor(service) }
+    private val pointer by lazy { PointerUse(service) }
+
+    private val touchpad by lazy {
+        Touchpad(
+            PhoneCursor(service),
+            hasArrows = DPAD_ACTIONS.isNotEmpty(),
+            overlay = { dir -> keyFirst(dir) == PhoneAnswer.Done },
+            arrow = { dir -> pressed(dir) },
+        )
+    }
 
     /** The display's own size in pixels, not the app's (TV firmware often lays apps out at 1080p on a 4K panel). */
     private val screen: Pair<Int, Int> by lazy {
@@ -143,7 +152,12 @@ internal class PhoneRemote(
                 server = null
                 if (current.enabled && current.key.isNotEmpty()) {
                     val port = PhoneRemoteSettings.PORT
-                    server = PhoneRemoteServer(port, current.key, ::page, ::handle, log, report, info)
+                    // Someone using the page is not idle: the screensaver and auto-sleep wait.
+                    val served: suspend (PhoneRequest) -> PhoneAnswer = { request ->
+                        if (request.command !in IDLE) pointer.used()
+                        handle(request)
+                    }
+                    server = PhoneRemoteServer(port, current.key, ::page, served, log, report, info)
                         .also { it.start(scope) }
                 }
             }
@@ -153,7 +167,7 @@ internal class PhoneRemote(
     fun stop() {
         server?.stop()
         server = null
-        cursor.hide()
+        touchpad.hide()
     }
 
     private fun page(): ByteArray = service.resources.openRawResource(R.raw.phone_remote).use { it.readBytes() }
@@ -166,7 +180,8 @@ internal class PhoneRemote(
             when (request.command) {
                 "ping" -> true
                 "key" -> pressed(button)
-                "move", "click", "longclick", "scroll" -> onMain { pointer(request.command.orEmpty(), request.query) }
+                "move", "click", "longclick" -> onMain { pointer(request.command.orEmpty(), request.query) }
+                "scroll" -> touchpad.scroll(request.query["dir"])
                 "text" -> text(request)
                 "link" -> request.shortBody()?.let { link -> withContext(Dispatchers.Main) { open(link) } } ?: false
                 "speechkey" -> saveSpeechKey(ports.speechKeys, request.query["p"], request.shortBody(), log)
@@ -175,19 +190,14 @@ internal class PhoneRemote(
         )
     }
 
-    /** The touchpad: moves the pointer, clicks and scrolls where it points. */
-    private fun pointer(command: String, query: Map<String, String>): Boolean {
-        val dy = query["dy"]?.toFloatOrNull() ?: 0f
-        return when (command) {
-            "move" -> {
-                cursor.move(query["dx"]?.toFloatOrNull() ?: 0f, dy)
-                true
-            }
-
-            "scroll" -> cursor.scroll(dy)
-
-            else -> cursor.click(long = command == "longclick")
+    /** The touchpad's pointer: moves it, clicks where it points. */
+    private fun pointer(command: String, query: Map<String, String>): Boolean = when (command) {
+        "move" -> {
+            touchpad.move(query["dx"]?.toFloatOrNull() ?: 0f, query["dy"]?.toFloatOrNull() ?: 0f)
+            true
         }
+
+        else -> touchpad.click(long = command == "longclick")
     }
 
     /** A button of the page: OK held goes by Lumbina's own access to the device, the rest by the service. */
@@ -270,6 +280,9 @@ internal class PhoneRemote(
         const val MAX_UPLOAD_BYTES = 2L * 1024 * 1024 * 1024
 
         val DPAD_BUTTONS = setOf("up", "down", "left", "right", "ok")
+
+        /** What the page asks by itself, not someone using it. */
+        val IDLE = setOf("ping", "info")
 
         val OVERLAY_KEYS = mapOf(
             "up" to KeyEvent.KEYCODE_DPAD_UP,

@@ -63,6 +63,7 @@ internal class QuickMenuOverlay(context: Context, private val textsOf: () -> Tex
         }
     }
     private var root: FrameLayout? = null
+    private val pointer = PointerUse(context)
     private var rows: List<LinearLayout> = emptyList()
     private var values: List<TextView> = emptyList()
     private var items: List<Item> = emptyList()
@@ -75,8 +76,14 @@ internal class QuickMenuOverlay(context: Context, private val textsOf: () -> Tex
         hide()
         this.items = items
         selected = 0
-        val params = overlayParams(views.windowWidth, MATCH_PARENT, Gravity.END or Gravity.TOP)
+        val params = overlayParams(views.windowWidth, MATCH_PARENT, Gravity.END or Gravity.TOP, touchable = true)
         root = views.frame().takeIf { windowManager.addOverlay(it, params) } ?: return
+        root?.closedByClickOutside { hide() }
+        // A pointer aimed at a line is no less a use of the menu than a key, and of the device.
+        (root as? PointerFrame)?.onPointer = {
+            keepOpen()
+            pointer.used()
+        }
         render()
         // What counts down (the sleep timer's minutes) goes on counting while the menu shows.
         handler.postDelayed(tick, TICK_MILLIS)
@@ -86,7 +93,7 @@ internal class QuickMenuOverlay(context: Context, private val textsOf: () -> Tex
         arrow.letGo()
         handler.removeCallbacks(hideRunnable)
         handler.removeCallbacks(tick)
-        root?.let(windowManager::removeView)
+        root?.let(windowManager::removeOverlay)
         root = null
         rows = emptyList()
         values = emptyList()
@@ -204,6 +211,14 @@ internal class QuickMenuOverlay(context: Context, private val textsOf: () -> Tex
         }
         frame.removeAllViews()
         frame.addView(panel, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        // A line clicked (a mouse, the phone touchpad) is chosen and OK pressed on it.
+        rows.forEachIndexed { index, row ->
+            row.setOnClickListener {
+                select(index)
+                activate()
+                keepOpen()
+            }
+        }
         refresh()
         select(selected)
         keepOpen()

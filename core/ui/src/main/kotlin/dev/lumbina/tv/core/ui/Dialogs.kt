@@ -47,7 +47,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
@@ -185,7 +184,7 @@ fun NameDialog(
             }
         }
     } else {
-        Dialog(onDismissRequest = onDismiss) {
+        LumbinaDialog(onDismissRequest = onDismiss) {
             Column(
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 modifier = modifier.width(DIALOG_WIDTH).dialogSurface().padding(28.dp),
@@ -266,7 +265,8 @@ fun ConfirmDialog(
     val cancel = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { cancel.requestFocus() } }
     val scroll = rememberScrollState()
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = width == null)) {
+    val properties = DialogProperties(usePlatformDefaultWidth = width == null)
+    LumbinaDialog(onDismissRequest = onDismiss, properties = properties) {
         Column(
             verticalArrangement = Arrangement.spacedBy(24.dp),
             modifier = modifier
@@ -279,7 +279,9 @@ fun ConfirmDialog(
             Text(title, style = MaterialTheme.typography.titleLarge)
             Text(text, modifier = Modifier.weight(1f, fill = false).verticalScroll(scroll))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                OutlinedButton(onClick = onDismiss, modifier = Modifier.focusRequester(cancel)) { Text(cancelLabel) }
+                OutlinedButton(onClick = onDismiss, modifier = Modifier.focusRequester(cancel)) {
+                    Text(cancelLabel)
+                }
                 Button(onClick = onConfirm) { Text(confirmLabel) }
             }
         }
@@ -301,14 +303,18 @@ fun CommandsDialog(
 ) {
     // The window takes no focus of its own: "Close" gets it, so the first press already closes.
     val close = remember { FocusRequester() }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    val properties = DialogProperties(usePlatformDefaultWidth = false)
+    LumbinaDialog(onDismissRequest = onDismiss, properties = properties) {
         LaunchedEffect(Unit) { close.requestFocusSoon() }
         Column(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier = modifier.width(COMMANDS_WIDTH).dialogSurface().padding(28.dp),
         ) {
             Text(title, style = MaterialTheme.typography.titleLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(24.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
                     Text(text, style = MaterialTheme.typography.bodyMedium)
                     note?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }

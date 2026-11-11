@@ -1,5 +1,6 @@
 package dev.lumbina.tv.core.domain.backdrop
 
+import dev.lumbina.tv.core.domain.MILLIS_PER_MINUTE
 import dev.lumbina.tv.core.testing.FakeMediaLibrary
 import dev.lumbina.tv.core.testing.FakeMediaLibrary.Companion.media
 import dev.lumbina.tv.core.testing.FakeSettings
@@ -28,6 +29,7 @@ class CurrentWallpaperTest {
         override fun openSettings(id: String) = false
     }
 
+    private var clock = 0L
     private val library = FakeMediaLibrary()
     private val marks = FakeSettings(MediaMarks())
 
@@ -37,6 +39,7 @@ class CurrentWallpaperTest {
         marks = marks,
         photos = { listOf(DailyPhoto("https://photo/1", "A lake (© Someone)")) },
         plugins = plugins,
+        now = { clock },
     )
 
     @Test
@@ -117,6 +120,98 @@ class CurrentWallpaperTest {
     private fun TestScope.changeFiles() {
         settings.value = settings.value.copy(mediaChangedAt = testScheduler.currentTime)
         runCurrent()
+    }
+
+    @Test
+    fun `back on the home screen the turn goes on from the one on screen`() = runTest {
+        library.files = listOf(media("1.jpg"), media("2.jpg"), media("3.jpg"))
+        settings.value = WallpaperSettings(source = WallpaperSource.MyMedia, changeMinutes = 5)
+        assertEquals("1.jpg", wallpaper.items().first()?.title)
+        // Away for a while (an app, the screensaver): the same one while its time lasts.
+        clock = 2 * MILLIS_PER_MINUTE
+        assertEquals("1.jpg", wallpaper.items().first()?.title)
+        // Its time ran out while away: the next one, not the first again.
+        clock = 6 * MILLIS_PER_MINUTE
+        assertEquals("2.jpg", wallpaper.items().first()?.title)
+        clock = 12 * MILLIS_PER_MINUTE
+        assertEquals("3.jpg", wallpaper.items().first()?.title)
+    }
+
+    @Test
+    fun `back on the home screen only what is left of the turn is waited`() = runTest {
+        library.files = listOf(media("1.jpg"), media("2.jpg"))
+        settings.value = WallpaperSettings(source = WallpaperSource.MyMedia, changeMinutes = 5)
+        wallpaper.items().first()
+        clock = 4 * MILLIS_PER_MINUTE
+        val shown = mutableListOf<String?>()
+        val job = launch { wallpaper.items().collect { shown += it?.title } }
+        runCurrent()
+        assertEquals(listOf("1.jpg"), shown)
+        advanceTimeBy(MILLIS_PER_MINUTE + 1)
+        assertEquals(listOf("1.jpg", "2.jpg"), shown)
+        job.cancel()
+    }
+
+    @Test
+    fun `a clock set back since the one on screen came ends its turn`() = runTest {
+        library.files = listOf(media("1.jpg"), media("2.jpg"))
+        settings.value = WallpaperSettings(source = WallpaperSource.MyMedia, changeMinutes = 5)
+        clock = 60 * MILLIS_PER_MINUTE
+        assertEquals("1.jpg", wallpaper.items().first()?.title)
+        // A boot ran ahead, then the network set the clock back an hour.
+        clock = 1 * MILLIS_PER_MINUTE
+        assertEquals("2.jpg", wallpaper.items().first()?.title)
+    }
+
+    @Test
+    fun `the one on screen chosen again in the library gets a whole turn`() = runTest {
+        library.files = listOf(media("1.jpg"), media("2.jpg"))
+        settings.value = WallpaperSettings(source = WallpaperSource.MyMedia, changeMinutes = 5)
+        assertEquals("1.jpg", wallpaper.items().first()?.title)
+        clock = 4 * MILLIS_PER_MINUTE
+        settings.value = settings.value.copy(startWith = "file:///photos/1.jpg")
+        assertEquals("1.jpg", wallpaper.items().first()?.title)
+        clock = 6 * MILLIS_PER_MINUTE
+        assertEquals("1.jpg", wallpaper.items().first()?.title)
+    }
+
+    @Test
+    fun `the one on screen gone while away, the first of those left`() = runTest {
+        library.files = listOf(media("1.jpg"), media("2.jpg"), media("3.jpg"))
+        settings.value = WallpaperSettings(source = WallpaperSource.MyMedia, changeMinutes = 5)
+        wallpaper.items().take(2).toList()
+        library.files = listOf(media("1.jpg"), media("3.jpg"))
+        clock = 1 * MILLIS_PER_MINUTE
+        assertEquals("1.jpg", wallpaper.items().first()?.title)
+    }
+
+    @Test
+    fun `a shorter turn set while away counts from when the one on screen came`() = runTest {
+        library.files = listOf(media("1.jpg"), media("2.jpg"))
+        settings.value = WallpaperSettings(source = WallpaperSource.MyMedia, changeMinutes = 60)
+        assertEquals("1.jpg", wallpaper.items().first()?.title)
+        clock = 10 * MILLIS_PER_MINUTE
+        settings.value = settings.value.copy(changeMinutes = 5)
+        assertEquals("2.jpg", wallpaper.items().first()?.title)
+    }
+
+    @Test
+    fun `back after many turns away, the next one, not the one the clock would have reached`() = runTest {
+        library.files = (1..5).map { media("$it.jpg") }
+        settings.value = WallpaperSettings(source = WallpaperSource.MyMedia, changeMinutes = 5)
+        assertEquals("1.jpg", wallpaper.items().first()?.title)
+        clock = 25 * MILLIS_PER_MINUTE
+        assertEquals("2.jpg", wallpaper.items().first()?.title)
+    }
+
+    @Test
+    fun `a single item is kept in the settings once, not at every turn`() = runTest {
+        library.files = listOf(media("1.jpg"))
+        settings.value = WallpaperSettings(source = WallpaperSource.MyMedia, changeMinutes = 1)
+        collect()
+        clock = 10 * MILLIS_PER_MINUTE
+        advanceTimeBy(3 * MINUTE)
+        assertEquals(0L, settings.value.shownAt)
     }
 
     private companion object {

@@ -27,6 +27,22 @@ object LumbinaActions {
     const val KEY_GESTURE = "dev.lumbina.tv.action.KEY_GESTURE"
     const val EXTRA_GESTURE = "dev.lumbina.tv.extra.GESTURE"
 
+    /**
+     * Sent by Lumbina's screens to its accessibility service while a mouse is used on them: the
+     * service counts only the remote's keys as activity otherwise, and the screensaver or auto-sleep
+     * would come under a moving pointer.
+     */
+    const val POINTER_USED = "dev.lumbina.tv.action.POINTER_USED"
+
+    /**
+     * Sent by the accessibility service to Lumbina's screen: the phone touchpad clicked at the screen
+     * point [EXTRA_X], [EXTRA_Y] where accessibility finds nothing to click (beside a panel, which a
+     * tap there closes, or on its empty places). The screen taps there itself.
+     */
+    const val TAP_AT = "dev.lumbina.tv.action.TAP_AT"
+    const val EXTRA_X = "dev.lumbina.tv.extra.X"
+    const val EXTRA_Y = "dev.lumbina.tv.extra.Y"
+
     /** Opens Lumbina's screensaver (an activity), started by the accessibility service when idle. */
     const val SHOW_SCREENSAVER = "dev.lumbina.tv.action.SHOW_SCREENSAVER"
 

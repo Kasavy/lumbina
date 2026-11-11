@@ -26,6 +26,12 @@ data class WallpaperSettings(
     val mediaChangedAt: Long = 0,
     /** The file to show first when the user's own are cycled, e.g. one just chosen in the library. */
     val startWith: String? = null,
+    /**
+     * The item on screen ([WallpaperItem.uri]) and when it came, in epoch milliseconds: back on the
+     * home screen, or after Lumbina restarted, the turn goes on from it instead of from the first.
+     */
+    val shown: String? = null,
+    val shownAt: Long = 0,
 ) {
     companion object {
         const val DEFAULT_CHANGE_MINUTES = 15

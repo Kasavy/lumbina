@@ -9,6 +9,10 @@ style:
         reason: 'Lumbina must work without Google Play services.'
       - value: 'com.google.firebase.*'
         reason: 'Lumbina must work without Google Play services.'
+      - value: 'androidx.compose.ui.window.Dialog'
+        reason: 'LumbinaDialog: its root reads the mouse.'
+      - value: 'androidx.compose.ui.window.Popup'
+        reason: 'LumbinaPopup: its root reads the mouse.'
   MagicNumber:
     ignorePropertyDeclaration: true
     ignoreCompanionObjectPropertyDeclaration: true
@@ -42,5 +46,7 @@ complexity:
 Compose:
   ModifierMissing:
     active: true
+    # Windows of their own, as Compose's Dialog and Popup: they emit nothing into the caller's layout.
+    contentEmittersDenylist: ['LumbinaDialog', 'LumbinaPopup']
   CompositionLocalAllowlist:
     active: true

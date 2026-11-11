@@ -41,7 +41,7 @@ internal class SleepWatcher(
     private val log: LumbinaLog,
     private val clock: SleepClock = SleepClock(now = System::currentTimeMillis),
 ) {
-    private val overlay = CornerCard(service)
+    private val overlay = CornerCard(service).also { it.takesKeys(::onKey) }
 
     /** The warning's card: another card of the service stands over it. */
     val card: CornerCard get() = overlay
@@ -62,6 +62,7 @@ internal class SleepWatcher(
             when (intent.action) {
                 Intent.ACTION_SCREEN_OFF -> clock.onScreen(on = false)
                 Intent.ACTION_SCREEN_ON -> clock.onScreen(on = true)
+                LumbinaActions.POINTER_USED -> clock.onActivity()
             }
             recheck()
         }
@@ -72,6 +73,7 @@ internal class SleepWatcher(
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_OFF)
             addAction(Intent.ACTION_SCREEN_ON)
+            addAction(LumbinaActions.POINTER_USED)
         }
         ContextCompat.registerReceiver(service, screen, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         scope.launch {

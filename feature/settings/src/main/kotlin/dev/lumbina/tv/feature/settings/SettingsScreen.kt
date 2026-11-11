@@ -2,6 +2,7 @@ package dev.lumbina.tv.feature.settings
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
@@ -62,6 +63,7 @@ import dev.lumbina.tv.core.ui.LocalPanelTop
 import dev.lumbina.tv.core.ui.LocalScreenMarks
 import dev.lumbina.tv.core.ui.SCRIM_ALPHA
 import dev.lumbina.tv.core.ui.SidePanelSurface
+import dev.lumbina.tv.core.ui.closedByClickOutside
 import dev.lumbina.tv.core.ui.panelTopClearOf
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
@@ -275,7 +277,14 @@ private fun SettingsPanel(
     val barMark = LocalScreenMarks.current
     val belowBar = if (spotlit == RowSpotlight.TOP_BAR) panelTopClearOf(barMark.bar) else 0.dp
     val panelTop = animateDpAsState(belowBar)
-    Box(modifier.fillMaxSize().background(Color.Black.copy(alpha = scrim))) {
+    // A mouse's click beside the panel is Back: a page goes up a level, the settings close from the top.
+    val back = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+    Box(
+        modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = scrim))
+            .closedByClickOutside { back?.onBackPressed() },
+    ) {
         SidePanelSurface(
             title = inside?.title ?: pageTitle ?: settings,
             path = listOfNotNull(settings.takeIf { page != null }, pageTitle.takeIf { inside != null }),

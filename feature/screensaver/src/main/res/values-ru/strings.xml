@@ -2,4 +2,6 @@
 <resources>
     <string name="screensaver_name">Заставка Lumbina</string>
     <string name="screensaver_phone_remote">Пульт на телефоне</string>
+    <!-- Read by a screen reader on the screensaver, which a click closes. -->
+    <string name="screensaver_close">Закрыть заставку</string>
 </resources>

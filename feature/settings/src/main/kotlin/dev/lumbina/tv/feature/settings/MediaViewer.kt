@@ -16,23 +16,36 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
 import coil3.compose.AsyncImage
 import dev.lumbina.tv.core.domain.backdrop.MediaKind
+import dev.lumbina.tv.core.ui.LumbinaPopup
 import dev.lumbina.tv.core.ui.MutedVideo
 import dev.lumbina.tv.core.ui.requestFocusSoon
 
 /**
  * A file over the whole screen, on black: a photo whole, a video playing whole and looping, silent
- * as on the wallpaper and screensaver. Back closes it ([onClose]).
+ * as on the wallpaper and screensaver. Back closes it ([onClose]), and a click of a mouse.
  */
 @Composable
 internal fun MediaViewer(entry: MediaEntry, onClose: () -> Unit) {
     val focus = remember { FocusRequester() }
-    Popup(onDismissRequest = onClose, properties = PopupProperties(focusable = true)) {
-        // Holds the focus, so the keys come here and Back closes this, not the library.
-        Box(Modifier.fillMaxSize().background(Color.Black).focusRequester(focus).focusable()) {
+    LumbinaPopup(onDismissRequest = onClose) {
+        // Holds the focus, so the keys come here and Back closes this, not the library; a mouse closes it by a click.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .focusRequester(focus)
+                .focusable()
+                .semantics {
+                    onClick {
+                        onClose()
+                        true
+                    }
+                },
+        ) {
             if (entry.file.kind == MediaKind.Video) {
                 // Its frame until it plays, and if it won't.
                 AsyncImage(

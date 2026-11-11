@@ -3,6 +3,7 @@ package dev.lumbina.tv.core.domain.device
 import dev.lumbina.tv.core.domain.access.AdbState
 import dev.lumbina.tv.core.domain.access.LocalAccess
 import dev.lumbina.tv.core.domain.access.LocalAdb
+import dev.lumbina.tv.core.domain.access.NotificationGrant
 import dev.lumbina.tv.core.domain.access.SetupScreens
 import dev.lumbina.tv.core.domain.app.AppId
 import dev.lumbina.tv.core.domain.backdrop.ScreensaverPicker
@@ -68,7 +69,13 @@ class DeviceConditionsTest {
     private fun read(profile: DeviceProfile, adb: LocalAdb, a11yScreen: Boolean, picker: ScreensaverPicker?) =
         ReadDeviceConditions(
             profile,
-            LocalAccess(adb, FakeSecureSettings(canWrite = false), { HealResult.AlreadyRunning }, "p", "p.L"),
+            LocalAccess(
+                adb,
+                FakeSecureSettings(canWrite = false),
+                { HealResult.AlreadyRunning },
+                "p",
+                NotificationGrant.ByCommand("p/p.L"),
+            ),
             Screens(a11yScreen),
             FakeSecureSettings(canWrite = false),
             Screensaver(picker),

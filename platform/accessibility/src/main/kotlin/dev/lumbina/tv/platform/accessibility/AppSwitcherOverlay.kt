@@ -22,10 +22,10 @@ import dev.lumbina.tv.core.domain.app.AppId
  * on by itself ([HeldArrow]).
  */
 internal class AppSwitcherOverlay(
-    context: Context,
+    private val context: Context,
     texts: () -> AppSwitcherViews.Texts,
     private val onPick: (App) -> Unit,
-    onClose: (App) -> Unit,
+    private val onClose: (App) -> Unit,
     private val onCloseAll: (List<App>) -> Unit,
 ) {
     private val windowManager = context.getSystemService(WindowManager::class.java)
@@ -39,6 +39,7 @@ internal class AppSwitcherOverlay(
         select(if (key == KeyEvent.KEYCODE_DPAD_LEFT) selected - 1 else selected + 1, smooth = !repeated)
         keepOpen()
     }
+    private val pointer = PointerUse(context)
     private var root: View? = null
     private var ribbon: AppSwitcherViews.Ribbon? = null
     private var apps: List<App> = emptyList()
@@ -99,9 +100,39 @@ internal class AppSwitcherOverlay(
         val start = RibbonStart.of(initial, apps.size, toCloseAll, hasCloseAll = made.closeAll != null)
         atCloseAll = start.onCloseAll
         selected = start.card
-        val params = overlayParams(MATCH_PARENT, WRAP_CONTENT, Gravity.BOTTOM)
-        root = made.view.takeIf { windowManager.addOverlay(it, params) } ?: return
+        val params = overlayParams(MATCH_PARENT, WRAP_CONTENT, Gravity.BOTTOM, touchable = true)
+        // A pointer aimed at a card is no less a use of the ribbon than a key, and of the device.
+        val frame = PointerFrame(context).apply {
+            addView(made.view, MATCH_PARENT, WRAP_CONTENT)
+            onPointer = {
+                keepOpen()
+                pointer.used()
+            }
+        }
+        root = frame.takeIf { windowManager.addOverlay(it, params) } ?: return
+        frame.closedByClickOutside { hide() }
         ribbon = made
+        made.clicks(
+            open = { app ->
+                hide()
+                onPick(app)
+            },
+            closeOne = { index: Int, app: App ->
+                atCloseAll = false
+                if (app.id !in closing) {
+                    closing += app.id
+                    onClose(app)
+                }
+                select(index)
+                keepOpen()
+            }.takeIf { close == CloseApps.Yes },
+            closeAll = {
+                atCloseAll = true
+                closeAll()
+                select(selected)
+                keepOpen()
+            },
+        )
         // Straight to the card: shown anew after a close, the ribbon would slide in from its start.
         select(selected, smooth = false)
         keepOpen()
@@ -123,7 +154,7 @@ internal class AppSwitcherOverlay(
 
     private fun removeWindow() {
         handler.removeCallbacks(hideRunnable)
-        root?.let(windowManager::removeView)
+        root?.let(windowManager::removeOverlay)
         root = null
         ribbon = null
     }
@@ -267,4 +298,27 @@ internal data class RibbonStart(val card: Int, val onCloseAll: Boolean) {
         fun of(initial: Int, cards: Int, toCloseAll: Boolean, hasCloseAll: Boolean) =
             RibbonStart(initial.coerceIn(0, (cards - 1).coerceAtLeast(0)), toCloseAll && hasCloseAll)
     }
+}
+
+/**
+ * A click (a mouse, the phone touchpad) on a card, its picture or its name, [open]s its app as OK
+ * does; held, it closes the app as holding OK does ([closeOne], where apps can be closed); on
+ * "Close all" it closes them ([closeAll]).
+ */
+internal fun AppSwitcherViews.Ribbon.clicks(
+    open: (App) -> Unit,
+    closeOne: ((Int, App) -> Unit)?,
+    closeAll: () -> Unit,
+) {
+    cards.forEachIndexed { index, card ->
+        val cell = card.frame.parent as? View ?: card.frame
+        cell.setOnClickListener { open(card.app) }
+        closeOne?.let { close ->
+            cell.setOnLongClickListener {
+                close(index, card.app)
+                true
+            }
+        }
+    }
+    this.closeAll?.frame?.setOnClickListener { closeAll() }
 }

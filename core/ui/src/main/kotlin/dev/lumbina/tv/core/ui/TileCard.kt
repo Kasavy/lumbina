@@ -142,7 +142,8 @@ private fun DrawnCard(
             propagateMinConstraints = true,
             modifier = modifier
                 .okPress(ok, onClick, onLongClick)
-                // Focusable by itself; there for a pointer and for accessibility too. OK is taken above.
+                // Focusable by itself; there for touch and accessibility too (a mouse clicks it through
+                // the semantics, see mouseClicks). OK is taken above.
                 .combinedClickable(
                     interactionSource = interactions,
                     indication = null,

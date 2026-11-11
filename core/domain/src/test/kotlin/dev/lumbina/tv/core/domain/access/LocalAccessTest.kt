@@ -3,6 +3,7 @@ package dev.lumbina.tv.core.domain.access
 import dev.lumbina.tv.core.domain.health.HealAccessibilityService
 import dev.lumbina.tv.core.domain.health.HealResult
 import dev.lumbina.tv.core.testing.FakeHealLock
+import dev.lumbina.tv.core.testing.FakeNotificationListeners
 import dev.lumbina.tv.core.testing.FakeSecureSettings
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -44,13 +45,14 @@ class LocalAccessTest {
         settings: FakeSecureSettings = FakeSecureSettings(),
         companions: List<CompanionApp> = emptyList(),
         onHealed: (HealResult) -> Unit = {},
+        notifications: NotificationGrant = NotificationGrant.ByCommand(LISTENER),
     ) = LocalAccess(
         adb,
         settings,
         HealAccessibilityService(settings, { false }, ours, FakeHealLock(), toggleDelayMillis = 0, settleMillis = 0)
             .let { heal -> suspend { heal().also(onHealed) } },
         "dev.lumbina.tv",
-        "dev.lumbina.tv.Listener",
+        notifications,
         companions,
     )
 
@@ -83,7 +85,7 @@ class LocalAccessTest {
         assertEquals(
             adb.commands.flatMap {
                 it.split(SHELL_AND_THEN)
-            }.map { "adb shell $it" }.toSet(),
+            }.map(ComputerSetup::adbShell).toSet(),
             computer.toSet(),
         )
     }
@@ -188,10 +190,52 @@ class LocalAccessTest {
     }
 
     @Test
-    fun `computer commands keep the other services`() {
-        val commands = ComputerSetup.commands("10.0.0.2", "a/.A:$ours", ours, "dev.lumbina.tv")
-        assertEquals("adb connect 10.0.0.2", commands[0])
-        assertEquals("adb shell appops set dev.lumbina.tv ACCESS_RESTRICTED_SETTINGS allow", commands[1])
-        assertEquals("adb shell settings put secure enabled_accessibility_services a/.A:$ours", commands[2])
+    fun `the setup from a computer keeps the other services and sets up the rest too`() {
+        val access = access(FakeAdb(AdbState.NotListening))
+        val commands = ComputerSetup.commands("10.0.0.2", access.computerCommands, "a/.A:$ours", ours)
+        assertEquals("adb connect 10.0.0.2", commands.first())
+        assertTrue("adb shell cmd notification allow_listener $LISTENER" in commands)
+        // The restriction lifted before the service is listed, or Android 13 refuses it.
+        val lifted = commands.indexOf("adb shell appops set dev.lumbina.tv ACCESS_RESTRICTED_SETTINGS allow")
+        assertTrue(lifted in 1 until commands.lastIndex)
+        assertEquals("adb shell \"settings put secure enabled_accessibility_services 'a/.A:$ours'\"", commands.last())
+    }
+
+    @Test
+    fun `on Android 8_0 Lumbina puts its listener in the setting itself, and the shell has nothing left`() = runTest {
+        val listeners = FakeNotificationListeners("tv.rec/.Notifications")
+        val adb = FakeAdb(AdbState.Connected)
+        val access = access(adb, notifications = NotificationGrant.BySetting(LISTENER, listeners))
+        assertEquals(SetupResult.Done, access.connectAndSetUp())
+        assertEquals("tv.rec/.Notifications:$LISTENER", listeners.value)
+        // Its shell has no such command and would say it went well.
+        assertTrue(adb.commands.none { "cmd notification" in it || ENABLED_NOTIFICATION_LISTENERS in it })
+    }
+
+    @Test
+    fun `on Android 8_0 without the permission the shell writes the list`() = runTest {
+        val listeners = FakeNotificationListeners("tv.rec/.Notifications", canWrite = false)
+        val adb = FakeAdb(AdbState.Connected)
+        access(adb, notifications = NotificationGrant.BySetting(LISTENER, listeners)).renew()
+        assertEquals("tv.rec/.Notifications", listeners.value)
+        val put = "settings put secure $ENABLED_NOTIFICATION_LISTENERS 'tv.rec/.Notifications:$LISTENER'"
+        assertTrue(adb.commands.single().contains(put))
+    }
+
+    @Test
+    fun `on Android 8_0 the computer puts the listener into the setting`() {
+        val listeners = FakeNotificationListeners("tv.rec/.Notifications")
+        val access =
+            access(FakeAdb(AdbState.NotListening), notifications = NotificationGrant.BySetting(LISTENER, listeners))
+        val commands = access.computerCommands
+        assertTrue(
+            "adb shell \"settings put secure $ENABLED_NOTIFICATION_LISTENERS 'tv.rec/.Notifications:$LISTENER'\"" in
+                commands,
+        )
+        assertTrue(commands.none { "cmd notification" in it })
+    }
+
+    private companion object {
+        const val LISTENER = "dev.lumbina.tv/dev.lumbina.tv.Listener"
     }
 }
